@@ -57,7 +57,7 @@ Status: first outline from Mert, 9 Oct 2026. Everything below "Open questions" i
 
 ## Critical buildings, surveillance, radar (decided 9 Oct — details PROPOSED, to confirm)
 - The city has critical buildings; hitting one disrupts a function.
-- Surveillance UAVs reveal where the enemy's important buildings are.
+- Surveillance UAVs reveal where the enemy's important buildings are. Once revealed, a building stays visible for the rest of the match.
 - Radars are built and upgraded for range, target identification, and telling decoys from real threats.
 
 ## Practice (decided 9 Oct)
