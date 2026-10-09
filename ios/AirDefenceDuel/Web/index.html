@@ -30,6 +30,7 @@
   color-scheme:dark;
 }
 [hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 html,body{height:100%;margin:0;overflow:hidden;background:var(--bg);color:var(--fg);font-family:var(--mono);font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
 button,select,input{font:inherit;color:inherit}
 #c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
@@ -123,11 +124,12 @@ select.mini{appearance:none;-webkit-appearance:none;background:rgba(255,255,255,
 .ammo.low{background:var(--threat)} .ammo.empty{background:var(--danger);color:#fff}
 .hint{position:fixed;z-index:2;left:calc(env(safe-area-inset-left,0px) + 10px);bottom:calc(env(safe-area-inset-bottom,0px) + 10px);max-width:min(46vw,420px);background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--money);border-radius:4px;padding:7px 11px;font-size:12px;line-height:1.4;backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);pointer-events:none}
 .hint b{color:var(--money);font-weight:400;letter-spacing:.06em} .hint .warn{color:var(--danger)}
-.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:6px}
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.tile .role{font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
 .tile{display:grid;gap:3px;align-content:start;text-align:left;padding:6px 7px;background:rgba(255,255,255,.03);border:1px solid var(--line);border-top:3px solid var(--c);border-radius:3px;cursor:pointer;min-width:0}
 .tile:disabled{opacity:.4}
 .tile.sel{outline:2px solid var(--c);outline-offset:-2px;background:rgba(255,255,255,.08)}
-.tile .tn{font-family:var(--display);font-weight:700;font-size:15px;line-height:1.05;color:var(--c);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .tn{font-family:var(--display);font-weight:700;font-size:15px;line-height:1.1;color:var(--c)}
 .tile .meta{font-size:10px;color:var(--dim)}.tile .meta b{color:var(--money);font-weight:400}
 .tile .hits{display:flex;gap:3px;flex-wrap:wrap}
 .tile .hits i{font-style:normal;font-size:8.5px;letter-spacing:.04em;padding:0 3px;border-radius:2px;color:#061018;background:var(--k)}

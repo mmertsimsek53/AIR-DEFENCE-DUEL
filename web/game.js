@@ -607,7 +607,7 @@ function finishDraw(){
   if(mode==='dir'){plan.bearing=Math.atan2(a.z-b.z,a.x-b.x);plan.dirLine=[{x:a.x,z:a.z},{x:b.x,z:b.z}];msg('Strike will come from the '+compass(plan.bearing),'good');}
   else{plan.scoutPath[mode]=[{x:a.x/U,z:a.z/U},{x:b.x/U,z:b.z/U}];msg(SCT[mode].name+' will fly this line','good');}
   drawMode=null;$('placing').hidden=true;tab='attack';sheetSig='';rebuildPlanGfx();refreshUI();}
-const REC_DEF=[['Against drones & UAVs',['korkut','sungur']],['Against cruise missiles & rockets',['hisara','irondome']],['Against ballistic missiles',['davidsling','patriot']]];
+const REC_DEF=[['vs drones',['korkut','sungur']],['vs missiles',['hisara','irondome']],['vs ballistic',['davidsling','patriot']]];
 const REC_ATK=['shahed','trg300','som','tayfun','tb2s'];
 const TARGET_ORDER=['factory','command','power','radar','finance','depot','airbase'];
 function quickStrike(){
@@ -659,12 +659,12 @@ function sheetHTML(){
             '<button class="mini" data-act="reload" data-k="'+b.uid+'"'+(B<rc?' disabled':'')+'>Buy '+s.load+' now · '+fmt(rc)+'</button>':'')+
           (b.upgradeCost!=null?'<button class="mini" data-act="upBat" data-k="'+b.uid+'"'+(B<b.upgradeCost?' disabled':'')+'>Upgrade '+fmt(b.upgradeCost)+'</button>':'')+'</div></div>';}).join('')+'</div>';
     }
-    const card=s=>{const col=css(SYS_COL[s.id]),best=CLS_ORDER.filter(k=>s.hit[k]&&k!=='decoy').sort((x,y)=>s.hit[y]-s.hit[x]).slice(0,3);
-      return '<button class="tile'+(placing===s.id?' sel':'')+'" type="button" data-act="place" data-k="'+s.id+'" style="--c:'+col+'"'+(B<s.price?' disabled':'')+'><b class="tn">'+esc(s.name)+'</b>'+
+    const card=(s,role)=>{const col=css(SYS_COL[s.id]),best=CLS_ORDER.filter(k=>s.hit[k]&&k!=='decoy').sort((x,y)=>s.hit[y]-s.hit[x]).slice(0,3);
+      return '<button class="tile'+(placing===s.id?' sel':'')+'" type="button" data-act="place" data-k="'+s.id+'" style="--c:'+col+'"'+(B<s.price?' disabled':'')+'>'+(role?'<span class="role">'+role+'</span>':'')+'<b class="tn">'+esc(s.name)+'</b>'+
         '<span class="meta"><b>'+fmt(s.price)+'</b> · '+s.range+' km</span><span class="hits">'+best.map(k=>'<i style="--k:'+CLS_CSS[k]+'">'+CLS_LABEL[k]+' '+Math.round(s.hit[k])+'</i>').join('')+'</span></button>';};
     h+='<h3>Buy a defence <span class="small">· tap one, then a glowing + in your city</span></h3>';
-    if(!showAllDef){for(const [title,ids] of REC_DEF)h+='<div class="grp">'+title+'</div><div class="tiles">'+ids.map(id=>card(DEF[id])).join('')+'</div>';}
-    else h+='<div class="tiles">'+CAT.defences.map(card).join('')+'</div>';
+    if(!showAllDef){h+='<div class="tiles">';for(const [title,ids] of REC_DEF)h+=ids.map(id=>card(DEF[id],title)).join('');h+='</div>';}
+    else h+='<div class="tiles">'+CAT.defences.map(s=>card(s)).join('')+'</div>';
     h+='<button class="mini" data-act="showall" data-k="def">'+(showAllDef?'Show recommended only':'Show all '+CAT.defences.length+' systems')+'</button>';
     return h;
   }
