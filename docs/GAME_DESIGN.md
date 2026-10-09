@@ -76,6 +76,9 @@ Status: first outline from Mert, 9 Oct 2026. Everything below "Open questions" i
 - Surveillance UAVs (e.g. TB2 scouting, Anka, Global Hawk) reveal buildings under their path. Cheap = low, slow, easy to shoot down; expensive = high, sees more. Unrevealed → you can only aim at the city in general.
 - Radars: 3 levels each for **range** (earlier warning), **identification** (threat type vs "unknown"), **decoy detection** (how soon fakes are marked). Real radar names per level (e.g. Kalkan → EL/M-2084 → AN/TPY-2).
 
+## Defence missile restock (decided 9 Oct)
+- Each missile defence has a standing order "keep N spare" (default: one full reload). At the start of each of your own turns the game buys missiles back up to that level automatically, as far as money allows (not while the factory is down). Change it any time.
+
 ## Practice (decided 9 Oct)
 - No AI stand-in for matchmaking: you wait for a real online opponent.
 - Separate **Sandbox training** against an AI opponent.
