@@ -116,6 +116,16 @@ button,select,input{font:inherit;color:inherit}
 .mini.on{border-color:var(--pc);color:var(--pc)}
 select.mini{appearance:none;-webkit-appearance:none;background:rgba(255,255,255,.04);max-width:150px}
 .seg{display:flex;gap:4px;flex-wrap:wrap}
+.items{display:grid;gap:5px}
+.item{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"nm cnt" "acts acts";gap:4px 10px;align-items:center;padding:6px 8px;border:1px solid var(--line);border-left:3px solid var(--c);border-radius:3px}
+.item .nm{grid-area:nm;min-width:0}.item .nm b{display:block;font-family:var(--display);font-weight:700;font-size:15px;color:var(--c)}.item .nm span{font-size:10px;color:var(--dim)}
+.item .cnt{grid-area:cnt;text-align:right;white-space:nowrap;font-size:10px;color:var(--dim)}
+.item .cnt .big{font-family:var(--display);font-weight:800;font-size:22px;color:var(--fg);line-height:1}.item .cnt .big.bad{color:var(--danger)}
+.item .acts{grid-area:acts;display:flex;gap:5px;flex-wrap:wrap;align-items:center;justify-content:flex-end}
+.item.small-item .nm span{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+.item .stepper .small{margin-right:2px}
+.strikebar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 8px;border:1px solid var(--danger);border-radius:3px;font-size:11px;background:rgba(255,90,78,.08)}
+.sheet h3 .small{font-family:var(--mono);font-weight:400;letter-spacing:.02em}
 .storebar{display:grid;gap:3px}
 .storebar .bar{height:8px}
 .storebar .bar i{background:var(--money)}
@@ -155,6 +165,20 @@ select.mini{appearance:none;-webkit-appearance:none;background:rgba(255,255,255,
   .tab,.btn{font-size:13px;padding:8px 9px}.card{flex-basis:168px}.panel{bottom:calc(env(safe-area-inset-bottom,0px) + 110px)}
   .msg{top:calc(env(safe-area-inset-top,0px) + 120px)}
 }
+/* Landscape phone: compact start screen. */
+@media (orientation:landscape) and (max-height:540px){
+  .overlay{padding:10px 20px}
+  .mcard{width:min(100%,760px);gap:8px}
+  .mcard h1{font-size:40px;line-height:.95}
+  .mcard p,.mcard ol{font-size:12px;line-height:1.4}
+  .eyebrow{font-size:10px}
+  .mcard .btn{font-size:15px;padding:9px 16px}
+  .legend{padding-block:6px;gap:3px}
+  #menu .mcard{grid-template-columns:1fr 1fr;column-gap:24px;align-items:start}
+  #menu .mcard > h1{grid-column:1/3}
+  #menu .eyebrow,#menu .more{display:none}
+  #menu .mcard h1{font-size:34px}
+}
 /* Landscape phone: menus become a panel on the right so the city stays visible on the left. */
 @media (orientation:landscape) and (max-height:540px){
   #dock{left:auto;right:calc(env(safe-area-inset-right,0px) + 8px);transform:none;bottom:calc(env(safe-area-inset-bottom,0px) + 6px);width:min(430px,50vw);gap:5px}
@@ -186,6 +210,8 @@ select.mini{appearance:none;-webkit-appearance:none;background:rgba(255,255,255,
   <div class="role" id="role">Setup</div>
   <div class="budget" id="budget">$0M</div>
   <div class="kv"><span>Income</span><b id="income">—</b></div>
+  <div class="kv"><span>Defence missiles</span><b id="arsDef">0</b></div>
+  <div class="kv"><span>Strike weapons</span><b id="arsAtk">0</b></div>
   <div class="lbl" style="display:flex;justify-content:space-between">City health <span id="hp" style="color:var(--fg)">1000</span></div>
   <div class="bar"><i id="hpBar"></i></div>
   <div class="lbl" style="display:flex;justify-content:space-between"><span id="oppName">Opponent</span> <span id="ohp" style="color:var(--fg)">1000</span></div>
@@ -209,10 +235,9 @@ select.mini{appearance:none;-webkit-appearance:none;background:rgba(255,255,255,
   <div class="status" id="status" hidden></div>
   <div class="tabs" id="tabs" hidden>
     <button class="tab" data-tab="build" type="button">Defence</button>
-    <button class="tab" data-tab="weapons" type="button">Weapons</button>
+    <button class="tab" data-tab="attack" type="button">Attack</button>
     <button class="tab" data-tab="upgrades" type="button">Upgrades</button>
     <button class="tab" data-tab="city" type="button">City</button>
-    <button class="tab" data-tab="strike" type="button" id="strikeTab">Strike</button>
     <button class="btn" id="cityTab" type="button">Enemy city</button>
     <button class="btn" id="waitBtn" type="button">Wait</button>
     <button class="btn primary" id="endBtn" type="button">Ready</button>
@@ -234,7 +259,7 @@ select.mini{appearance:none;-webkit-appearance:none;background:rgba(255,255,255,
       <li><b>Your turn, 1 minute:</b> upgrade, then plan a strike and press GO, or wait and save money.</li>
       <li><b>Under attack:</b> tap a contact to make it the priority, long-press to hold fire on it.</li>
     </ol>
-    <p style="color:var(--dim)">Critical buildings are hidden until a UAV flies over them. Knock out the enemy's factory, power, radar or command centre to cripple them. A city at zero health is destroyed.</p>
+    <p class="more" style="color:var(--dim)">Critical buildings are hidden until a UAV flies over them. Knock out the enemy's factory, power, radar or command centre to cripple them. A city at zero health is destroyed.</p>
     <div class="field"><span class="lbl">Commander</span><input id="nameIn" maxlength="14" placeholder="Your name" autocomplete="off"></div>
     <div class="btns"><button class="btn primary" id="startBtn" type="button" style="--pc:#6fe3ff">Sandbox vs AI</button><button class="btn" type="button" disabled>Online duel · soon</button></div>
   </div>

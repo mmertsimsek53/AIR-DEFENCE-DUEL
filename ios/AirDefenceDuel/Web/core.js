@@ -200,7 +200,8 @@
       reloadsLeft: 0,
       spent: 0,
       conceded: false,
-      ready: false
+      ready: false,
+      restock: {}
     };
   }
   function createMatch(seed, names, ai = [false, false]) {
@@ -321,6 +322,12 @@
       if (m.phase !== "turn" || m.active !== pi) return fail("Not your turn.");
       return launch(m, pi, cmd.strikes, cmd.scouts);
     }
+    if (cmd.c === "setRestock") {
+      const s = DEFENCES.find((x) => x.id === cmd.sys);
+      if (!s || s.load === 0) return fail("That system needs no missiles.");
+      p.restock[s.id] = Math.max(0, Math.min(99, Math.floor(cmd.n)));
+      return ok;
+    }
     if (!canShop(m, pi)) return fail("You can buy only during setup or your own turn.");
     const factoryUp = working(p, "factory");
     switch (cmd.c) {
@@ -331,6 +338,7 @@
         if (p.batteries.some((b) => b.pad === cmd.pad)) return fail("That pad is taken.");
         if (!spend(p, s.price)) return fail("Not enough budget.");
         p.batteries.push({ uid: uid(m), sys: s.id, pad: cmd.pad, level: 1, ammo: s.load, cooldown: 0, reloading: 0, holdFire: false, revealed: false, kills: 0, dwell: 0 });
+        if (s.load > 0 && p.restock[s.id] == null) p.restock[s.id] = s.load;
         return ok;
       }
       case "upgradeBattery": {
@@ -435,10 +443,32 @@
     for (const b of p.buildings) if (b.down > 0) b.down--;
     const commandHit = !working(p, "command");
     p.budget = round(p.budget + incomeFor(p));
+    autoRestock(p);
     p.launched = {};
     m.weatherBad = rnd(m) < RULES.badWeatherChance;
     m.phaseEndsAt = m.time + (commandHit ? RULES.turnSecondsCommandHit : RULES.turnSeconds);
     log(m, `Turn ${m.turnNo}: ${p.name}. +$${incomeFor(p)}M income.${commandHit ? " Command centre down: 30 s." : ""}`);
+  }
+  function autoRestock(p) {
+    let n = 0, cost = 0, short = false;
+    if (!working(p, "factory")) {
+      p.lastRestock = { n: 0, cost: 0, short: true };
+      return;
+    }
+    for (const sys in p.restock) {
+      if (!p.batteries.some((b) => b.sys === sys)) continue;
+      const s = defence(sys), need = p.restock[sys] - (p.interceptors[sys] ?? 0);
+      if (need <= 0) continue;
+      const afford = Math.min(need, Math.floor((p.budget + 1e-9) / s.shot));
+      if (afford < need) short = true;
+      if (afford <= 0) continue;
+      p.budget = round(p.budget - afford * s.shot);
+      p.spent = round(p.spent + afford * s.shot);
+      p.interceptors[sys] = (p.interceptors[sys] ?? 0) + afford;
+      n += afford;
+      cost = round(cost + afford * s.shot);
+    }
+    p.lastRestock = { n, cost, short };
   }
   function finish(m, winner, reason) {
     m.phase = "over";
@@ -1184,7 +1214,9 @@
         radarNames: RADAR_LEVELS.names,
         storage: { used: storedUnits(me), safe: ECONOMY.storage.values[me.econ.storage] },
         autoFire: me.autoFire,
-        reloadsLeft: me.reloadsLeft
+        reloadsLeft: me.reloadsLeft,
+        restock: me.restock,
+        lastRestock: me.lastRestock
       },
       enemy: {
         name: foe.name,

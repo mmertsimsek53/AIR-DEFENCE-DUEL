@@ -51,6 +51,8 @@ export interface PlayerState {
   spent: number;
   conceded: boolean;
   ready: boolean;          // finished setup early
+  restock: Record<string, number>;      // standing order: spare interceptors to keep per system (bought at the start of each own turn)
+  lastRestock?: { n: number; cost: number; short: boolean };
 }
 
 export interface Threat {
@@ -154,6 +156,7 @@ export type Command =
   | { c: 'upgradeBattery'; uid: number }
   | { c: 'sellBattery'; uid: number }
   | { c: 'buyInterceptors'; sys: string; n: number }
+  | { c: 'setRestock'; sys: string; n: number }
   | { c: 'buyLauncher'; weapon: string }
   | { c: 'buyUnits'; weapon: string; n: number }
   | { c: 'buyScout'; scout: string }

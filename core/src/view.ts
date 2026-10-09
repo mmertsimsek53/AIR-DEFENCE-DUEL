@@ -27,7 +27,7 @@ export function viewFor(m: Match, pi: PlayerIndex) {
       offUp: me.offUp, econ: me.econ, radar: me.radar, radarRange: radarRange(me),
       radarNames: RADAR_LEVELS.names,
       storage: { used: storedUnits(me), safe: ECONOMY.storage.values[me.econ.storage] },
-      autoFire: me.autoFire, reloadsLeft: me.reloadsLeft,
+      autoFire: me.autoFire, reloadsLeft: me.reloadsLeft, restock: me.restock, lastRestock: me.lastRestock,
     },
     enemy: {
       name: foe.name, health: foe.health, scars: foe.scars,

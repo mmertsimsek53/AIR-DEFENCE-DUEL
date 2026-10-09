@@ -400,7 +400,7 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 
 /* ======================= GAME STATE ======================= */
 let view=null,running=false,T=0;
-let viewSide=0,choice=0,tab=null,placing=null,selected=null,plan={counts:{},targets:{},scouts:{}},upSeg='def';
+let viewSide=0,choice=0,tab=null,placing=null,selected=null,plan={counts:{},target:null,scouts:{}},upSeg='def';
 let lastTurnKey='',sheetSig='',sheetT=0,useShadows=true;
 const TV=new Map(),IV=new Map();   // threat and interceptor visuals by uid
 
@@ -415,7 +415,7 @@ function startGame(demo){
   ADD.newSandbox((Math.random()*1e9)|0,name,!!demo);
   view=ADD.viewRaw();
   buildCity(SIDES[0],0);buildCity(SIDES[1],1);
-  clearBattle();choice=0;tab=demo?null:'build';placing=null;selected=null;plan={counts:{},targets:{},scouts:{}};lastTurnKey='';sheetSig='';
+  clearBattle();choice=0;tab=demo?null:'build';placing=null;selected=null;plan={counts:{},target:null,scouts:{}};lastTurnKey='';sheetSig='';
   $('menu').hidden=true;$('report').hidden=true;running=true;
   cam.theta=0.7;cam.phi=1.05;
   refreshUI();
@@ -423,7 +423,7 @@ function startGame(demo){
 $('startBtn').onclick=()=>startGame(false);
 try{$('nameIn').value=localStorage.getItem('add.name')||'';}catch(e){}
 
-function showSide(i){viewSide=i;SIDES[0].root&&(SIDES[0].root.visible=i===0);SIDES[1].root&&(SIDES[1].root.visible=i===1);for(const S of SIDES)for(const el of S.labelEls||[])el.hidden=true;}
+function showSide(i){if(i!==viewSide){cam.tx=0;cam.tz=0;}viewSide=i;SIDES[0].root&&(SIDES[0].root.visible=i===0);SIDES[1].root&&(SIDES[1].root.visible=i===1);for(const S of SIDES)for(const el of S.labelEls||[])el.hidden=true;}
 function wantedSide(){if(!view)return 0;const b=view.battle;if(b&&(view.phase==='battle'||view.phase==='report'))return b.iDefend?0:1;return choice;}
 
 /* ---------- keep the scene in step with the rules ---------- */
@@ -516,7 +516,9 @@ function onPhase(){
   if(key===lastTurnKey)return;lastTurnKey=key;
   closeInfo();
   if(v.phase==='turn'){
-    if(v.myTurn){plan={counts:{},targets:{},scouts:{}};choice=0;tab='strike';banner('YOUR TURN','Turn '+v.turnNo+' · attack or save money · +'+fmt(v.me.income),2.4);}
+    if(v.myTurn){plan={counts:{},target:null,scouts:{}};choice=0;tab='attack';const r=v.me.lastRestock;
+      banner('YOUR TURN','Turn '+v.turnNo+' · +'+fmt(v.me.income)+' income'+(r&&r.n?' · restocked '+r.n+' missiles ('+fmt(r.cost)+')':''),2.6);
+      if(r&&r.short)setTimeout(()=>msg(m_factoryDown()?'Factory down: no missiles restocked':'Not enough money to restock every spare missile','warn'),2700);}
     else{tab=null;setPlacing(null);banner(v.enemy.name.toUpperCase()+"'S TURN",'They are planning a strike',2);}
   }else if(v.phase==='battle'){
     setPlacing(null);tab=null;
@@ -528,6 +530,7 @@ function onPhase(){
   sheetSig='';refreshUI();
 }
 
+function m_factoryDown(){return view.me.buildings.some(b=>b.kind==='factory'&&b.down>0);}
 function showReport(){
   const v=view,r=v.report;if(!r)return;
   const attackerIsMe=v.battle?!v.battle.iDefend:false;
@@ -575,12 +578,10 @@ function planEmpty(){for(const k in plan.counts)if(plan.counts[k]>0)return false
 function launch(){
   const strikes=[];
   for(const k in plan.counts){const n=plan.counts[k];if(!n)continue;
-    const tgt=plan.targets[k];if(ATK[k].precise&&tgt!=null&&view.enemy.buildings.some(b=>b.uid===tgt)){
-      // Spread precise weapons over the chosen target only.
-      strikes.push({weapon:k,n,target:tgt});}else strikes.push({weapon:k,n});}
+    const tgt=plan.target;if(ATK[k].precise&&tgt!=null&&view.enemy.buildings.some(b=>b.uid===tgt))strikes.push({weapon:k,n,target:tgt});else strikes.push({weapon:k,n});}
   const scouts=[];for(const k in plan.scouts){const i=plan.scouts[k];if(i==null)continue;const p=SCOUT_PATHS[i];scouts.push({scout:k,path:[{x:p[1][0],z:p[1][1]},{x:p[2][0],z:p[2][1]}]});}
-  if(!strikes.length&&!scouts.length){msg('Plan a strike first: set how many to launch','warn');setTab('strike');return;}
-  if(cmd({c:'go',strikes,scouts}))plan={counts:{},targets:{},scouts:{}};
+  if(!strikes.length&&!scouts.length){msg('Set how many to launch first (Attack tab)','warn');setTab('attack');return;}
+  if(cmd({c:'go',strikes,scouts}))plan={counts:{},target:null,scouts:{}};
 }
 
 function vsChips(hit,col){return '<div class="vs">'+CLS_ORDER.filter(k=>hit[k]).map(k=>'<i class="y" style="--c:'+CLS_CSS[k]+'">'+CLS_LABEL[k]+' '+Math.round(hit[k])+'%</i>').join('')+'</div>';}
@@ -592,7 +593,6 @@ function renderSheet(){
   const sh=$('sheet');
   if(placing){sh.hidden=true;document.body.classList.remove('sheet-open');return;}
   if(!tab||!canShop()&&tab!=='city'||!view||(view.phase!=='setup'&&view.phase!=='turn')){hideSheet();return;}
-  if(tab==='strike'&&!myTurn()){hideSheet();return;}
   const s=sig();if(s===sheetSig&&!sh.hidden)return;sheetSig=s;
   const keep=sh.scrollTop,cards=sh.querySelector('.cards'),keepX=cards?cards.scrollLeft:0;
   sh.hidden=false;document.body.classList.add('sheet-open');sh.innerHTML=sheetHTML();
@@ -601,21 +601,46 @@ function renderSheet(){
 function sheetHTML(){
   const v=view,m=v.me,B=m.budget;
   if(tab==='build'){
-    return '<div class="cards">'+CAT.defences.map(s=>{const n=m.batteries.filter(b=>b.sys===s.id).length,col=css(SYS_COL[s.id]);
-      const ammo=s.load>0?s.load+' missiles · '+fmt(s.shot)+' each':s.kind==='gun'?fmt(s.shot)+' per burst':'no ammunition';
-      return '<button class="card'+(placing===s.id?' sel':'')+'" type="button" data-act="place" data-k="'+s.id+'" style="--c:'+col+'"'+(B<s.price?' disabled':'')+'><h4>'+esc(s.name)+'</h4><p>'+esc(s.role)+'</p>'+vsChips(s.hit)+
-        '<div class="kv"><span>Price</span><b>'+fmt(s.price)+'</b></div><div class="kv"><span>Range</span><b>'+s.range+' km</b></div><div class="small">'+ammo+(s.needsPower?' · needs power':'')+(n?' · deployed '+n:'')+'</div></button>';}).join('')+
-      '</div><div class="note">Tap a system, then a glowing pad. Missile batteries come loaded; buy reloads by tapping the battery in the city. Short-range systems guard only the district around their pad.</div>';
+    let h='';
+    if(m.batteries.length){
+      h+='<h3>Your defences <span class="small">· spare missiles are re-bought automatically at the start of each of your turns</span></h3><div class="items">'+m.batteries.map(b=>{const s=DEF[b.sys],spare=m.interceptors[b.sys]||0,rc=s.shot*s.load;
+        const count=s.load?'<b class="big'+(b.ammo===0?' bad':'')+'">'+b.ammo+'</b><span> loaded</span> <b class="big">'+spare+'</b><span> spare</span>':'<b class="big">∞</b><span> '+(s.kind==='gun'?fmt(s.shot)+'/burst':'no ammo')+'</span>';
+        return '<div class="item" style="--c:'+css(SYS_COL[b.sys])+'"><div class="nm"><b>'+esc(s.name)+'</b><span>Level '+b.level+' · range '+s.range+' km</span></div><div class="cnt">'+count+'</div><div class="acts">'+
+          (s.load?'<div class="stepper"><span class="small">Keep spare</span><button class="step" data-act="rsdec" data-k="'+b.sys+'"'+((m.restock[b.sys]||0)<=0?' disabled':'')+'>−</button><output>'+(m.restock[b.sys]||0)+'</output><button class="step" data-act="rsinc" data-k="'+b.sys+'">+</button></div>'+
+            '<button class="mini" data-act="reload" data-k="'+b.uid+'"'+(B<rc?' disabled':'')+'>Buy '+s.load+' now · '+fmt(rc)+'</button>':'')+
+          (b.upgradeCost!=null?'<button class="mini" data-act="upBat" data-k="'+b.uid+'"'+(B<b.upgradeCost?' disabled':'')+'>Upgrade '+fmt(b.upgradeCost)+'</button>':'')+'</div></div>';}).join('')+'</div>';
+    }
+    h+='<h3>Buy a defence <span class="small">· tap one, then a glowing ring in your city</span></h3><div class="cards">'+CAT.defences.map(s=>{const col=css(SYS_COL[s.id]);
+      return '<button class="card'+(placing===s.id?' sel':'')+'" type="button" data-act="place" data-k="'+s.id+'" style="--c:'+col+'"'+(B<s.price?' disabled':'')+'><h4>'+esc(s.name)+'</h4>'+
+        '<div class="kv"><span>Price</span><b>'+fmt(s.price)+'</b></div><div class="kv"><span>Range</span><b>'+s.range+' km</b></div><div class="kv"><span>Missiles</span><b>'+(s.load?s.load+' × '+fmt(s.shot):s.kind==='gun'?'gun':'none')+'</b></div>'+vsChips(s.hit)+'</button>';}).join('')+'</div>';
+    return h;
   }
-  if(tab==='weapons'){
-    const rows=CAT.attacks.map(w=>{const L=m.launchers[w.id]||0,st=m.stock[w.id]||0,cap=m.caps[w.id]||0,reu=!!w.reusable,col=CLS_CSS[w.cls];
-      const buyN=reu?1:Math.max(1,cap-st);
-      return '<div class="row" style="--c:'+col+'"><div class="nm"><b>'+esc(w.name)+'</b><span>'+esc(w.role)+'</span></div>'+
-        '<div class="st">'+(reu?'In hangar '+st:'Launchers '+L+' · stock '+st+'<br><span>fires '+cap+'/turn · '+fmt(w.unit)+' each · dmg '+w.damage+(w.salvo?'×'+w.salvo:'')+'</span>')+'</div>'+
-        '<div class="acts">'+(reu?'':'<button class="mini" data-act="launcher" data-k="'+w.id+'"'+(B<w.launcher?' disabled':'')+'>Launcher '+fmt(w.launcher)+'</button>')+
-        ((reu||L>0)?'<button class="mini" data-act="units" data-k="'+w.id+'" data-n="'+buyN+'"'+(B<w.unit*buyN?' disabled':'')+'>Buy '+buyN+' · '+fmt(w.unit*buyN)+'</button>':'')+'</div><div></div></div>';}).join('');
-    const sc=CAT.scouts.map(s=>'<div class="row" style="--c:'+CLS_CSS.uav+'"><div class="nm"><b>'+esc(s.name)+'</b><span>'+esc(s.role)+' Sees '+s.reveal+' km either side.</span></div><div class="st">Available '+(m.scouts[s.id]||0)+'</div><div class="acts"><button class="mini" data-act="scout" data-k="'+s.id+'"'+(B<s.price?' disabled':'')+'>Buy '+fmt(s.price)+'</button></div><div></div></div>').join('');
-    return '<h3>Strike weapons</h3><div class="rows">'+rows+'</div><h3>Surveillance UAVs</h3><div class="rows">'+sc+'</div><div class="note">Buy a launcher once; it sets how many can fly each turn. UAVs come home if they survive. Precise weapons can only aim at buildings a UAV has revealed.</div>';
+  if(tab==='attack'){
+    const mine=myTurn(),targets=v.enemy.buildings;let h='';
+    if(mine){
+      h+='<div class="strikebar"><span>Target for precise weapons</span><select class="mini" data-act="target"><option value="">Whole city</option>'+targets.map(b=>'<option value="'+b.uid+'"'+(plan.target===b.uid?' selected':'')+'>'+esc(BLD[b.kind].name)+(b.down>0?' (down)':'')+'</option>').join('')+'</select>'+
+        (targets.length?'':'<span class="small" style="color:var(--threat)">No buildings found yet · fly a UAV first</span>')+'</div>';
+    }
+    const owned=CAT.attacks.filter(w=>(m.launchers[w.id]||0)>0||(m.stock[w.id]||0)>0);
+    const ownedS=CAT.scouts.filter(s=>(m.scouts[s.id]||0)>0);
+    if(owned.length||ownedS.length){
+      h+='<h3>Your weapons</h3><div class="items">';
+      for(const w of owned){const st=m.stock[w.id]||0,cap=w.reusable?st:(m.caps[w.id]||0),fire=Math.min(st,cap),buyN=w.reusable?1:Math.max(1,cap-st),q=Math.min(plan.counts[w.id]||0,fire);plan.counts[w.id]=q;
+        h+='<div class="item" style="--c:'+CLS_CSS[w.cls]+'"><div class="nm"><b>'+esc(w.name)+'</b><span>'+(w.reusable?'reusable UAV':(m.launchers[w.id]||0)+' launcher · fires '+cap+'/turn')+' · '+(w.precise?'precise':'unguided')+'</span></div>'+
+          '<div class="cnt"><b class="big'+(st===0?' bad':'')+'">'+st+'</b><span> in stock</span></div><div class="acts">'+
+          '<button class="mini" data-act="units" data-k="'+w.id+'" data-n="'+buyN+'"'+(B<w.unit*buyN?' disabled':'')+'>Buy '+buyN+' · '+fmt(w.unit*buyN)+'</button>'+
+          (mine?'<div class="stepper"><span class="small">Launch</span><button class="step" data-act="sdec" data-k="'+w.id+'"'+(q<=0?' disabled':'')+'>−</button><output>'+q+'</output><button class="step" data-act="sinc" data-k="'+w.id+'"'+(q>=fire?' disabled':'')+'>+</button></div>':'')+'</div></div>';}
+      for(const s of ownedS){const n=m.scouts[s.id]||0;
+        h+='<div class="item" style="--c:'+CLS_CSS.uav+'"><div class="nm"><b>'+esc(s.name)+'</b><span>scout · reveals '+s.reveal+' km either side</span></div><div class="cnt"><b class="big">'+n+'</b><span> ready</span></div><div class="acts">'+
+          (mine?'<select class="mini" data-act="spath" data-k="'+s.id+'"><option value="">Stay home</option>'+SCOUT_PATHS.map((p,i)=>'<option value="'+i+'"'+(plan.scouts[s.id]===i?' selected':'')+'>Fly '+p[0]+'</option>').join('')+'</select>':'<button class="mini" data-act="scout" data-k="'+s.id+'"'+(B<s.price?' disabled':'')+'>Buy '+fmt(s.price)+'</button>')+'</div></div>';}
+      h+='</div>';
+    }else h+='<div class="note">You have no weapons yet. Pick some below.</div>';
+    const rest=CAT.attacks.filter(w=>!owned.includes(w)),restS=CAT.scouts.filter(s=>!ownedS.includes(s));
+    h+='<h3>Add a weapon</h3><div class="items">'+rest.map(w=>'<div class="item small-item" style="--c:'+CLS_CSS[w.cls]+'"><div class="nm"><b>'+esc(w.name)+'</b><span>'+esc(w.role)+'</span></div><div class="cnt"><span>'+(w.reusable?fmt(w.unit)+' each':fmt(w.unit)+' each · '+w.perTurn+'/turn')+'</span></div><div class="acts">'+
+      (w.reusable?'<button class="mini" data-act="units" data-k="'+w.id+'" data-n="1"'+(B<w.unit?' disabled':'')+'>Buy '+fmt(w.unit)+'</button>':'<button class="mini" data-act="launcher" data-k="'+w.id+'"'+(B<w.launcher?' disabled':'')+'>Launcher '+fmt(w.launcher)+'</button>')+'</div></div>').join('')+
+      restS.map(s=>'<div class="item small-item" style="--c:'+CLS_CSS.uav+'"><div class="nm"><b>'+esc(s.name)+'</b><span>Scout UAV. '+esc(s.role)+'</span></div><div class="cnt"></div><div class="acts"><button class="mini" data-act="scout" data-k="'+s.id+'"'+(B<s.price?' disabled':'')+'>Buy '+fmt(s.price)+'</button></div></div>').join('')+'</div>';
+    h+='<div class="note">'+(mine?'Set how many to launch, then press GO. Nothing launches if the clock runs out.':'A launcher is bought once and sets how many can fly each turn. You launch strikes on your turn.')+'</div>';
+    return h;
   }
   if(tab==='upgrades'){
     let h='<div class="seg"><button class="mini'+(upSeg==='def'?' on':'')+'" data-act="seg" data-k="def">Defensive</button><button class="mini'+(upSeg==='off'?' on':'')+'" data-act="seg" data-k="off">Offensive</button><button class="mini'+(upSeg==='eco'?' on':'')+'" data-act="seg" data-k="eco">Economy</button></div>';
@@ -645,23 +670,11 @@ function sheetHTML(){
       return '<div class="row" style="--c:'+css(BLD_COL[b.kind])+'"><div class="nm"><b>'+esc(spec.name)+(b.revealed?' <span style="color:var(--danger)">· KNOWN TO ENEMY</span>':'')+'</b><span>If hit: '+esc(spec.effect)+'</span></div><div class="st">'+(b.down>0?'<span style="color:var(--danger)">Down '+b.down+' turn'+(b.down===1?'':'s')+'</span>':'Working')+'</div><div class="acts">'+(b.down>0&&canShop()?'<button class="mini" data-act="repair" data-k="'+b.uid+'"'+(B<spec.repairNow?' disabled':'')+'>Repair '+fmt(spec.repairNow)+'</button>':'')+'</div><div></div></div>';}).join('')+
       '</div><div class="note">Your buildings are hidden from '+esc(v.enemy.name)+' until a UAV flies over them or they are hit. Enemy buildings you have found: '+v.enemy.buildings.length+'.</div>';
   }
-  if(tab==='strike'){
-    const targets=v.enemy.buildings;
-    const opts=k=>'<select class="mini" data-act="target" data-k="'+k+'"><option value="">City (general)</option>'+targets.map(b=>'<option value="'+b.uid+'"'+(plan.targets[k]===b.uid?' selected':'')+'>'+esc(BLD[b.kind].name)+(b.down>0?' (down)':'')+'</option>').join('')+'</select>';
-    let val=0;
-    const rows=CAT.attacks.filter(w=>(m.stock[w.id]||0)>0).map(w=>{const st=m.stock[w.id],cap=w.reusable?st:Math.min(st,m.caps[w.id]||0),q=Math.min(plan.counts[w.id]||0,cap);plan.counts[w.id]=q;val+=q*(w.reusable?(w.munitionCost||0)*(w.munitions||0):w.unit);
-      return '<div class="row" style="--c:'+CLS_CSS[w.cls]+'"><div class="nm"><b>'+esc(w.name)+'</b><span>'+(w.precise?'precise':'unguided')+' · can fire '+cap+'</span></div><div class="st">'+(w.precise?opts(w.id):'<span>hits the city at random</span>')+'</div>'+
-        '<div class="stepper"><button class="step" data-act="sdec" data-k="'+w.id+'"'+(q<=0?' disabled':'')+'>−</button><output>'+q+'</output><button class="step" data-act="sinc" data-k="'+w.id+'"'+(q>=cap?' disabled':'')+'>+</button></div><button class="mini" data-act="sall" data-k="'+w.id+'"'+(cap===0?' disabled':'')+'>All</button></div>';}).join('');
-    const sc=CAT.scouts.filter(s=>(m.scouts[s.id]||0)>0).map(s=>'<div class="row" style="--c:'+CLS_CSS.uav+'"><div class="nm"><b>'+esc(s.name)+'</b><span>reveals '+s.reveal+' km either side of its path</span></div><div class="st">Flight path</div><div class="seg"><button class="mini'+(plan.scouts[s.id]==null?' on':'')+'" data-act="spath" data-k="'+s.id+'" data-i="">Stay</button>'+SCOUT_PATHS.map((p,i)=>'<button class="mini'+(plan.scouts[s.id]===i?' on':'')+'" data-act="spath" data-k="'+s.id+'" data-i="'+i+'">'+p[0]+'</button>').join('')+'</div><div></div></div>').join('');
-    if(!rows&&!sc)return '<h3>Strike on '+esc(v.enemy.name)+'</h3><div class="note">Nothing in stock. Buy launchers, weapons or a surveillance UAV in the Weapons tab, or press Wait to save money.</div>';
-    return '<h3>Strike on '+esc(v.enemy.name)+'</h3>'+(targets.length?'':'<div class="note" style="color:var(--threat)">No enemy buildings revealed yet. Send a surveillance UAV first, or hit the city in general.</div>')+'<div class="rows">'+rows+sc+'</div>'+
-      '<div class="note">Strike value '+fmt(val)+'. Unused weapons stay in stock. Press GO to launch; nothing launches if the clock runs out.</div>';
-  }
   return '';
 }
 $('sheet').addEventListener('click',e=>{
   const b=e.target.closest('[data-act]');if(!b||b.disabled||!view)return;const k=b.dataset.k,a=b.dataset.act;
-  if(a==='target')return;
+  if(a==='target'||(a==='spath'&&b.tagName==='SELECT'))return;
   switch(a){
     case 'place':setPlacing(placing===k?null:k);break;
     case 'launcher':if(cmd({c:'buyLauncher',weapon:k}))msg(ATK[k].name+' launcher bought','money');break;
@@ -673,6 +686,8 @@ $('sheet').addEventListener('click',e=>{
     case 'upBat':cmd({c:'upgradeBattery',uid:+k});break;
     case 'upOff':cmd({c:'upgradeOffence',weapon:k,track:b.dataset.t});break;
     case 'eco':if(cmd({c:'upgradeEconomy',track:k}))msg(CAT.economy[k].label+' upgraded','money');break;
+    case 'rsinc':case 'rsdec':{const cur=view.me.restock[k]||0,step=DEF[k].load;cmd({c:'setRestock',sys:k,n:a==='rsinc'?cur+step:Math.max(0,cur-step)});}break;
+    case 'reload':{const bat=view.me.batteries.find(x=>x.uid===+k);if(bat&&cmd({c:'buyInterceptors',sys:bat.sys,n:DEF[bat.sys].load}))msg(DEF[bat.sys].load+' spare '+DEF[bat.sys].name+' missiles bought','money');}break;
     case 'repair':if(cmd({c:'repairNow',uid:+k}))msg('Repaired','money');break;
     case 'sinc':plan.counts[k]=(plan.counts[k]||0)+1;break;
     case 'sdec':plan.counts[k]=Math.max(0,(plan.counts[k]||0)-1);break;
@@ -681,7 +696,10 @@ $('sheet').addEventListener('click',e=>{
   }
   sheetSig='';refreshUI();
 });
-$('sheet').addEventListener('change',e=>{const s=e.target.closest('select[data-act="target"]');if(!s)return;plan.targets[s.dataset.k]=s.value===''?null:+s.value;sheetSig='';});
+$('sheet').addEventListener('change',e=>{const s=e.target.closest('select');if(!s)return;
+  if(s.dataset.act==='target')plan.target=s.value===''?null:+s.value;
+  else if(s.dataset.act==='spath')plan.scouts[s.dataset.k]=s.value===''?null:+s.value;
+  sheetSig='';});
 
 function setPlacing(k){placing=k;$('placing').hidden=!k;if(k&&choice!==0){choice=0;}if(k){$('placeName').textContent=DEF[k].name;$('placing').style.borderColor=css(SYS_COL[k]);closeInfo();padMat.color.set(SYS_COL[k]);padMat.opacity=.9;}else{padMat.color.set(0x0b7fa3);padMat.opacity=.6;}sheetSig='';}
 $('cancelPlace').onclick=()=>setPlacing(null);
@@ -725,7 +743,7 @@ function refreshUI(){
   const v=view,plan_=canShop();
   $('intel').hidden=!plan_;if(plan_)$('intel').innerHTML=intelHTML();
   $('tabs').hidden=!plan_;
-  $('strikeTab').hidden=!myTurn();$('waitBtn').hidden=!myTurn();
+  $('waitBtn').hidden=!myTurn();
   if(v&&v.phase==='setup'){$('endBtn').textContent=v.me.ready?'Waiting…':'Ready';$('endBtn').disabled=v.me.ready;$('endBtn').className='btn primary';}
   else{$('endBtn').textContent='GO';$('endBtn').disabled=false;$('endBtn').className='btn go';}
   for(const t of document.querySelectorAll('.tab'))t.classList.toggle('on',t.dataset.tab===tab);
@@ -736,17 +754,24 @@ function refreshUI(){
 }
 
 /* ======================= INPUT ======================= */
-const cam={theta:0.7,phi:1.05,r:160};
+const cam={theta:0.7,phi:1.05,r:160,tx:0,tz:0};
+let pmid=null;
+const midPt=()=>{const p=[...ptrs.values()];return {x:(p[0].x+p[1].x)/2,y:(p[0].y+p[1].y)/2};};
+// Two-finger drag slides the map: move the look-at point along the ground, in screen directions.
+function pan(dx,dy){ // finger right → map follows right; finger down → map follows down (see further out)
+  const k=cam.r/innerHeight*1.2,c=Math.cos(cam.theta),sn=Math.sin(cam.theta),fk=k/Math.max(.45,Math.cos(cam.phi*0.7));
+  cam.tx+=-c*dx*k-sn*dy*fk;cam.tz+=sn*dx*k-c*dy*fk;
+  const r=Math.hypot(cam.tx,cam.tz),max=160;if(r>max){cam.tx*=max/r;cam.tz*=max/r;}}
 const ptrs=new Map();let downX=0,downY=0,dragged=false,pinch=0,pressT=null;
 const pinchDist=()=>{const p=[...ptrs.values()];return Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y)||1;};
 cv.addEventListener('pointerdown',e=>{initAudio();try{cv.setPointerCapture(e.pointerId);}catch(_){}ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(ptrs.size===1){downX=e.clientX;downY=e.clientY;dragged=false;clearTimeout(pressT);pressT=setTimeout(()=>{if(!dragged&&ptrs.size===1){dragged=true;longPress(downX,downY);}},520);}
-  if(ptrs.size===2){pinch=pinchDist();dragged=true;clearTimeout(pressT);}});
+  if(ptrs.size===2){pinch=pinchDist();pmid=midPt();dragged=true;clearTimeout(pressT);}});
 cv.addEventListener('pointermove',e=>{const p=ptrs.get(e.pointerId);if(!p)return;const dx=e.clientX-p.x,dy=e.clientY-p.y;p.x=e.clientX;p.y=e.clientY;
-  if(ptrs.size===1){if(Math.hypot(e.clientX-downX,e.clientY-downY)>8){dragged=true;clearTimeout(pressT);}if(dragged){cam.theta-=dx*0.006;cam.phi=Math.min(1.42,Math.max(0.42,cam.phi-dy*0.005));}}
-  else if(ptrs.size===2){const d=pinchDist();cam.r=Math.min(380,Math.max(40,cam.r*pinch/d));pinch=d;}});
-function up(e){clearTimeout(pressT);if(ptrs.has(e.pointerId)&&ptrs.size===1&&!dragged&&e.type==='pointerup')tap(e.clientX,e.clientY);ptrs.delete(e.pointerId);}
-cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+  if(ptrs.size===1){if(Math.hypot(e.clientX-downX,e.clientY-downY)>8){dragged=true;clearTimeout(pressT);}if(dragged){if(e.shiftKey||(e.buttons&2))pan(dx,dy);else{cam.theta-=dx*0.006;cam.phi=Math.min(1.42,Math.max(0.42,cam.phi-dy*0.005));}}}
+  else if(ptrs.size===2){const d=pinchDist();cam.r=Math.min(380,Math.max(40,cam.r*pinch/d));pinch=d;const mp=midPt();if(pmid)pan(mp.x-pmid.x,mp.y-pmid.y);pmid=mp;}});
+function up(e){clearTimeout(pressT);pmid=null;if(ptrs.has(e.pointerId)&&ptrs.size===1&&!dragged&&e.type==='pointerup')tap(e.clientX,e.clientY);ptrs.delete(e.pointerId);}
+cv.addEventListener('contextmenu',e=>e.preventDefault());cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
 cv.addEventListener('wheel',e=>{e.preventDefault();cam.r=Math.min(380,Math.max(40,cam.r*(1+e.deltaY*0.001)));},{passive:false});
 function project(p){_c.copy(p).project(camera);return _c.z<1&&_c.z>-1?{x:(_c.x*.5+.5)*innerWidth,y:(-_c.y*.5+.5)*innerHeight}:null;}
 function nearestThreat(x,y){let best=null,bd=56;for(const [uid,tv] of TV){const s=project(tv.pos);if(!s)continue;const d=Math.hypot(s.x-x,s.y-y);if(d<bd){bd=d;best=uid;}}return best;}
@@ -806,6 +831,9 @@ function updHud(){
   $('pname').textContent=m.name.toUpperCase();$('turnNo').textContent=v.turnNo?'Turn '+v.turnNo:'';
   $('role').textContent=v.phase==='setup'?'Setup':v.phase==='battle'?(v.battle.iDefend?'Under attack':'Striking '+v.enemy.name):v.phase==='turn'?(v.myTurn?'Your turn':v.enemy.name+"'s turn"):v.phase==='report'?'Strike report':'Match over';
   $('budget').textContent=fmt(m.budget);$('income').textContent='+'+fmt(m.income)+'/turn';
+  let intc=0;for(const b of m.batteries)if(b.load)intc+=b.ammo;for(const k in m.interceptors)intc+=m.interceptors[k];
+  let atk=0;for(const k in m.stock)atk+=m.stock[k];for(const k in m.scouts)atk+=m.scouts[k];
+  $('arsDef').textContent=intc;$('arsAtk').textContent=atk;
   $('hp').textContent=Math.round(m.health);const hb=$('hpBar');hb.style.width=Math.max(0,m.health/10)+'%';hb.classList.toggle('low',m.health<400);
   $('oppName').textContent=v.enemy.name;$('ohp').textContent=Math.round(v.enemy.health);$('ohpBar').style.width=Math.max(0,v.enemy.health/10)+'%';
   const showClock=v.phase==='setup'||v.phase==='turn'||v.phase==='report';
@@ -857,8 +885,8 @@ function step(real,draw){
     if(rand()<.28*k){const c=.12+rand()*.06;emit(SMOKE,f.x,f.y+1,f.z,(rand()-.5)*1.5+1.2,4+rand()*2,(rand()-.5)*1.5,5+rand()*2,3,18,c,c,c,.6,.15,0);}}
   updPS(SMOKE,dt);updPS(GLOW,dt);
   const sp=Math.sin(cam.phi);
-  camera.position.set(cam.r*sp*Math.sin(cam.theta),8+cam.r*Math.cos(cam.phi),cam.r*sp*Math.cos(cam.theta));
-  camera.lookAt(0,10,0);
+  camera.position.set(cam.tx+cam.r*sp*Math.sin(cam.theta),8+cam.r*Math.cos(cam.phi),cam.tz+cam.r*sp*Math.cos(cam.theta));
+  camera.lookAt(cam.tx,10,cam.tz);
   if(shake>0.01){camera.position.x+=(rand()-.5)*shake;camera.position.y+=(rand()-.5)*shake;shake*=Math.exp(-dt*5);}
   if(msgTimer>0){msgTimer-=dt;if(msgTimer<=0)msgEl.classList.remove('show');}
   if(bannerTimer>0){bannerTimer-=dt;if(bannerTimer<=0)$('banner').classList.remove('show');}

@@ -116,3 +116,15 @@ describe('full sandbox match', () => {
     (globalThis as unknown as { console: { log: (s: string) => void } }).console.log(`turns ${m.turnNo}, phase ${m.phase}, health ${m.players.map(p => p.health).join(' / ')}, budgets ${m.players.map(p => Math.round(p.budget)).join(' / ')}`);
   });
 });
+
+describe('standing restock order', () => {
+  it('tops up spare interceptors at the start of your turn and can be changed', () => {
+    const m = createMatch(9, ['A', 'B']);
+    command(m, 0, { c: 'buyBattery', sys: 'hisara', pad: 0 });
+    expect(m.players[0].restock.hisara).toBe(4);
+    command(m, 0, { c: 'setRestock', sys: 'hisara', n: 8 });
+    command(m, 0, { c: 'endSetup' }); command(m, 1, { c: 'endSetup' });
+    expect(m.players[0].interceptors.hisara).toBe(8);
+    expect(m.players[0].lastRestock).toEqual({ n: 8, cost: 4, short: false });
+  });
+});
