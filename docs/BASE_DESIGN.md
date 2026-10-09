@@ -1,6 +1,6 @@
 # Air Defence Duel — military base design (proposal, 9 Oct 2026)
 
-Status: **proposal for Mert to decide.** Nothing here is built yet. Based on how Clash of Clans works (general knowledge of the game), translated to an air-defence / strike setting.
+Status: **decided 9 Oct 2026 (see 'Decisions' at the end); building in steps.** Based on how Clash of Clans works (general knowledge of the game), translated to an air-defence / strike setting.
 
 ---
 
@@ -140,3 +140,14 @@ Each person has a salary (Funds per day) and needs a bed in the Barracks. Traini
 5. **People.** Is the crew list (§3) right? Anything to add or remove?
 
 Note: a persistent base with offline raids needs the server (accounts, saved bases, timers, matchmaking) before it can be played online. The sandbox can run on the phone first.
+
+---
+
+## Decisions (Mert, 9 Oct 2026)
+
+1. **Base stays.** It grows over time; every duel is fought on your current base. Matchmaking by base level (HQ) and XP.
+2. **Resources: Gold, Petrol, Explosives, Uranium.** Gold = money (construction, upgrades, salaries). Petrol = fuel for every launch and sortie. Explosives = warhead filling for every strike weapon and interceptor (real conventional warheads use high explosives such as RDX/TNT). Uranium = heavy/penetrator warheads for top-tier weapons and upgrades.
+3. **No walls / revetments** (air war). Camouflage, decoys and shelters stay.
+4. **Defence placement by range** is the core of base design: each category covers its own radius, so short-range systems guard buildings, long-range ones cover the whole base.
+5. **Attackers investigate first** (scout UAVs reveal buildings and defences), then attack.
+6. Build order: Step 1 base rules + building visuals + editor · Step 2 battles on bases (scout → live attack, stars, loot) · Step 3 crews.
