@@ -39,7 +39,8 @@ Status: first outline from Mert, 9 Oct 2026. Everything below "Open questions" i
 3. **Defence:** the defending player works live to stop the incoming strike, aiming and guiding their defences.
 
 ## Money (decided 9 Oct)
-- A fixed amount drops into each budget every turn.
+- Same fixed income for every player every turn.
+- Economy upgrades raise your own per-turn income.
 
 ## End of match (decided 9 Oct)
 - A player concedes (accepts the loss), or a city is destroyed.
@@ -50,6 +51,14 @@ Status: first outline from Mert, 9 Oct 2026. Everything below "Open questions" i
 - No research in Duel mode: every weapon is available from the start; the limit is money (never enough to buy everything).
 - Real system names are used (Mert's decision; re-check before public App Store release).
 - Weapons range from the simplest (guns, MANPADS, drones) to the top end. Catalogue: `docs/WEAPONS_CATALOG.md`.
+
+## Turkish systems (decided 9 Oct)
+- Turkish systems are added to the v1 list alongside the others (Korkut, Sungur, ALKA, Koral, Hisar-A+, Hisar-O+, Siper; Kargu-2, Akıncı, TRG-300, SOM, Tayfun).
+
+## Critical buildings, surveillance, radar (decided 9 Oct — details PROPOSED, to confirm)
+- The city has critical buildings; hitting one disrupts a function.
+- Surveillance UAVs reveal where the enemy's important buildings are.
+- Radars are built and upgraded for range, target identification, and telling decoys from real threats.
 
 ## Practice (decided 9 Oct)
 - No AI stand-in for matchmaking: you wait for a real online opponent.
@@ -67,4 +76,3 @@ Status: first outline from Mert, 9 Oct 2026. Everything below "Open questions" i
 ## Open questions
 - How much XP for a win / loss / concession?
 - Starting budget, money per turn, prices of each missile / defence / upgrade.
-- Income: truly fixed per turn, or tied to city GDP (damage lowers income) like the prototype?
