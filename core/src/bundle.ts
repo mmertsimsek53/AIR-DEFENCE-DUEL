@@ -28,6 +28,21 @@ const api = {
       defUpgrade: core.DEF_UPGRADE, cityRadius: core.CITY_RADIUS,
     });
   },
+  // Direct (no JSON) access for the in-app web game, which runs in the same JS context.
+  viewRaw() { return match ? core.viewFor(match, HUMAN) : null; },
+  cmdRaw(cmd: Command) { return match ? core.command(match, HUMAN, cmd) : { ok: false, error: 'No match.' }; },
+  eventsRaw() { return match ? core.drainEvents(match) : []; },
+  catalogueRaw() {
+    return {
+      defences: core.DEFENCES, attacks: core.ATTACKS, scouts: core.SCOUTS, rules: core.RULES, radar: core.RADAR_LEVELS,
+      extraRadar: core.EXTRA_RADAR_PRICE, offUpgrades: core.OFF_UPGRADES, economy: core.ECONOMY, buildings: core.BUILDINGS,
+      defUpgrade: core.DEF_UPGRADE, cityRadius: core.CITY_RADIUS, longRange: core.LONG_RANGE_SAMS,
+    };
+  },
+  geo() {
+    return { unitsPerKm: core.UNITS_PER_KM, river: core.RIVER, landmark: core.LANDMARK, slots: core.buildingSlots(), pads: core.padLayout() };
+  },
+  quit(): void { match = undefined; },
   save(): string { return match ? JSON.stringify(match) : ''; },
   load(json: string): boolean { try { match = JSON.parse(json) as Match; return true; } catch { return false; } },
 };

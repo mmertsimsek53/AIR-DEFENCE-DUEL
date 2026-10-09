@@ -107,6 +107,52 @@
     return ((t ^ t >>> 14) >>> 0) / 4294967296;
   }
 
+  // src/geometry.ts
+  var UNITS_PER_KM = 106 / CITY_RADIUS;
+  var toKm = (u) => Math.round(u / UNITS_PER_KM * 1e3) / 1e3;
+  var RIVER = { x: -16, z: 0, angle: 0.38 };
+  var RC = Math.cos(RIVER.angle);
+  var RS = Math.sin(RIVER.angle);
+  var riverDist = (x, z) => Math.abs((x - RIVER.x) * RC - (z - RIVER.z) * RS);
+  var LANDMARK = { x: -44, z: -26 };
+  function padLayout() {
+    const pads = [];
+    for (const [r, n, off] of [[22, 6, 0.5], [50, 8, 0.2], [84, 10, 0.35]]) {
+      for (let i = 0; i < n; i++) {
+        const a2 = off + i * Math.PI * 2 / n;
+        const x = Math.cos(a2) * r, z = Math.sin(a2) * r;
+        if (riverDist(x, z) < 10) continue;
+        pads.push({ id: pads.length, x: toKm(x), z: toKm(z) });
+      }
+    }
+    return pads;
+  }
+  function buildingSlots() {
+    const pads = padLayout().map((p) => ({ x: p.x * UNITS_PER_KM, z: p.z * UNITS_PER_KM }));
+    const cands = [];
+    for (let gx = -8; gx <= 8; gx++) for (let gz = -8; gz <= 8; gz++) {
+      const x = gx * 11, z = gz * 11, r = Math.hypot(x, z);
+      if (r < 18 || r > 90) continue;
+      if (riverDist(x, z) < 15) continue;
+      if (Math.hypot(x - LANDMARK.x, z - LANDMARK.z) < 18) continue;
+      if (pads.some((p) => Math.hypot(p.x - x, p.z - z) < 13)) continue;
+      cands.push({ x, z });
+    }
+    const out = [cands[0]];
+    while (out.length < 16 && out.length < cands.length) {
+      let best = cands[0], bestD = -1;
+      for (const c of cands) {
+        const d2 = Math.min(...out.map((o) => Math.hypot(o.x - c.x, o.z - c.z)));
+        if (d2 > bestD) {
+          bestD = d2;
+          best = c;
+        }
+      }
+      out.push(best);
+    }
+    return out.map((p) => ({ x: toKm(p.x), z: toKm(p.z) }));
+  }
+
   // src/match.ts
   var MISSILE_CLASSES = ["rocket", "cruise", "ballistic", "hypersonic"];
   var REPORT_SECONDS = 6;
@@ -118,28 +164,16 @@
   var dist = (a2, b) => Math.hypot(a2.x - b.x, a2.z - b.z);
   var round = (v) => Math.round(v * 1e3) / 1e3;
   var other = (p) => p === 0 ? 1 : 0;
-  function makePads() {
-    const pads = [];
-    for (let i = 0; i < 6; i++) {
-      const a2 = i / 6 * Math.PI * 2 + Math.PI / 6;
-      pads.push({ id: pads.length, x: round(Math.cos(a2) * 2.5), z: round(Math.sin(a2) * 2.5) });
-    }
-    for (let i = 0; i < 8; i++) {
-      const a2 = i / 8 * Math.PI * 2;
-      pads.push({ id: pads.length, x: round(Math.cos(a2) * 5), z: round(Math.sin(a2) * 5) });
-    }
-    return pads;
-  }
+  var SLOTS = buildingSlots();
   function freeSpot(m, p) {
-    for (let tries = 0; tries < 200; tries++) {
-      const a2 = rnd(m) * Math.PI * 2, r = 0.8 + rnd(m) * 4.4;
-      const pt = { x: round(Math.cos(a2) * r), z: round(Math.sin(a2) * r) };
-      if (p.pads.every((q) => dist(q, pt) > 0.9) && p.buildings.every((b) => dist(b, pt) > 1.1)) return pt;
-    }
-    return { x: 0, z: 0 };
+    const free = SLOTS.filter((s) => !p.buildings.some((b) => dist(b, s) < 0.05));
+    if (!free.length) return void 0;
+    return free[Math.floor(rnd(m) * free.length) % free.length];
   }
   function addBuilding(m, p, kind) {
-    const b = { uid: uid(m), kind, ...freeSpot(m, p), down: 0, revealed: false, battleDamage: 0 };
+    const spot = freeSpot(m, p);
+    if (!spot) return void 0;
+    const b = { uid: uid(m), kind, x: spot.x, z: spot.z, down: 0, revealed: false, battleDamage: 0 };
     p.buildings.push(b);
     return b;
   }
@@ -150,7 +184,8 @@
       isAI,
       budget: RULES.startBudget,
       health: RULES.cityHealth,
-      pads: makePads(),
+      pads: padLayout(),
+      scars: [],
       batteries: [],
       buildings: [],
       interceptors: {},
@@ -375,6 +410,7 @@
         return ok;
       }
       case "buyRadarSite": {
+        if (!freeSpot(m, p)) return fail("No free plot left in the city.");
         if (!spend(p, EXTRA_RADAR_PRICE)) return fail("Not enough budget.");
         addBuilding(m, p, "radar");
         return ok;
@@ -877,6 +913,8 @@
   }
   function impact(m, bt, def, pt, damage, buildingUid) {
     def.health = round(def.health - damage);
+    def.scars.push({ x: pt.x, z: pt.z, d: damage });
+    if (def.scars.length > 300) def.scars.shift();
     bt.stats.hits++;
     bt.stats.damage = round(bt.stats.damage + damage);
     emit(bt, { t: "impact", x: pt.x, z: pt.z, damage, building: buildingUid });
@@ -1124,6 +1162,7 @@
         income: incomeFor(me),
         ready: me.ready,
         pads: me.pads,
+        scars: me.scars,
         batteries: me.batteries.map((b) => ({ ...b, load: batteryLoad(b), upgradeCost: upgradeBatteryCost(b), name: defence(b.sys).name })),
         buildings: me.buildings.map((b) => ({ uid: b.uid, kind: b.kind, x: b.x, z: b.z, down: b.down, revealed: b.revealed, name: BUILDINGS.find((x) => x.kind === b.kind).name })),
         interceptors: me.interceptors,
@@ -1144,6 +1183,7 @@
       enemy: {
         name: foe.name,
         health: foe.health,
+        scars: foe.scars,
         buildings: foe.buildings.filter((b) => b.revealed).map((b) => ({ uid: b.uid, kind: b.kind, x: b.x, z: b.z, down: b.down, name: BUILDINGS.find((x) => x.kind === b.kind).name })),
         batteries: foe.batteries.filter((b) => b.revealed).map((b) => ({ uid: b.uid, sys: b.sys, name: defence(b.sys).name, x: foe.pads[b.pad].x, z: foe.pads[b.pad].z }))
       },
@@ -1153,16 +1193,17 @@
         iDefend,
         time: bt.time,
         threats: bt.threats.filter((t) => t.alive && t.delay <= 0 && (!iDefend || t.detected)).map((t) => {
-          const known = !iDefend || t.identified;
+          const isDecoy = t.cls === "decoy" || t.weapon === "decoy";
+          const shownCls = !iDefend ? t.cls : !t.identified ? null : isDecoy && !t.decoyMarked ? t.looksLike : t.cls;
           return {
             uid: t.uid,
             x: t.x,
             z: t.z,
             alt: t.alt,
-            cls: known ? t.cls : null,
+            cls: shownCls,
             looksLike: t.looksLike,
-            name: !iDefend ? nameOf(t.weapon, t.isScout) : t.identified ? nameOf(t.looksLike === t.cls ? t.weapon : t.looksLike, t.isScout) : "Unknown",
-            decoy: iDefend ? t.decoyMarked : t.cls === "decoy" || t.weapon === "decoy",
+            name: !iDefend ? nameOf(t.weapon, t.isScout) : !t.identified ? "Unknown" : isDecoy && !t.decoyMarked ? threatName[t.looksLike] ?? "Unknown" : isDecoy ? "Decoy" : nameOf(t.weapon, t.isScout),
+            decoy: iDefend ? t.decoyMarked : isDecoy,
             priority: t.priority,
             hold: t.hold,
             engaged: t.engaged,
@@ -1177,6 +1218,7 @@
       log: m.log.slice(-8)
     };
   }
+  var threatName = { drone: "Drone", ballistic: "Ballistic", cruise: "Cruise", uav: "UAV", rocket: "Rocket", hypersonic: "Hypersonic" };
   function nameOf(id, isScout) {
     if (isScout) return "Surveillance UAV";
     if (id === "decoy") return "Decoy";
@@ -1223,6 +1265,38 @@
         defUpgrade: DEF_UPGRADE,
         cityRadius: CITY_RADIUS
       });
+    },
+    // Direct (no JSON) access for the in-app web game, which runs in the same JS context.
+    viewRaw() {
+      return match ? viewFor(match, HUMAN) : null;
+    },
+    cmdRaw(cmd) {
+      return match ? command(match, HUMAN, cmd) : { ok: false, error: "No match." };
+    },
+    eventsRaw() {
+      return match ? drainEvents(match) : [];
+    },
+    catalogueRaw() {
+      return {
+        defences: DEFENCES,
+        attacks: ATTACKS,
+        scouts: SCOUTS,
+        rules: RULES,
+        radar: RADAR_LEVELS,
+        extraRadar: EXTRA_RADAR_PRICE,
+        offUpgrades: OFF_UPGRADES,
+        economy: ECONOMY,
+        buildings: BUILDINGS,
+        defUpgrade: DEF_UPGRADE,
+        cityRadius: CITY_RADIUS,
+        longRange: LONG_RANGE_SAMS
+      };
+    },
+    geo() {
+      return { unitsPerKm: UNITS_PER_KM, river: RIVER, landmark: LANDMARK, slots: buildingSlots(), pads: padLayout() };
+    },
+    quit() {
+      match = void 0;
     },
     save() {
       return match ? JSON.stringify(match) : "";

@@ -22,13 +22,16 @@ Owner: Mert (non-technical — explain in plain words, give click-by-click steps
   (`build/ExportOptions.plist`: method app-store-connect, destination upload, teamID 3SK9NJ7M89.)
 
 ## Build & test
-- Rules: `cd core && npm run typecheck && npm test`; after any rules change `npm run bundle` (writes `ios/AirDefenceDuel/Resources/core.js`).
+- Rules: `cd core && npm run typecheck && npm test`.
+- After any change in `web/` or `core/`: `web/sync-ios.sh` (rebundles core into `web/core.js` and copies `web/` flat into `ios/AirDefenceDuel/Web/`).
+- Web in a desktop browser: serve `web/` (e.g. `python3 -m http.server`) and open `index.html` (`?demo=1` = AI vs AI). In tests, `window.__advance(sec)` steps the game.
 - iOS: `cd ios && xcodebuild -project AirDefenceDuel.xcodeproj -scheme AirDefenceDuel -destination 'generic/platform=iOS Simulator' -derivedDataPath build/SimDD build`
-- Launch with `-demo` to make the AI play both sides (screenshots via `xcrun simctl io <udid> screenshot`).
+- Launch the app with `-demo` to make the AI play both sides (screenshots via `xcrun simctl io <udid> screenshot`).
 
 ## Layout
 - `prototype/air-defence-duel.html` — original browser prototype (three.js r128, single file, pass-and-play). Reference only.
 - `docs/GAME_DESIGN.md` — the agreed rules. Update it whenever a rule is decided.
 - `docs/NUMBERS.md` — every price/stat; `core/src/data.ts` must match it.
-- `core/` — shared rules engine (TypeScript, deterministic, no Node APIs). Runs in the iOS app via JavaScriptCore now and on the server later.
-- `ios/` — SwiftUI + SceneKit app (landscape, iPhone). Project uses a synchronized folder: new files in `ios/AirDefenceDuel/` are picked up automatically.
+- `core/` — shared rules engine (TypeScript, deterministic, no Node APIs). Runs inside the web game now and on the server later.
+- `web/` — the game screen: Mert's prototype look (three.js r128 scene, models, effects, glass HUD) driven by the rules engine (`game.js`). Offline: three.js and fonts are local.
+- `ios/` — thin SwiftUI shell showing `Web/` in a WKWebView (portrait + landscape, iPhone). Synchronized folder: files in `ios/AirDefenceDuel/` are picked up automatically. Native code later adds sign-in, server link, store.

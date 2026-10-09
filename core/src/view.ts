@@ -20,7 +20,7 @@ export function viewFor(m: Match, pi: PlayerIndex) {
     winner: m.winner, endReason: m.endReason, iWon: m.winner === pi,
     me: {
       name: me.name, budget: me.budget, health: me.health, income: incomeFor(me), ready: me.ready,
-      pads: me.pads,
+      pads: me.pads, scars: me.scars,
       batteries: me.batteries.map(b => ({ ...b, load: batteryLoad(b), upgradeCost: upgradeBatteryCost(b), name: defence(b.sys).name })),
       buildings: me.buildings.map(b => ({ uid: b.uid, kind: b.kind, x: b.x, z: b.z, down: b.down, revealed: b.revealed, name: BUILDINGS.find(x => x.kind === b.kind)!.name })),
       interceptors: me.interceptors, launchers: me.launchers, stock: me.stock, scouts: me.scouts, launched: me.launched, caps,
@@ -30,20 +30,22 @@ export function viewFor(m: Match, pi: PlayerIndex) {
       autoFire: me.autoFire, reloadsLeft: me.reloadsLeft,
     },
     enemy: {
-      name: foe.name, health: foe.health,
+      name: foe.name, health: foe.health, scars: foe.scars,
       buildings: foe.buildings.filter(b => b.revealed).map(b => ({ uid: b.uid, kind: b.kind, x: b.x, z: b.z, down: b.down, name: BUILDINGS.find(x => x.kind === b.kind)!.name })),
       batteries: foe.batteries.filter(b => b.revealed).map(b => ({ uid: b.uid, sys: b.sys, name: defence(b.sys).name, x: foe.pads[b.pad].x, z: foe.pads[b.pad].z })),
     },
     battle: bt && {
       attacker: bt.attacker, defender: bt.defender, iDefend, time: bt.time,
       threats: bt.threats.filter(t => t.alive && t.delay <= 0 && (!iDefend || t.detected)).map(t => {
-        const known = !iDefend || t.identified;
+        const isDecoy = t.cls === 'decoy' || t.weapon === 'decoy';
+        // A defender who has identified a decoy but not yet unmasked it sees what it imitates.
+        const shownCls = !iDefend ? t.cls : !t.identified ? null : isDecoy && !t.decoyMarked ? t.looksLike : t.cls;
         return {
           uid: t.uid, x: t.x, z: t.z, alt: t.alt,
-          cls: known ? t.cls : null,
+          cls: shownCls,
           looksLike: t.looksLike,
-          name: !iDefend ? nameOf(t.weapon, t.isScout) : t.identified ? nameOf(t.looksLike === t.cls ? t.weapon : t.looksLike, t.isScout) : 'Unknown',
-          decoy: iDefend ? t.decoyMarked : t.cls === 'decoy' || t.weapon === 'decoy',
+          name: !iDefend ? nameOf(t.weapon, t.isScout) : !t.identified ? 'Unknown' : isDecoy && !t.decoyMarked ? (threatName[t.looksLike] ?? 'Unknown') : isDecoy ? 'Decoy' : nameOf(t.weapon, t.isScout),
+          decoy: iDefend ? t.decoyMarked : isDecoy,
           priority: t.priority, hold: t.hold, engaged: t.engaged, scout: t.isScout,
           eta: Math.round(Math.hypot(t.x, t.z) / Math.max(0.01, Math.hypot(t.x, t.z) > 20 ? t.speed : t.speedIn)),
         };
@@ -55,6 +57,8 @@ export function viewFor(m: Match, pi: PlayerIndex) {
     log: m.log.slice(-8),
   };
 }
+
+const threatName: Record<string, string> = { drone: 'Drone', ballistic: 'Ballistic', cruise: 'Cruise', uav: 'UAV', rocket: 'Rocket', hypersonic: 'Hypersonic' };
 
 function nameOf(id: string, isScout: boolean): string {
   if (isScout) return 'Surveillance UAV';

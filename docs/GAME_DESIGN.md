@@ -7,7 +7,8 @@ Status: first outline from Mert, 9 Oct 2026. Everything below "Open questions" i
 2. Then Android, same game.
 
 ## Tech stack (decided 9 Oct — same as AirlineRoom)
-- iOS app: native Swift. Android later: native Kotlin on the same server.
+- Game screen: Mert's prototype 3D scene (three.js) inside a native app shell — same scene on iOS and later Android (decided 9 Oct, after the first SceneKit build looked too plain).
+- iOS shell: Swift. Android shell later: Kotlin. Same server.
 - Sign-in: Firebase Auth (email/password + Sign in with Apple) — identity only.
 - Server: TypeScript on Node.js, on Render (Frankfurt, Starter), auto-deploys on push. Authoritative: timers, money, matchmaking, hit results.
 - Live updates: WebSockets.

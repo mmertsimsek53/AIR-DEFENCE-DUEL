@@ -35,6 +35,7 @@ export interface PlayerState {
   budget: number;
   health: number;
   pads: Pad[];
+  scars: { x: number; z: number; d: number }[]; // impact points in this city (for the 3D view)
   batteries: Battery[];
   buildings: Building[];
   interceptors: Record<string, number>; // depot stock per defence system

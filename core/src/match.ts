@@ -4,6 +4,7 @@ import {
   attack, defence, scout, type BuildingKind, type ThreatClass,
 } from './data';
 import { nextRandom } from './rng';
+import { buildingSlots, padLayout } from './geometry';
 import type {
   Battery, Battle, BattleEvent, Building, Command, CommandResult, Interceptor, Match, Pad, PlayerIndex,
   PlayerState, Point, Threat,
@@ -23,30 +24,18 @@ const other = (p: PlayerIndex): PlayerIndex => (p === 0 ? 1 : 0);
 
 // ---------- creation ----------
 
-function makePads(): Pad[] {
-  const pads: Pad[] = [];
-  for (let i = 0; i < 6; i++) {
-    const a = (i / 6) * Math.PI * 2 + Math.PI / 6;
-    pads.push({ id: pads.length, x: round(Math.cos(a) * 2.5), z: round(Math.sin(a) * 2.5) });
-  }
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2;
-    pads.push({ id: pads.length, x: round(Math.cos(a) * 5), z: round(Math.sin(a) * 5) });
-  }
-  return pads;
+const SLOTS = buildingSlots();
+
+function freeSpot(m: Match, p: PlayerState): Point | undefined {
+  const free = SLOTS.filter(s => !p.buildings.some(b => dist(b, s) < 0.05));
+  if (!free.length) return undefined;
+  return free[Math.floor(rnd(m) * free.length) % free.length];
 }
 
-function freeSpot(m: Match, p: PlayerState): Point {
-  for (let tries = 0; tries < 200; tries++) {
-    const a = rnd(m) * Math.PI * 2, r = 0.8 + rnd(m) * 4.4;
-    const pt = { x: round(Math.cos(a) * r), z: round(Math.sin(a) * r) };
-    if (p.pads.every(q => dist(q, pt) > 0.9) && p.buildings.every(b => dist(b, pt) > 1.1)) return pt;
-  }
-  return { x: 0, z: 0 };
-}
-
-function addBuilding(m: Match, p: PlayerState, kind: BuildingKind): Building {
-  const b: Building = { uid: uid(m), kind, ...freeSpot(m, p), down: 0, revealed: false, battleDamage: 0 };
+function addBuilding(m: Match, p: PlayerState, kind: BuildingKind): Building | undefined {
+  const spot = freeSpot(m, p);
+  if (!spot) return undefined;
+  const b: Building = { uid: uid(m), kind, x: spot.x, z: spot.z, down: 0, revealed: false, battleDamage: 0 };
   p.buildings.push(b);
   return b;
 }
@@ -54,7 +43,7 @@ function addBuilding(m: Match, p: PlayerState, kind: BuildingKind): Building {
 function newPlayer(index: PlayerIndex, name: string, isAI: boolean): PlayerState {
   return {
     index, name, isAI, budget: RULES.startBudget, health: RULES.cityHealth,
-    pads: makePads(), batteries: [], buildings: [], interceptors: {}, launchers: {}, stock: {}, scouts: {},
+    pads: padLayout(), scars: [], batteries: [], buildings: [], interceptors: {}, launchers: {}, stock: {}, scouts: {},
     launched: {}, offUp: {}, econ: { income: 0, storage: 0, logistics: 0, repair: 0 },
     radar: { range: 0, identify: 0, decoy: 0 }, autoFire: true, reloadsLeft: 0, spent: 0, conceded: false, ready: false,
   };
@@ -247,6 +236,7 @@ export function command(m: Match, pi: PlayerIndex, cmd: Command): CommandResult 
       return ok;
     }
     case 'buyRadarSite': {
+      if (!freeSpot(m, p)) return fail('No free plot left in the city.');
       if (!spend(p, EXTRA_RADAR_PRICE)) return fail('Not enough budget.');
       addBuilding(m, p, 'radar');
       return ok;
@@ -640,6 +630,8 @@ function arrive(m: Match, bt: Battle, att: PlayerState, def: PlayerState, t: Thr
 
 function impact(m: Match, bt: Battle, def: PlayerState, pt: Point, damage: number, buildingUid?: number) {
   def.health = round(def.health - damage);
+  def.scars.push({ x: pt.x, z: pt.z, d: damage });
+  if (def.scars.length > 300) def.scars.shift();
   bt.stats.hits++; bt.stats.damage = round(bt.stats.damage + damage);
   emit(bt, { t: 'impact', x: pt.x, z: pt.z, damage, building: buildingUid });
   if (buildingUid == null) return;

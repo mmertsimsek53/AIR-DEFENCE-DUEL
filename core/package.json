@@ -8,7 +8,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "bundle": "esbuild src/bundle.ts --bundle --format=iife --target=es2020 --outfile=../ios/AirDefenceDuel/Resources/core.js"
+    "bundle": "esbuild src/bundle.ts --bundle --format=iife --target=es2020 --outfile=../web/core.js"
   },
   "devDependencies": {
     "esbuild": "^0.24.0",
