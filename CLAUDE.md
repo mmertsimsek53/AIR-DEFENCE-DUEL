@@ -12,7 +12,7 @@ Owner: Mert (non-technical — explain in plain words, give click-by-click steps
 ## Services
 - GitHub: github.com/mmertsimsek53/AIR-DEFENCE-DUEL (private).
 - Neon: project `airdefenceduel` (young-grass-99096952), Frankfurt, org-divine-bonus-39424766. Branches `live` (default) and `dev` (work here). Connection strings in `server/.env` (gitignored): `DATABASE_URL` = dev, `LIVE_DATABASE_URL` = live. Neon CLI: `npx -y neonctl@2` with Node from `~/.airlineroom-tools/node/bin`.
-- Firebase (Auth only): project `Air Defence Duel` — being set up.
+- Firebase (Auth only, Spark plan): project `air-defence-duel`, email/password + Apple. iOS app `com.mert.airdefenceduel`; `ios/GoogleService-Info.plist` is gitignored (Mert can re-download it from Project settings).
 
 ## Layout
 - `prototype/air-defence-duel.html` — original browser prototype (three.js r128, single file, pass-and-play). Reference only.
