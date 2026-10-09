@@ -228,7 +228,8 @@ select.mini{appearance:none;-webkit-appearance:none;background:rgba(255,255,255,
   body.sheet-open .banner{left:calc((230px + 100vw - min(430px,50vw)) / 2)!important;width:calc(100vw - min(430px,50vw) - 250px)!important}
   .banner h2{font-size:30px!important}
   .banner p{font-size:12px}
-  .msg{top:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 62px)}
+  .msg{top:auto!important;bottom:calc(env(safe-area-inset-bottom,0px) + 64px);height:auto;max-width:min(40vw,360px);padding:6px 12px;font-size:12px}
+  .actions{flex-wrap:nowrap}.actions .btn{font-size:13px;padding:7px 10px;white-space:nowrap}
 }
 /* Landscape phone: menus become a panel on the right so the city stays visible on the left. */
 @media (orientation:landscape) and (max-height:540px){
@@ -252,7 +253,6 @@ select.mini{appearance:none;-webkit-appearance:none;background:rgba(255,255,255,
   body.sheet-open .msg,body.sheet-open .banner,body.sheet-open .placing{left:calc((100vw - min(430px,50vw)) / 2 + 90px)}
   body.sheet-open .banner{left:calc((100vw - min(430px,50vw)) / 2);width:calc(100vw - min(430px,50vw) - 40px)}
   .banner h2{font-size:40px}
-  .msg{top:calc(env(safe-area-inset-top,0px) + 66px)}
   .banner h2{font-size:44px}
 }
 @media (prefers-reduced-motion:reduce){.msg,.banner,.bar i{transition:none}}
@@ -319,7 +319,7 @@ select.mini{appearance:none;-webkit-appearance:none;background:rgba(255,255,255,
     <p>Two cities. Build your air defences, strike your rival's city, defend live when they strike back. Every missile costs money.</p>
     <ol>
       <li><b>Setup:</b> buy defence systems and place them on the pads, buy launchers, weapons and surveillance UAVs. Tap <b>I'm done</b>.</li>
-      <li><b>Your turn:</b> upgrade, plan a strike and press <b>GO</b>, or <b>Done, no attack</b> to save money. No clock in training.</li>
+      <li><b>Your turn:</b> upgrade, plan a strike and press <b>GO</b>, or <b>No attack</b> to save money. No clock in training.</li>
       <li><b>Under attack:</b> tap a contact to make it the priority, long-press to hold fire on it.</li>
     </ol>
     <p class="more" style="color:var(--dim)">Critical buildings are hidden until a UAV flies over them. Knock out the enemy's factory, power, radar or command centre to cripple them. A city at zero health is destroyed.</p>

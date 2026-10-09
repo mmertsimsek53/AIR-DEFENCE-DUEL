@@ -633,7 +633,7 @@ function quickStrike(){
   for(const w of CAT.attacks){const st=m.stock[w.id]||0;if(!st)continue;const n=w.reusable?st:Math.min(st,m.caps[w.id]||0);if(n>0){strikes.push(w.precise&&tg?{weapon:w.id,n,target:tg.uid}:{weapon:w.id,n});parts.push(n+' '+w.name);}}
   if(v.enemy.buildings.length<7){const sc=CAT.scouts.find(s=>(m.scouts[s.id]||0)>0);
     if(sc){const b=-Math.PI/2+(v.turnNo%3-1)*0.8;scouts.push({scout:sc.id,path:[{x:Math.cos(b)*5,z:Math.sin(b)*5},{x:-Math.cos(b)*5,z:-Math.sin(b)*5}]});parts.push('scout');}}
-  if(!parts.length){msg('Nothing in stock: buy weapons in Attack, or tap Done, no attack','warn');tab='attack';refreshUI();return;}
+  if(!parts.length){msg('Nothing in stock: buy weapons in Attack, or tap No attack','warn');tab='attack';refreshUI();return;}
   if(cmd({c:'go',strikes,scouts}))msg('Auto attack: '+parts.join(', ')+(tg?' → '+BLD[tg.kind].name:''),'good');
 }
 function planEmpty(){for(const k in plan.counts)if(plan.counts[k]>0)return false;for(const k in plan.scoutPath)if(plan.scoutPath[k])return false;return true;}
@@ -835,7 +835,7 @@ function hintHTML(){
   }
   if(v.phase==='turn'&&v.myTurn){
     if(ammoWarn)return ammoWarn;
-    return hasAtk||hasScout?'<b>NEXT</b> Tap <b>START ATTACK</b> and send weapons one by one · or <b>Auto attack</b>':'<b>NEXT</b> Buy weapons in <b>Attack</b>, or tap <b>Done, no attack</b>';
+    return hasAtk||hasScout?'<b>NEXT</b> Tap <b>START ATTACK</b> and send weapons one by one · or <b>Auto attack</b>':'<b>NEXT</b> Buy weapons in <b>Attack</b>, or tap <b>No attack</b>';
   }
   if(v.phase==='turn')return v.enemy.name+' is planning a strike'+(ammoWarn?' · '+ammoWarn:'');
   if(v.phase==='battle'&&!v.battle.iDefend&&v.battle.open)return '<b>ATTACK</b> '+(!liveSel?'Pick a weapon below':!liveFrom?'Tap where it starts, outside the city':'Tap where it should hit');
@@ -868,7 +868,7 @@ function refreshUI(){
     const tl=document.querySelector('.tl').getBoundingClientRect();$('ammoBox').style.top=(tl.bottom+6)+'px';}
   $('tabs').hidden=!plan_;$('actions').hidden=!plan_;
   $('waitBtn').hidden=!myTurn();
-  $('waitBtn').textContent=v&&!v.timed?'Done, no attack':'Wait';
+  $('waitBtn').textContent=v&&!v.timed?'No attack':'Wait';
   if(v&&v.phase==='setup'){$('endBtn').textContent=v.me.ready?'Waiting…':(v.timed?'Ready':"I'm done");$('endBtn').disabled=v.me.ready;$('endBtn').className='btn primary';}
   else{$('endBtn').textContent='START ATTACK';$('endBtn').disabled=false;$('endBtn').className='btn go';}
   for(const t of document.querySelectorAll('.tab'))t.classList.toggle('on',t.dataset.tab===tab);
