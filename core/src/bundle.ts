@@ -3,6 +3,7 @@ import * as core from './index';
 import type { Command, Match } from './types';
 
 let match: Match | undefined;
+let base: core.Base | undefined;
 const HUMAN = 0;
 
 const api = {
@@ -43,6 +44,16 @@ const api = {
     return { unitsPerKm: core.UNITS_PER_KM, river: core.RIVER, landmark: core.LANDMARK, slots: core.buildingSlots(), pads: core.padLayout() };
   },
   quit(): void { match = undefined; },
+  // ---------- persistent base ----------
+  baseLoad(json: string | null, name: string): void {
+    try { if (json) { const b = JSON.parse(json) as core.Base; if (b && b.version === 1 && Array.isArray(b.buildings)) { base = b; core.baseTick(base, Date.now()); return; } } } catch { /* start fresh */ }
+    base = core.newBase(name || 'Commander', Date.now());
+  },
+  baseSave(): string { return base ? JSON.stringify(base) : ''; },
+  baseCmd(cmd: core.BaseCommand) { return base ? core.baseCommand(base, cmd, Date.now()) : { ok: false, error: 'No base.' }; },
+  baseTick(): void { if (base) core.baseTick(base, Date.now()); },
+  baseView() { return base ? core.baseView(base, Date.now()) : null; },
+  baseCanPlace(type: string, x: number, y: number, ignore?: number) { return !!base && core.canPlaceAt(base, type, x, y, ignore); },
   save(): string { return match ? JSON.stringify(match) : ''; },
   load(json: string): boolean { try { match = JSON.parse(json) as Match; return true; } catch { return false; } },
 };

@@ -890,14 +890,18 @@ function pan(dx,dy){ // finger right → map follows right; finger down → map 
 const ptrs=new Map();let downX=0,downY=0,dragged=false,pinch=0,pressT=null;
 const pinchDist=()=>{const p=[...ptrs.values()];return Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y)||1;};
 cv.addEventListener('pointerdown',e=>{initAudio();try{cv.setPointerCapture(e.pointerId);}catch(_){}ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(window.BASE&&BASE.active&&BASE.pointer('down',e,ptrs.size)){dragged=true;return;}
   if(drawMode&&ptrs.size===1){drawPts=null;drawAdd(e.clientX,e.clientY);dragged=true;return;}
   if(ptrs.size===1){downX=e.clientX;downY=e.clientY;dragged=false;clearTimeout(pressT);pressT=setTimeout(()=>{if(!dragged&&ptrs.size===1){dragged=true;longPress(downX,downY);}},520);}
   if(ptrs.size===2){pinch=pinchDist();pmid=midPt();dragged=true;clearTimeout(pressT);}});
 cv.addEventListener('pointermove',e=>{const p=ptrs.get(e.pointerId);if(!p)return;const dx=e.clientX-p.x,dy=e.clientY-p.y;p.x=e.clientX;p.y=e.clientY;
+  if(window.BASE&&BASE.active&&BASE.pointer('move',e,ptrs.size))return;
   if(drawMode&&drawPts&&ptrs.size===1){drawAdd(e.clientX,e.clientY);rebuildPlanGfx();return;}
   if(ptrs.size===1){if(Math.hypot(e.clientX-downX,e.clientY-downY)>8){dragged=true;clearTimeout(pressT);}if(dragged){if(e.shiftKey||(e.buttons&2))pan(dx,dy);else{cam.theta-=dx*0.006;cam.phi=Math.min(1.42,Math.max(0.42,cam.phi-dy*0.005));}}}
   else if(ptrs.size===2){const d=pinchDist();cam.r=Math.min(380,Math.max(40,cam.r*pinch/d));pinch=d;const mp=midPt();if(pmid)pan(mp.x-pmid.x,mp.y-pmid.y);pmid=mp;}});
-function up(e){clearTimeout(pressT);pmid=null;if(drawMode&&drawPts&&ptrs.size===1&&e.type==='pointerup'){ptrs.delete(e.pointerId);finishDraw();return;}if(ptrs.has(e.pointerId)&&ptrs.size===1&&!dragged&&e.type==='pointerup')tap(e.clientX,e.clientY);ptrs.delete(e.pointerId);}
+function up(e){clearTimeout(pressT);pmid=null;
+  if(window.BASE&&BASE.active&&BASE.pointer('up',e,ptrs.size)){ptrs.delete(e.pointerId);return;}
+  if(window.BASE&&BASE.active&&ptrs.has(e.pointerId)&&ptrs.size===1&&!dragged&&e.type==='pointerup'){ptrs.delete(e.pointerId);BASE.tap(e.clientX,e.clientY);return;}if(drawMode&&drawPts&&ptrs.size===1&&e.type==='pointerup'){ptrs.delete(e.pointerId);finishDraw();return;}if(ptrs.has(e.pointerId)&&ptrs.size===1&&!dragged&&e.type==='pointerup')tap(e.clientX,e.clientY);ptrs.delete(e.pointerId);}
 cv.addEventListener('contextmenu',e=>e.preventDefault());cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
 cv.addEventListener('wheel',e=>{e.preventDefault();cam.r=Math.min(380,Math.max(40,cam.r*(1+e.deltaY*0.001)));},{passive:false});
 function project(p){_c.copy(p).project(camera);return _c.z<1&&_c.z>-1?{x:(_c.x*.5+.5)*innerWidth,y:(-_c.y*.5+.5)*innerHeight}:null;}
@@ -1041,7 +1045,7 @@ function step(real,draw){
     syncBattle();handleEvents(ADD.eventsRaw());
     onPhase();
     sheetT-=dt;if(sheetT<=0){sheetT=.3;refreshUI();}
-  }else cam.theta+=dt*0.05;
+  }else if(window.BASE&&BASE.active)BASE.step(dt,real);else cam.theta+=dt*0.05;
   const S=SIDES[viewSide];
   if(S.bats)for(const id in S.bats){const b=S.bats[id];if(b.pulse){b.pT+=dt;const k=(b.pT%2)/2;b.pulse.scale.setScalar(.5+k*RAD(DEF[b.sys].range)*.35);b.pulse.material.opacity=(1-k)*.35;}
     if(b.sys==='koral'&&b.tur)b.tur.rotation.y+=dt*2;if(b.beam&&b.beamT>0){b.beamT-=dt;if(b.beamT<=0)b.beam.visible=false;}
@@ -1068,6 +1072,11 @@ function step(real,draw){
   updTags();drawRadar();
 }
 // Test hook: advance the game by `sec` seconds in 50 ms steps, drawing only the last step.
+window.ADDX={THREE,V,TAU,rand,scene,camera,renderer,cam,emit,SMOKE,GLOW,explode,puff,flash,sfx,initAudio,buildModel,SYS_COL,css,fmt,esc,msg,banner,project,groundAt,
+  shadowy,boxPart,cylPart,MATS,steel,darkMat,concrete,whiteMat,stone,olive,tyre,glassMat,veh,tubes,canvasTex,noise,burnt,burntMats,
+  hideCities:()=>{for(const S of SIDES)if(S.root)S.root.visible=false;},
+  showMenuCity:()=>{if(!SIDES[0].root)buildCity(SIDES[0],0);showSide(0);SIDES[0].root.visible=true;},
+  toMenu:()=>toMenu()};
 window.__scr=(x,z)=>project(new V(x,0,z));
 window.__padXY=id=>{const p=PADS.find(q=>q.id===id);return p&&project(_b.set(p.x,1,p.z));};
 window.__advance=sec=>{const n=Math.max(1,Math.round(sec/0.05));for(let i=0;i<n;i++)step(0.05,i===n-1);return view&&{phase:view.phase,turn:view.turnNo,me:view.me.health,foe:view.enemy.health};};

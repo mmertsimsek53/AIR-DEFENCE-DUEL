@@ -153,6 +153,24 @@ select.mini{appearance:none;-webkit-appearance:none;background:rgba(255,255,255,
 .wchip b{font-size:13px;color:var(--c);font-weight:600}.wchip span{font-size:10px;color:var(--dim)}
 .wchip.on{background:rgba(255,90,78,.2);border-color:var(--danger);outline:2px solid var(--danger)}
 .liverow{display:flex;align-items:center;gap:8px;justify-content:space-between}.liverow .step-txt{font-size:12px}.liverow .step-txt b{color:var(--danger)}
+ /* ---------- base screen ---------- */
+body.base-mode .tl,body.base-mode .tc,body.base-mode .tr,body.base-mode #dock,body.base-mode #hint,body.base-mode #ammoBox,body.base-mode .ind,body.base-mode .ammo,body.base-mode .padmark{display:none!important}
+.btop{position:fixed;z-index:2;top:calc(env(safe-area-inset-top,0px) + 8px);left:calc(env(safe-area-inset-left,0px) + 10px);display:flex;gap:6px;flex-wrap:wrap;max-width:calc(100vw - 40px)}
+.rchip{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--r,var(--friend));border-radius:4px;padding:4px 9px;display:grid;line-height:1.15;backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px)}
+.rchip b{font-size:17px;font-weight:700;color:var(--r,var(--fg))}.rchip span{font-size:10px;color:var(--dim);display:inline}.rchip small{font-size:9px;color:var(--dim);letter-spacing:.04em}
+.rchip.hqchip{--r:#6fe3ff}
+.bbtns{position:fixed;z-index:2;right:calc(env(safe-area-inset-right,0px) + 10px);bottom:calc(env(safe-area-inset-bottom,0px) + 10px);display:flex;gap:6px}
+.bbtns .btn{font-size:15px;padding:9px 18px}
+.bshop{position:fixed;z-index:2;right:calc(env(safe-area-inset-right,0px) + 8px);top:calc(env(safe-area-inset-top,0px) + 8px);bottom:calc(env(safe-area-inset-bottom,0px) + 62px);width:min(430px,50vw);max-height:none;overflow:auto}
+.btile .cost{font-size:10px;color:var(--fg)}
+.cost i,.panel .tabs .btn i{font-style:normal}
+i[style*="--r"]{font-style:normal;white-space:nowrap}i[style*="--r"]::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--r);margin-right:3px;vertical-align:1px}
+.binfo{left:calc(env(safe-area-inset-left,0px) + 10px);transform:none;bottom:calc(env(safe-area-inset-bottom,0px) + 10px);width:min(360px,46vw)}
+.binfo .btn{font-size:12px;padding:7px 10px}
+.bplace{top:calc(env(safe-area-inset-top,0px) + 66px)}
+.blabel{position:absolute;left:0;top:0;white-space:nowrap;font-size:10px;font-weight:700;color:#061018;background:rgba(255,255,255,.85);padding:1px 5px;border-radius:3px;margin-left:-14px;pointer-events:none;overflow:hidden}
+.blabel.sel{background:var(--friend)}
+.blabel.busy{background:#ffd34d;min-width:44px;text-align:center}.blabel.busy i{position:absolute;left:0;bottom:0;height:2px;background:#c44}
 .grp{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin-top:2px}
 .items{display:grid;gap:5px}
 .item{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"nm cnt" "acts acts";gap:4px 10px;align-items:center;padding:6px 8px;border:1px solid var(--line);border-left:3px solid var(--c);border-radius:3px}
@@ -312,6 +330,14 @@ select.mini{appearance:none;-webkit-appearance:none;background:rgba(255,255,255,
 <div class="hud ammobox" id="ammoBox" hidden></div>
 <div class="banner" id="banner"><h2 id="bTitle"></h2><p id="bSub"></p></div>
 
+<div id="baseUI" hidden>
+  <div class="btop" id="bTop"></div>
+  <div class="bbtns"><button class="btn" data-bbtn="attack" type="button">Attack</button><button class="btn primary" data-bbtn="build" type="button">Build</button><button class="btn" data-bbtn="menu" type="button">Menu</button></div>
+  <div class="sheet bshop" id="bShop" hidden></div>
+  <div class="panel binfo" id="bInfo" hidden></div>
+  <div class="placing bplace" id="bPlace" hidden><span id="bPlaceTxt"></span><button class="btn primary" data-bplace="ok" type="button">✓ Place</button><button class="btn" data-bplace="cancel" type="button">✕</button></div>
+</div>
+
 <div class="overlay" id="menu">
   <div class="mcard">
     <div class="eyebrow">Sandbox training · online duels come with the server</div>
@@ -324,7 +350,7 @@ select.mini{appearance:none;-webkit-appearance:none;background:rgba(255,255,255,
     </ol>
     <p class="more" style="color:var(--dim)">Critical buildings are hidden until a UAV flies over them. Knock out the enemy's factory, power, radar or command centre to cripple them. A city at zero health is destroyed.</p>
     <div class="field"><span class="lbl">Commander</span><input id="nameIn" maxlength="14" placeholder="Your name" autocomplete="off"></div>
-    <div class="btns"><button class="btn primary" id="startBtn" type="button" style="--pc:#6fe3ff">Sandbox vs AI</button><button class="btn" type="button" disabled>Online duel · soon</button></div>
+    <div class="btns"><button class="btn primary" id="baseBtn" type="button" style="--pc:#6fe3ff">My Base</button><button class="btn" id="startBtn" type="button">City duel vs AI (old)</button><button class="btn" type="button" disabled>Online · soon</button></div>
   </div>
 </div>
 
@@ -352,5 +378,7 @@ select.mini{appearance:none;-webkit-appearance:none;background:rgba(255,255,255,
 <script src="three.min.js"></script>
 <script src="core.js"></script>
 <script src="game.js"></script>
+<script src="base.js"></script>
+<script>document.getElementById("baseBtn").onclick=()=>{try{ADDX.initAudio();}catch(e){}BASE.open();};</script>
 </body>
 </html>

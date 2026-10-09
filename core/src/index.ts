@@ -4,3 +4,4 @@ export { createMatch, command, tick, drainEvents, incomeFor, radarRange, launchC
 export { aiStep } from './ai';
 export { viewFor } from './view';
 export * from './geometry';
+export * from './base';

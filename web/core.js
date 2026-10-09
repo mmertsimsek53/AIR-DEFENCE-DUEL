@@ -225,8 +225,8 @@
   var working = (p, kind) => p.buildings.some((b) => b.kind === kind && b.down === 0);
   var powerOn = (p) => working(p, "power");
   function incomeFor(p) {
-    const base = RULES.income + ECONOMY.income.values[p.econ.income];
-    return working(p, "finance") ? base : round(base * (1 - FINANCE_PENALTY));
+    const base2 = RULES.income + ECONOMY.income.values[p.econ.income];
+    return working(p, "finance") ? base2 : round(base2 * (1 - FINANCE_PENALTY));
   }
   function radarRange(p) {
     if (!working(p, "radar")) return RULES.visualRange;
@@ -1443,8 +1443,303 @@
     }
   }
 
+  // src/base.ts
+  var RESOURCES = ["gold", "petrol", "explosives", "uranium"];
+  var RES_NAMES = { gold: "Gold", petrol: "Petrol", explosives: "Explosives", uranium: "Uranium" };
+  var gridSize = (hq) => 20 + 2 * (Math.max(1, Math.min(10, hq)) - 1);
+  var upTo = (...c) => {
+    const out = [...c];
+    while (out.length < 10) out.push(out[out.length - 1]);
+    return out.slice(0, 10);
+  };
+  var fromHQ = (unlock, ...c) => upTo(...Array(unlock - 1).fill(0), ...c);
+  var B = (b) => b;
+  var CORE_TYPES = [
+    B({ id: "hq", name: "Headquarters", cat: "core", size: 4, unlock: 1, maxLevel: 10, counts: upTo(1), cost: { gold: 1e3 }, time: 30, hp: 1200, stores: { res: "gold", cap: 1500 }, role: "Unlocks every building and level. Knocked out: your next turn is shorter." }),
+    B({ id: "builder", name: "Builder Yard", cat: "core", size: 2, unlock: 1, maxLevel: 1, counts: upTo(1, 2, 2, 3, 3, 4, 4, 5), cost: { gold: 500 }, time: 10, hp: 300, role: "Houses one construction team. Each team builds or upgrades one thing at a time." }),
+    B({ id: "radar", name: "Radar Station", cat: "core", size: 3, unlock: 1, maxLevel: 4, counts: upTo(1, 1, 1, 2, 2, 2, 3), cost: { gold: 400, petrol: 100 }, time: 20, hp: 500, role: "Detects incoming threats. Higher level: longer range, earlier identification, sees through decoys." }),
+    B({ id: "power", name: "Power Plant", cat: "core", size: 3, unlock: 2, maxLevel: 6, counts: fromHQ(2, 1, 1, 2), cost: { gold: 500, petrol: 200 }, time: 30, hp: 600, role: "Powers radar, lasers and electronic warfare. Knocked out: they switch off." })
+  ];
+  var RESOURCE_TYPES = [
+    B({ id: "treasury", name: "Treasury", cat: "resource", size: 3, unlock: 1, maxLevel: 10, counts: upTo(1, 2, 2, 3, 3, 4, 4, 5), cost: { gold: 150, petrol: 50 }, time: 10, hp: 400, produces: { res: "gold", perHour: 600 }, role: "Government funding: produces Gold." }),
+    B({ id: "oilwell", name: "Oil Well", cat: "resource", size: 2, unlock: 1, maxLevel: 10, counts: upTo(1, 2, 2, 3, 3, 4, 4, 5), cost: { gold: 200 }, time: 10, hp: 350, produces: { res: "petrol", perHour: 400 }, role: "Pumps oil and refines it: produces Petrol, the fuel for every launch." }),
+    B({ id: "explosives", name: "Explosives Plant", cat: "resource", size: 3, unlock: 1, maxLevel: 10, counts: upTo(1, 1, 2, 2, 3, 3, 4), cost: { gold: 300, petrol: 100 }, time: 20, hp: 450, produces: { res: "explosives", perHour: 250 }, role: "Makes high explosive (RDX/TNT): the filling of every warhead." }),
+    B({ id: "uranium", name: "Uranium Mine", cat: "resource", size: 3, unlock: 5, maxLevel: 6, counts: fromHQ(5, 1, 1, 2), cost: { gold: 3e3, petrol: 1e3 }, time: 120, hp: 600, produces: { res: "uranium", perHour: 40 }, role: "Mines and processes uranium for heavy penetrator warheads." })
+  ];
+  var STORAGE_TYPES = [
+    B({ id: "goldvault", name: "Gold Vault", cat: "storage", size: 3, unlock: 1, maxLevel: 10, counts: upTo(1, 1, 2, 2, 2, 3), cost: { gold: 300 }, time: 15, hp: 600, stores: { res: "gold", cap: 2500 }, role: "Stores Gold. Raiders can steal part of it." }),
+    B({ id: "fueldepot", name: "Fuel Depot", cat: "storage", size: 3, unlock: 1, maxLevel: 10, counts: upTo(1, 1, 2, 2, 2, 3), cost: { gold: 300 }, time: 15, hp: 500, stores: { res: "petrol", cap: 2e3 }, role: "Stores Petrol in tanks." }),
+    B({ id: "magazine", name: "Explosives Magazine", cat: "storage", size: 3, unlock: 1, maxLevel: 10, counts: upTo(1, 1, 1, 2, 2, 2, 3), cost: { gold: 350, petrol: 50 }, time: 20, hp: 700, stores: { res: "explosives", cap: 1500 }, role: "Earth-covered bunker storing Explosives." }),
+    B({ id: "uraniumstore", name: "Uranium Store", cat: "storage", size: 2, unlock: 5, maxLevel: 6, counts: fromHQ(5, 1, 1, 1, 2), cost: { gold: 2500, petrol: 500 }, time: 90, hp: 800, stores: { res: "uranium", cap: 300 }, role: "Shielded casks storing Uranium." })
+  ];
+  var PRODUCTION_TYPES = [
+    B({ id: "missilefactory", name: "Missile Factory", cat: "production", size: 3, unlock: 1, maxLevel: 8, counts: upTo(1, 1, 1, 1, 2), cost: { gold: 500, petrol: 100 }, time: 30, hp: 700, role: "Builds interceptor missiles for your air defences. Knocked out: no new missiles." }),
+    B({ id: "droneworkshop", name: "Drone Workshop", cat: "production", size: 3, unlock: 1, maxLevel: 8, counts: upTo(1, 1, 1, 2, 2, 2, 3), cost: { gold: 400, petrol: 100 }, time: 20, hp: 500, role: "Builds Shahed and Kargu drones and Gerbera decoys." }),
+    B({ id: "rocketpark", name: "Rocket Artillery Park", cat: "production", size: 3, unlock: 2, maxLevel: 8, counts: fromHQ(2, 1, 1, 2, 2, 2, 3), cost: { gold: 800, petrol: 300 }, time: 40, hp: 600, role: "Grad, TRG-300 and HIMARS launch vehicles." }),
+    B({ id: "airfield", name: "Airfield", cat: "production", size: 4, unlock: 2, maxLevel: 8, counts: fromHQ(2, 1, 1, 1, 1, 2), cost: { gold: 1200, petrol: 400 }, time: 60, hp: 900, role: "Runway and hangar for TB2, Ak\u0131nc\u0131, Anka and Global Hawk. Knocked out: UAVs can't take off." }),
+    B({ id: "cruisesite", name: "Cruise Missile Site", cat: "production", size: 3, unlock: 4, maxLevel: 6, counts: fromHQ(4, 1, 1, 1, 2), cost: { gold: 2e3, petrol: 700 }, time: 90, hp: 700, role: "Launch containers for SOM and Tomahawk." }),
+    B({ id: "silo", name: "Missile Silo", cat: "production", size: 3, unlock: 6, maxLevel: 5, counts: fromHQ(6, 1, 1, 2), cost: { gold: 4e3, petrol: 1200, uranium: 50 }, time: 180, hp: 1e3, role: "Underground silo for Tayfun, Iskander and (HQ10) Kinzhal." })
+  ];
+  var SUPPORT_TYPES = [
+    B({ id: "ammobunker", name: "Ammunition Bunker", cat: "support", size: 3, unlock: 2, maxLevel: 6, counts: fromHQ(2, 1, 1, 1, 2), cost: { gold: 600, explosives: 100 }, time: 40, hp: 900, role: "Protected storage for built weapons and interceptors." }),
+    B({ id: "rnd", name: "R&D Centre", cat: "support", size: 3, unlock: 3, maxLevel: 8, counts: fromHQ(3, 1), cost: { gold: 1500, uranium: 0 }, time: 60, hp: 700, role: "Research: warheads, guidance, stealth, interceptor accuracy." }),
+    B({ id: "academy", name: "Training Academy", cat: "support", size: 3, unlock: 2, maxLevel: 8, counts: fromHQ(2, 1), cost: { gold: 800, petrol: 100 }, time: 40, hp: 600, role: "Trains crews: operators, launch teams, engineers." }),
+    B({ id: "barracks", name: "Barracks", cat: "support", size: 3, unlock: 1, maxLevel: 8, counts: upTo(1, 1, 2, 2, 3), cost: { gold: 250 }, time: 15, hp: 500, role: "Beds for your people. More barracks, bigger crews." }),
+    B({ id: "repair", name: "Repair Workshop", cat: "support", size: 2, unlock: 2, maxLevel: 6, counts: fromHQ(2, 1, 1, 1, 2), cost: { gold: 500, petrol: 100 }, time: 30, hp: 400, role: "Engineers repair damaged buildings faster." }),
+    B({ id: "camo", name: "Camouflage Net", cat: "support", size: 2, unlock: 3, maxLevel: 3, counts: fromHQ(3, 2, 3, 4, 5, 6), cost: { gold: 300 }, time: 20, hp: 100, role: "Hides the buildings beside it from scouts until they are hit." }),
+    B({ id: "decoy", name: "Decoy HQ", cat: "support", size: 3, unlock: 4, maxLevel: 3, counts: fromHQ(4, 1, 1, 2), cost: { gold: 800 }, time: 40, hp: 300, role: "Looks like a real headquarters to scouts. Wastes enemy missiles." })
+  ];
+  var DEF_UNLOCK = {
+    zu23: 1,
+    stinger: 1,
+    gepard: 2,
+    sungur: 2,
+    korkut: 2,
+    alka: 3,
+    pantsir: 3,
+    hisara: 3,
+    koral: 4,
+    irondome: 4,
+    ironbeam: 5,
+    irist: 5,
+    hisaro: 5,
+    davidsling: 7,
+    siper: 7,
+    s400: 8,
+    patriot: 9
+  };
+  var DEFENCE_TYPES = DEFENCES.map((d2) => {
+    const u = DEF_UNLOCK[d2.id] ?? 1;
+    const big = d2.range >= 40;
+    return B({
+      id: "def_" + d2.id,
+      name: d2.name,
+      cat: "defence",
+      size: big ? 3 : 2,
+      unlock: u,
+      maxLevel: 3,
+      counts: fromHQ(u, 1, 2, 2, 3, 3, 4),
+      cost: { gold: Math.round(d2.price * 8), explosives: d2.load > 0 ? Math.round(d2.price * 0.6) : 0, petrol: Math.round(d2.price * 1.5) },
+      time: Math.round(15 + d2.price * 0.4),
+      hp: 400 + Math.round(d2.price * 2),
+      sys: d2.id,
+      role: d2.role
+    });
+  });
+  var BUILDING_TYPES = [...CORE_TYPES, ...RESOURCE_TYPES, ...STORAGE_TYPES, ...PRODUCTION_TYPES, ...SUPPORT_TYPES, ...DEFENCE_TYPES];
+  var buildingType = (id) => BUILDING_TYPES.find((b) => b.id === id);
+  var levelCost = (t, level) => {
+    const k = Math.pow(1.7, level - 1), out = {};
+    for (const r of RESOURCES) {
+      const v = t.cost[r];
+      if (v) out[r] = Math.round(v * k);
+    }
+    return out;
+  };
+  var levelTime = (t, level) => Math.round(t.time * Math.pow(2.5, level - 1));
+  var levelHp = (t, level) => Math.round(t.hp * Math.pow(1.25, level - 1));
+  var levelProduction = (t, level) => t.produces ? t.produces.perHour * Math.pow(1.35, level - 1) : 0;
+  var levelStorage = (t, level) => t.stores ? t.stores.cap * Math.pow(1.6, level - 1) : 0;
+  var maxLevelAt = (t, hq) => t.id === "hq" ? 10 : Math.max(0, Math.min(t.maxLevel, hq - t.unlock + 2));
+  var countAt = (t, hq) => t.counts[Math.max(1, Math.min(10, hq)) - 1] ?? 0;
+  var fail2 = (error) => ({ ok: false, error });
+  var hqLevel = (b) => Math.max(1, b.buildings.find((x) => x.type === "hq")?.level ?? 1);
+  function newBase(name, now) {
+    const b = { version: 1, name, res: { gold: 1500, petrol: 600, explosives: 300, uranium: 0 }, buildings: [], nextId: 1, lastTick: now, xp: 1e3 };
+    const g = gridSize(1), mid = Math.floor(g / 2);
+    const put = (type, x, y) => b.buildings.push({ id: b.nextId++, type, level: 1, x, y });
+    put("hq", mid - 2, mid - 2);
+    put("builder", mid + 3, mid - 2);
+    put("treasury", mid - 6, mid - 2);
+    put("oilwell", mid - 5, mid + 3);
+    put("goldvault", mid + 3, mid + 1);
+    put("radar", mid - 2, mid - 7);
+    put("def_zu23", mid - 1, mid + 4);
+    return b;
+  }
+  function storageCap(b) {
+    const hq = hqLevel(b);
+    const cap = { gold: 1500 * Math.pow(1.6, hq - 1), petrol: 1e3 * Math.pow(1.6, hq - 1), explosives: 600 * Math.pow(1.6, hq - 1), uranium: hq >= 5 ? 100 : 0 };
+    for (const x of b.buildings) {
+      const t = buildingType(x.type);
+      if (!t?.stores || x.type === "hq" || x.level < 1) continue;
+      cap[t.stores.res] += levelStorage(t, x.level);
+    }
+    for (const r of RESOURCES) cap[r] = Math.round(cap[r]);
+    return cap;
+  }
+  function productionPerHour(b) {
+    const out = { gold: 0, petrol: 0, explosives: 0, uranium: 0 };
+    for (const x of b.buildings) {
+      const t = buildingType(x.type);
+      if (!t?.produces || x.level < 1 || x.build) continue;
+      out[t.produces.res] += levelProduction(t, x.level);
+    }
+    return out;
+  }
+  var builders = (b) => b.buildings.filter((x) => x.type === "builder" && x.level >= 1).length;
+  var buildersBusy = (b) => b.buildings.filter((x) => x.build).length;
+  function baseTick(b, now) {
+    if (now <= b.lastTick) return;
+    let t = b.lastTick;
+    const done = b.buildings.filter((x) => x.build && x.build.ends <= now).sort((p, q) => p.build.ends - q.build.ends);
+    for (const x of done) {
+      produce(b, x.build.ends - t);
+      t = x.build.ends;
+      x.level = x.build.toLevel;
+      x.build = void 0;
+    }
+    produce(b, now - t);
+    b.lastTick = now;
+  }
+  function produce(b, ms) {
+    if (ms <= 0) return;
+    const per = productionPerHour(b), cap = storageCap(b);
+    for (const r of RESOURCES) {
+      if (b.res[r] >= cap[r]) continue;
+      b.res[r] = Math.min(cap[r], b.res[r] + per[r] * ms / 36e5);
+    }
+  }
+  function fits(b, size, x, y, ignoreId) {
+    const g = gridSize(hqLevel(b));
+    if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x + size > g || y + size > g) return false;
+    return b.buildings.every((o) => {
+      if (o.id === ignoreId) return true;
+      const s = buildingType(o.type).size;
+      return x + size <= o.x || o.x + s <= x || y + size <= o.y || o.y + s <= y;
+    });
+  }
+  function canPay(b, cost) {
+    return RESOURCES.every((r) => (cost[r] ?? 0) <= b.res[r] + 1e-9);
+  }
+  function pay(b, cost) {
+    for (const r of RESOURCES) b.res[r] -= cost[r] ?? 0;
+  }
+  function costText(cost) {
+    return RESOURCES.filter((r) => cost[r]).map((r) => `${Math.ceil(cost[r])} ${RES_NAMES[r]}`).join(", ");
+  }
+  function canPlaceAt(b, type, x, y, ignoreId) {
+    const t = buildingType(type);
+    return !!t && fits(b, t.size, x, y, ignoreId);
+  }
+  function baseCommand(b, cmd, now) {
+    baseTick(b, now);
+    const hq = hqLevel(b);
+    switch (cmd.c) {
+      case "place": {
+        const t = buildingType(cmd.type);
+        if (!t) return fail2("Unknown building.");
+        if (hq < t.unlock) return fail2(`Needs Headquarters level ${t.unlock}.`);
+        const have = b.buildings.filter((x2) => x2.type === t.id).length;
+        if (have >= countAt(t, hq)) return fail2(`You have the most ${t.name}s allowed at this HQ level.`);
+        if (!fits(b, t.size, cmd.x, cmd.y)) return fail2("It doesn't fit there.");
+        if (buildersBusy(b) >= builders(b) && t.id !== "builder") return fail2("All construction teams are busy.");
+        const cost = levelCost(t, 1);
+        if (!canPay(b, cost)) return fail2(`Needs ${costText(cost)}.`);
+        pay(b, cost);
+        const x = { id: b.nextId++, type: t.id, level: 0, x: cmd.x, y: cmd.y, build: { toLevel: 1, started: now, ends: now + levelTime(t, 1) * 1e3 } };
+        b.buildings.push(x);
+        return { ok: true };
+      }
+      case "upgrade": {
+        const x = b.buildings.find((o) => o.id === cmd.id);
+        if (!x) return fail2("No such building.");
+        const t = buildingType(x.type);
+        if (x.build) return fail2("Already under construction.");
+        if (x.level >= t.maxLevel) return fail2("Already at the top level.");
+        if (x.level >= maxLevelAt(t, hq)) return fail2(`Upgrade your Headquarters first (needs HQ ${x.level + t.unlock - 1}).`);
+        if (buildersBusy(b) >= builders(b)) return fail2("All construction teams are busy.");
+        const cost = levelCost(t, x.level + 1);
+        if (!canPay(b, cost)) return fail2(`Needs ${costText(cost)}.`);
+        pay(b, cost);
+        x.build = { toLevel: x.level + 1, started: now, ends: now + levelTime(t, x.level + 1) * 1e3 };
+        return { ok: true };
+      }
+      case "move": {
+        const x = b.buildings.find((o) => o.id === cmd.id);
+        if (!x) return fail2("No such building.");
+        if (!fits(b, buildingType(x.type).size, cmd.x, cmd.y, x.id)) return fail2("It doesn't fit there.");
+        x.x = cmd.x;
+        x.y = cmd.y;
+        return { ok: true };
+      }
+      case "speedUp": {
+        const x = b.buildings.find((o) => o.id === cmd.id);
+        if (!x?.build) return fail2("Nothing to speed up.");
+        const cost = speedUpCost(x, now);
+        if (b.res.gold < cost) return fail2(`Needs ${cost} Gold.`);
+        b.res.gold -= cost;
+        x.level = x.build.toLevel;
+        x.build = void 0;
+        return { ok: true };
+      }
+      case "cancel": {
+        const x = b.buildings.find((o) => o.id === cmd.id);
+        if (!x?.build) return fail2("Nothing to cancel.");
+        const t = buildingType(x.type), cost = levelCost(t, x.build.toLevel);
+        for (const r of RESOURCES) b.res[r] += (cost[r] ?? 0) * 0.5;
+        if (x.level === 0) b.buildings = b.buildings.filter((o) => o !== x);
+        else x.build = void 0;
+        return { ok: true };
+      }
+    }
+    return fail2("Unknown command.");
+  }
+  var speedUpCost = (x, now) => x.build ? Math.max(5, Math.ceil((x.build.ends - now) / 2e3)) : 0;
+  function baseView(b, now) {
+    const hq = hqLevel(b);
+    return {
+      name: b.name,
+      hq,
+      grid: gridSize(hq),
+      res: { ...b.res },
+      cap: storageCap(b),
+      perHour: productionPerHour(b),
+      builders: builders(b),
+      buildersBusy: buildersBusy(b),
+      xp: b.xp,
+      buildings: b.buildings.map((x) => {
+        const t = buildingType(x.type);
+        return {
+          id: x.id,
+          type: x.type,
+          level: x.level,
+          x: x.x,
+          y: x.y,
+          size: t.size,
+          name: t.name,
+          cat: t.cat,
+          sys: t.sys,
+          building: x.build ? { toLevel: x.build.toLevel, left: Math.max(0, Math.ceil((x.build.ends - now) / 1e3)), total: Math.round((x.build.ends - x.build.started) / 1e3), speedUp: speedUpCost(x, now) } : null,
+          nextCost: x.level < Math.min(t.maxLevel, maxLevelAt(t, hq)) ? levelCost(t, x.level + 1) : null,
+          nextTime: x.level < t.maxLevel ? levelTime(t, x.level + 1) : null,
+          maxed: x.level >= t.maxLevel,
+          hqLocked: x.level < t.maxLevel && x.level >= maxLevelAt(t, hq),
+          hp: levelHp(t, Math.max(1, x.level))
+        };
+      }),
+      shop: BUILDING_TYPES.map((t) => ({
+        id: t.id,
+        name: t.name,
+        cat: t.cat,
+        size: t.size,
+        unlock: t.unlock,
+        role: t.role,
+        sys: t.sys,
+        cost: levelCost(t, 1),
+        time: levelTime(t, 1),
+        have: b.buildings.filter((x) => x.type === t.id).length,
+        allowed: countAt(t, hq),
+        locked: hq < t.unlock,
+        produces: t.produces ? { res: t.produces.res, perHour: Math.round(levelProduction(t, 1)) } : null,
+        stores: t.stores ? { res: t.stores.res, cap: Math.round(levelStorage(t, 1)) } : null
+      }))
+    };
+  }
+
   // src/bundle.ts
   var match;
+  var base;
   var HUMAN = 0;
   var api = {
     newSandbox(seed, name, demo) {
@@ -1511,6 +1806,36 @@
     },
     quit() {
       match = void 0;
+    },
+    // ---------- persistent base ----------
+    baseLoad(json, name) {
+      try {
+        if (json) {
+          const b = JSON.parse(json);
+          if (b && b.version === 1 && Array.isArray(b.buildings)) {
+            base = b;
+            baseTick(base, Date.now());
+            return;
+          }
+        }
+      } catch {
+      }
+      base = newBase(name || "Commander", Date.now());
+    },
+    baseSave() {
+      return base ? JSON.stringify(base) : "";
+    },
+    baseCmd(cmd) {
+      return base ? baseCommand(base, cmd, Date.now()) : { ok: false, error: "No base." };
+    },
+    baseTick() {
+      if (base) baseTick(base, Date.now());
+    },
+    baseView() {
+      return base ? baseView(base, Date.now()) : null;
+    },
+    baseCanPlace(type, x, y, ignore) {
+      return !!base && canPlaceAt(base, type, x, y, ignore);
     },
     save() {
       return match ? JSON.stringify(match) : "";

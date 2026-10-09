@@ -33,5 +33,6 @@ Owner: Mert (non-technical — explain in plain words, give click-by-click steps
 - `docs/GAME_DESIGN.md` — the agreed rules. Update it whenever a rule is decided.
 - `docs/NUMBERS.md` — every price/stat; `core/src/data.ts` must match it.
 - `core/` — shared rules engine (TypeScript, deterministic, no Node APIs). Runs inside the web game now and on the server later.
+- `web/base.js` — the persistent military base screen (building models, build/upgrade/move editor); rules in `core/src/base.ts`; saved by the iOS shell to Application Support/base.json.
 - `web/` — the game screen: Mert's prototype look (three.js r128 scene, models, effects, glass HUD) driven by the rules engine (`game.js`). Offline: three.js and fonts are local.
 - `ios/` — thin SwiftUI shell showing `Web/` in a WKWebView (portrait + landscape, iPhone). Synchronized folder: files in `ios/AirDefenceDuel/` are picked up automatically. Native code later adds sign-in, server link, store.

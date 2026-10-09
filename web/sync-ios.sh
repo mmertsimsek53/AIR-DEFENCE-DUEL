@@ -6,5 +6,5 @@ export PATH="$HOME/.airlineroom-tools/node/bin:$PATH"
 (cd ../core && npm run -s bundle)
 DEST=../ios/AirDefenceDuel/Web
 rm -rf "$DEST" && mkdir -p "$DEST"
-cp index.html game.js core.js three.min.js "$DEST"/
+cp index.html game.js base.js core.js three.min.js "$DEST"/
 echo "web → $DEST"

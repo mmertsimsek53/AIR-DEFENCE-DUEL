@@ -34,6 +34,11 @@ struct GameWebView: UIViewRepresentable {
         """
         config.userContentController.addUserScript(WKUserScript(source: bridge, injectionTime: .atDocumentStart, forMainFrameOnly: true))
         config.userContentController.add(context.coordinator, name: "log")
+        // The player's base is saved as a file in the app's own storage and handed to the page at start.
+        if let saved = BaseStore.load(), let data = try? JSONEncoder().encode(saved), let lit = String(data: data, encoding: .utf8) {
+            config.userContentController.addUserScript(WKUserScript(source: "window.__savedBase = \(lit);", injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        }
+        config.userContentController.add(context.coordinator, name: "save")
 
         let web = WKWebView(frame: .zero, configuration: config)
         web.isOpaque = false
@@ -63,7 +68,19 @@ struct GameWebView: UIViewRepresentable {
 
     final class Coordinator: NSObject, WKScriptMessageHandler {
         func userContentController(_ c: WKUserContentController, didReceive message: WKScriptMessage) {
+            if message.name == "save", let json = message.body as? String { BaseStore.save(json); return }
             print("[web]", message.body)
         }
     }
+}
+
+/// Saves the base JSON (from the web game) in Application Support.
+enum BaseStore {
+    private static var url: URL {
+        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("base.json")
+    }
+    static func save(_ json: String) { try? json.write(to: url, atomically: true, encoding: .utf8) }
+    static func load() -> String? { try? String(contentsOf: url, encoding: .utf8) }
 }
