@@ -640,9 +640,9 @@ function renderSheet(){
   if(placing||drawMode){sh.hidden=true;document.body.classList.remove('sheet-open');return;}
   if(!tab||!canShop()&&tab!=='city'||!view||(view.phase!=='setup'&&view.phase!=='turn')){hideSheet();return;}
   const s=sig();if(s===sheetSig&&!sh.hidden)return;sheetSig=s;
-  const keep=sh.scrollTop,cards=sh.querySelector('.cards'),keepX=cards?cards.scrollLeft:0;
+  const keep=sh.scrollTop;
   sh.hidden=false;document.body.classList.add('sheet-open');sh.innerHTML=sheetHTML();
-  sh.scrollTop=keep;const nc=sh.querySelector('.cards');if(nc)nc.scrollLeft=keepX;
+  sh.scrollTop=keep;
 }
 function sheetHTML(){
   const v=view,m=v.me,B=m.budget;
@@ -656,12 +656,12 @@ function sheetHTML(){
             '<button class="mini" data-act="reload" data-k="'+b.uid+'"'+(B<rc?' disabled':'')+'>Buy '+s.load+' now · '+fmt(rc)+'</button>':'')+
           (b.upgradeCost!=null?'<button class="mini" data-act="upBat" data-k="'+b.uid+'"'+(B<b.upgradeCost?' disabled':'')+'>Upgrade '+fmt(b.upgradeCost)+'</button>':'')+'</div></div>';}).join('')+'</div>';
     }
-    const card=s=>{const col=css(SYS_COL[s.id]);
-      return '<button class="card'+(placing===s.id?' sel':'')+'" type="button" data-act="place" data-k="'+s.id+'" style="--c:'+col+'"'+(B<s.price?' disabled':'')+'><h4>'+esc(s.name)+'</h4>'+
-        '<div class="kv"><span>Price</span><b>'+fmt(s.price)+'</b></div><div class="kv"><span>Range</span><b>'+s.range+' km</b></div><div class="kv"><span>Missiles</span><b>'+(s.load?s.load+' × '+fmt(s.shot):s.kind==='gun'?'gun':'none')+'</b></div>'+vsChips(s.hit)+'</button>';};
+    const card=s=>{const col=css(SYS_COL[s.id]),best=CLS_ORDER.filter(k=>s.hit[k]&&k!=='decoy').sort((x,y)=>s.hit[y]-s.hit[x]).slice(0,3);
+      return '<button class="tile'+(placing===s.id?' sel':'')+'" type="button" data-act="place" data-k="'+s.id+'" style="--c:'+col+'"'+(B<s.price?' disabled':'')+'><b class="tn">'+esc(s.name)+'</b>'+
+        '<span class="meta"><b>'+fmt(s.price)+'</b> · '+s.range+' km</span><span class="hits">'+best.map(k=>'<i style="--k:'+CLS_CSS[k]+'">'+CLS_LABEL[k]+' '+Math.round(s.hit[k])+'</i>').join('')+'</span></button>';};
     h+='<h3>Buy a defence <span class="small">· tap one, then a glowing + in your city</span></h3>';
-    if(!showAllDef){for(const [title,ids] of REC_DEF)h+='<div class="grp">'+title+'</div><div class="cards">'+ids.map(id=>card(DEF[id])).join('')+'</div>';}
-    else h+='<div class="cards">'+CAT.defences.map(card).join('')+'</div>';
+    if(!showAllDef){for(const [title,ids] of REC_DEF)h+='<div class="grp">'+title+'</div><div class="tiles">'+ids.map(id=>card(DEF[id])).join('')+'</div>';}
+    else h+='<div class="tiles">'+CAT.defences.map(card).join('')+'</div>';
     h+='<button class="mini" data-act="showall" data-k="def">'+(showAllDef?'Show recommended only':'Show all '+CAT.defences.length+' systems')+'</button>';
     return h;
   }
@@ -687,9 +687,10 @@ function sheetHTML(){
       h+='</div>';
     }else h+='<div class="note">You have no weapons yet. Pick some below.</div>';
     const rest=CAT.attacks.filter(w=>!owned.includes(w)&&(showAllAtk||REC_ATK.includes(w.id))),restS=CAT.scouts.filter(s=>!ownedS.includes(s)&&(showAllAtk||REC_ATK.includes(s.id)));
-    h+='<h3>Add a weapon</h3><div class="items">'+rest.map(w=>'<div class="item small-item" style="--c:'+CLS_CSS[w.cls]+'"><div class="nm"><b>'+esc(w.name)+'</b><span>'+esc(w.role)+'</span></div><div class="cnt"><span>'+(w.reusable?fmt(w.unit)+' each':fmt(w.unit)+' each · '+w.perTurn+'/turn')+'</span></div><div class="acts">'+
-      (w.reusable?'<button class="mini" data-act="units" data-k="'+w.id+'" data-n="1"'+(B<w.unit?' disabled':'')+'>Buy '+fmt(w.unit)+'</button>':'<button class="mini" data-act="launcher" data-k="'+w.id+'"'+(B<w.launcher?' disabled':'')+'>Launcher '+fmt(w.launcher)+'</button>')+'</div></div>').join('')+
-      restS.map(s=>'<div class="item small-item" style="--c:'+CLS_CSS.uav+'"><div class="nm"><b>'+esc(s.name)+'</b><span>Scout UAV. '+esc(s.role)+'</span></div><div class="cnt"></div><div class="acts"><button class="mini" data-act="scout" data-k="'+s.id+'"'+(B<s.price?' disabled':'')+'>Buy '+fmt(s.price)+'</button></div></div>').join('')+'</div>';
+    const wt=(id,name,col,meta,act,price,n)=>'<button class="tile" type="button" data-act="'+act+'" data-k="'+id+'"'+(n?' data-n="'+n+'"':'')+' style="--c:'+col+'"'+(B<price?' disabled':'')+'><b class="tn">'+esc(name)+'</b><span class="meta">'+meta+'</span><span class="meta"><b>'+fmt(price)+'</b></span></button>';
+    h+='<h3>Add a weapon <span class="small">· tap to buy its launcher (or the UAV)</span></h3><div class="tiles">'+
+      rest.map(w=>w.reusable?wt(w.id,w.name,CLS_CSS[w.cls],'armed UAV · reusable','units',w.unit,1):wt(w.id,w.name,CLS_CSS[w.cls],threatLabel(w.cls)+' · '+fmt(w.unit)+' each · '+w.perTurn+'/turn','launcher',w.launcher)).join('')+
+      restS.map(sc=>wt(sc.id,sc.name,CLS_CSS.uav,'scout UAV · sees '+sc.reveal+' km','scout',sc.price)).join('')+'</div>';
     h+='<button class="mini" data-act="showall" data-k="atk">'+(showAllAtk?'Show recommended only':'Show all weapons')+'</button>';
     h+='<div class="note">'+(mine?'Set how many to launch, then press GO. Nothing launches if the clock runs out.':'A launcher is bought once and sets how many can fly each turn. You launch strikes on your turn.')+'</div>';
     return h;
@@ -755,7 +756,7 @@ $('sheet').addEventListener('change',e=>{const s=e.target.closest('select');if(!
   if(s.dataset.act==='target')plan.target=s.value===''?null:+s.value;
   sheetSig='';});
 
-function setPlacing(k){placing=k;if(k)$('placing').hidden=false;if(k&&choice!==0){choice=0;}if(k){drawMode=null;$('placeText').innerHTML='Tap a glowing <b>+</b> in your city to deploy <b>'+esc(DEF[k].name)+'</b>';$('placing').style.borderColor=css(SYS_COL[k]);closeInfo();padMat.color.set(SYS_COL[k]);padBeamMat.color.set(SYS_COL[k]);
+function setPlacing(k){placing=k;if(k)$('placing').hidden=false;if(k&&choice!==0){choice=0;}if(k){drawMode=null;$('placeText').innerHTML='Tap a glowing <b>+</b> to deploy <b>'+esc(DEF[k].name)+'</b> · '+fmt(DEF[k].price)+'<br><span class="small">'+esc(DEF[k].role)+(DEF[k].load?' · '+DEF[k].load+' missiles, '+fmt(DEF[k].shot)+' each':'')+'</span>';$('placing').style.borderColor=css(SYS_COL[k]);closeInfo();padMat.color.set(SYS_COL[k]);padBeamMat.color.set(SYS_COL[k]);
     cam.r=Math.max(cam.r,215);cam.phi=Math.min(cam.phi,.8);cam.tx=0;cam.tz=0;}else{padMat.color.set(0x6fe3ff);padBeamMat.color.set(0x6fe3ff);if(!drawMode)$('placing').hidden=true;}sheetSig='';}
 $('cancelPlace').onclick=()=>{if(drawMode)setDraw(null);else setPlacing(null);};
 
@@ -808,6 +809,7 @@ function hintHTML(){
   if(v.phase==='battle')return v.battle.iDefend?'<b>DEFEND</b> Tap a contact to fire at it first · long-press to ignore it':'Watching your strike on '+esc(v.enemy.name);
   return '';
 }
+const threatLabel=c=>({drone:'drone',decoy:'decoy',uav:'UAV',rocket:'rocket',cruise:'cruise',ballistic:'ballistic',hypersonic:'hypersonic'}[c]||c);
 function compass(b){const deg=(Math.atan2(Math.cos(b),-Math.sin(b))*180/Math.PI+360)%360;return ['north','north-east','east','south-east','south','south-west','west','north-west'][Math.round(deg/45)%8];}
 function intelHTML(){
   const v=view,m=v.me,w=[];
@@ -900,7 +902,10 @@ function drawRadar(){
 }
 const padMarks={},ammoTags={};
 function markEl(pool,id,cls){let el=pool[id];if(!el){el=document.createElement('div');el.className=cls;$('tags').appendChild(el);pool[id]=el;}return el;}
+let dockLeft=1e9;
+function behindDock(sx){return document.body.classList.contains('sheet-open')&&sx>dockLeft-10;}
 function updMarkers(){
+  dockLeft=document.body.classList.contains('sheet-open')?$('dock').getBoundingClientRect().left:1e9;
   const v=view,show=v&&placing&&viewSide===0&&canShop();
   const taken=v?new Set(v.me.batteries.map(b=>b.pad)):new Set();
   for(const p of PADS){const el=markEl(padMarks,p.id,'padmark');
@@ -912,7 +917,7 @@ function updMarkers(){
     const s=project(_b.copy(vb.pos).setY(vb.muzzle.y+5));if(!s){el.hidden=true;continue;}
     const spare=v.me.interceptors[b.sys]||0;
     const txt=b.load?(b.reloading>0?'reloading':b.ammo+'/'+b.load+(spare?' +'+spare:'')):'';
-    if(!txt){el.hidden=true;continue;}
+    if(!txt||behindDock(s.x)){el.hidden=true;continue;}
     el.hidden=false;el.textContent=txt;el.className='ammo'+(b.load&&b.ammo===0&&!spare?' empty':b.load&&b.ammo<=Math.max(1,b.load/4)?' low':'');
     el.style.transform='translate('+s.x.toFixed(0)+'px,'+s.y.toFixed(0)+'px)';}
   for(const id in ammoTags)if(!seen.has(+id))ammoTags[id].hidden=true;
@@ -930,6 +935,7 @@ function updTags(){
   }
   const S=SIDES[viewSide],showL=view&&(view.phase!=='over');
   if(S.crit)for(const id in S.crit){const c=S.crit[id];if(!showL){c.el.hidden=true;continue;}const s=project(_a.set(c.x,22,c.z));if(!s){c.el.hidden=true;continue;}
+    if(behindDock(s.x)){c.el.hidden=true;continue;}
     c.el.hidden=false;c.el.style.transform='translate('+s.x.toFixed(0)+'px,'+s.y.toFixed(0)+'px)';c.el.classList.toggle('dead',c.down);
     const html=esc(c.txt)+(c.revealed?'<span class="eye">◉</span>':'');if(c.el.innerHTML!==html)c.el.innerHTML=html;}
 }

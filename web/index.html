@@ -123,6 +123,15 @@ select.mini{appearance:none;-webkit-appearance:none;background:rgba(255,255,255,
 .ammo.low{background:var(--threat)} .ammo.empty{background:var(--danger);color:#fff}
 .hint{position:fixed;z-index:2;left:calc(env(safe-area-inset-left,0px) + 10px);bottom:calc(env(safe-area-inset-bottom,0px) + 10px);max-width:min(46vw,420px);background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--money);border-radius:4px;padding:7px 11px;font-size:12px;line-height:1.4;backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);pointer-events:none}
 .hint b{color:var(--money);font-weight:400;letter-spacing:.06em} .hint .warn{color:var(--danger)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:6px}
+.tile{display:grid;gap:3px;align-content:start;text-align:left;padding:6px 7px;background:rgba(255,255,255,.03);border:1px solid var(--line);border-top:3px solid var(--c);border-radius:3px;cursor:pointer;min-width:0}
+.tile:disabled{opacity:.4}
+.tile.sel{outline:2px solid var(--c);outline-offset:-2px;background:rgba(255,255,255,.08)}
+.tile .tn{font-family:var(--display);font-weight:800;font-size:15px;line-height:1.05;color:var(--c);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .meta{font-size:10px;color:var(--dim)}.tile .meta b{color:var(--money);font-weight:400}
+.tile .hits{display:flex;gap:3px;flex-wrap:wrap}
+.tile .hits i{font-style:normal;font-size:8.5px;letter-spacing:.04em;padding:0 3px;border-radius:2px;color:#061018;background:var(--k)}
+.sheet{overflow-x:hidden}
 .grp{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin-top:2px}
 .items{display:grid;gap:5px}
 .item{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"nm cnt" "acts acts";gap:4px 10px;align-items:center;padding:6px 8px;border:1px solid var(--line);border-left:3px solid var(--c);border-radius:3px}
@@ -189,8 +198,12 @@ select.mini{appearance:none;-webkit-appearance:none;background:rgba(255,255,255,
 }
 /* Landscape phone: menus become a panel on the right so the city stays visible on the left. */
 @media (orientation:landscape) and (max-height:540px){
-  #dock{left:auto;right:calc(env(safe-area-inset-right,0px) + 8px);transform:none;bottom:calc(env(safe-area-inset-bottom,0px) + 6px);width:min(430px,50vw);gap:5px}
-  .sheet{max-height:calc(100vh - 70px);padding:8px 10px;gap:6px}
+  #dock{left:auto;right:calc(env(safe-area-inset-right,0px) + 8px);transform:none;top:calc(env(safe-area-inset-top,0px) + 8px);bottom:calc(env(safe-area-inset-bottom,0px) + 6px);width:min(430px,50vw);gap:5px;display:flex;flex-direction:column;justify-content:flex-end}
+  .sheet{flex:0 1 auto;min-height:0;max-height:none;padding:8px 10px;gap:6px}
+  .item{padding:5px 7px;gap:3px 8px}.item .nm b{font-size:14px}.item .cnt .big{font-size:19px}
+  .item .mini{font-size:11px;padding:4px 6px}.item .step{width:26px;height:26px;font-size:14px}
+  .sheet h3{font-size:15px}.sheet h3 .small{display:block;font-size:9px}
+  .actions .btn{font-size:14px;padding:7px 14px}
   .intel{font-size:11px;padding:6px 10px;max-height:30vh}
   .tabs{justify-content:flex-end;gap:4px}
   .tab,.btn{font-size:12px;padding:7px 8px;letter-spacing:.05em}
