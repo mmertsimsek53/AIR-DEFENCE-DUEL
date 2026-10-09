@@ -35,7 +35,7 @@ export function viewFor(m: Match, pi: PlayerIndex) {
       batteries: foe.batteries.filter(b => b.revealed).map(b => ({ uid: b.uid, sys: b.sys, name: defence(b.sys).name, x: foe.pads[b.pad].x, z: foe.pads[b.pad].z })),
     },
     battle: bt && {
-      attacker: bt.attacker, defender: bt.defender, iDefend, time: bt.time,
+      attacker: bt.attacker, defender: bt.defender, iDefend, time: bt.time, bearing: bt.bearing,
       threats: bt.threats.filter(t => t.alive && t.delay <= 0 && (!iDefend || t.detected)).map(t => {
         const isDecoy = t.cls === 'decoy' || t.weapon === 'decoy';
         // A defender who has identified a decoy but not yet unmasked it sees what it imitates.

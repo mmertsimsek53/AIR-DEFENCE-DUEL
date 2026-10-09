@@ -320,7 +320,7 @@
     }
     if (cmd.c === "go") {
       if (m.phase !== "turn" || m.active !== pi) return fail("Not your turn.");
-      return launch(m, pi, cmd.strikes, cmd.scouts);
+      return launch(m, pi, cmd.strikes, cmd.scouts, cmd.bearing);
     }
     if (cmd.c === "setRestock") {
       const s = DEFENCES.find((x) => x.id === cmd.sys);
@@ -477,7 +477,7 @@
     m.battle = void 0;
     log(m, `${m.players[winner].name} wins (${reason}).`);
   }
-  function launch(m, pi, strikes, scouts) {
+  function launch(m, pi, strikes, scouts, bearing) {
     const att = m.players[pi], def = m.players[other(pi)];
     const airbase = working(att, "airbase");
     const want = {};
@@ -512,6 +512,7 @@
     const bt = {
       attacker: pi,
       defender: other(pi),
+      bearing: Number.isFinite(bearing) ? bearing : NORTH,
       time: 0,
       threats: [],
       interceptors: [],
@@ -560,8 +561,9 @@
     b.ammo += n;
     p.interceptors[s.id] = have - n;
   }
+  var NORTH = -Math.PI / 2;
   function spawnPoint(m, d2 = SPAWN_DISTANCE) {
-    const a2 = -Math.PI / 2 + (rnd(m) - 0.5) * (Math.PI / 3);
+    const a2 = (m.battle?.bearing ?? NORTH) + (rnd(m) - 0.5) * (Math.PI / 4.5);
     return { x: round(Math.cos(a2) * d2), z: round(Math.sin(a2) * d2) };
   }
   function randomCityPoint(m, inside) {
@@ -674,7 +676,18 @@
   }
   function spawnScout(m, bt, id, path) {
     const s = scout(id);
-    const start = spawnPoint(m);
+    const p0 = path[0], p1 = path[1] ?? { x: 0, z: 0 };
+    let dx = p0.x - p1.x, dz = p0.z - p1.z;
+    const len = Math.hypot(dx, dz);
+    if (len < 0.01) {
+      const a2 = m.battle?.bearing ?? NORTH;
+      dx = Math.cos(a2);
+      dz = Math.sin(a2);
+    } else {
+      dx /= len;
+      dz /= len;
+    }
+    const start = { x: round(p0.x + dx * SPAWN_DISTANCE), z: round(p0.z + dz * SPAWN_DISTANCE) };
     const t = baseThreat(m);
     t.weapon = id;
     t.cls = "uav";
@@ -1230,6 +1243,7 @@
         defender: bt.defender,
         iDefend,
         time: bt.time,
+        bearing: bt.bearing,
         threats: bt.threats.filter((t) => t.alive && t.delay <= 0 && (!iDefend || t.detected)).map((t) => {
           const isDecoy = t.cls === "decoy" || t.weapon === "decoy";
           const shownCls = !iDefend ? t.cls : !t.identified ? null : isDecoy && !t.decoyMarked ? t.looksLike : t.cls;

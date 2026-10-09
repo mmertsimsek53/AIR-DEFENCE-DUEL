@@ -128,3 +128,14 @@ describe('standing restock order', () => {
     expect(m.players[0].lastRestock).toEqual({ n: 8, cost: 4, short: false });
   });
 });
+
+describe('strike direction', () => {
+  it('threats come from the chosen side', () => {
+    const m = createMatch(31, ['A', 'B']);
+    command(m, 0, { c: 'buyLauncher', weapon: 'shahed' });
+    command(m, 0, { c: 'buyUnits', weapon: 'shahed', n: 10 });
+    command(m, 0, { c: 'endSetup' }); command(m, 1, { c: 'endSetup' });
+    command(m, 0, { c: 'go', strikes: [{ weapon: 'shahed', n: 10 }], scouts: [], bearing: 0 }); // from the east (+x)
+    for (const t of m.battle!.threats) expect(t.path[0].x).toBeGreaterThan(200);
+  });
+});

@@ -130,7 +130,9 @@ const darkMat=new THREE.MeshLambertMaterial({color:0x2b3036});
 const stone=new THREE.MeshLambertMaterial({color:0xeee3cc});
 const concrete=new THREE.MeshLambertMaterial({color:0xcfcac0});
 const whiteMat=new THREE.MeshLambertMaterial({color:0xf2f4f6});
-const padMat=new THREE.MeshBasicMaterial({color:0x0b7fa3,transparent:true,opacity:.6,depthWrite:false});
+const padMat=new THREE.MeshBasicMaterial({color:0x6fe3ff,transparent:true,opacity:.95,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide});
+const padBeamMat=new THREE.MeshBasicMaterial({color:0x6fe3ff,transparent:true,opacity:.22,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide});
+const padRingGeo=new THREE.RingGeometry(3.2,5.4,48).rotateX(-Math.PI/2),padBeamGeo=new THREE.CylinderGeometry(4.4,4.4,40,20,1,true).translate(0,20,0);
 function shadowy(m){m.castShadow=true;m.receiveShadow=true;return m;}
 function boxPart(g,w,h,d,y0,mats){
   const geo=new THREE.BoxGeometry(w,h,d);geo.translate(0,y0+h/2,0);
@@ -184,7 +186,7 @@ function buildCity(S,side){
   for(const s of [-38,42]){const cx=WX+WS*s,cz=WZ+WC*s;const d=shadowy(new THREE.Mesh(new THREE.BoxGeometry(24,.8,3.4),deck));d.rotation.y=WA;d.position.set(cx,1.4,cz);root.add(d);
     for(const t of [-6,6]){const tw=shadowy(new THREE.Mesh(new THREE.BoxGeometry(.7,11,.7),deck));tw.position.set(cx+WC*t,5.5,cz-WS*t);root.add(tw);}}
   // Pads (rings shown only when placing).
-  for(const p of PADS){const ring=new THREE.Mesh(new THREE.RingGeometry(3.4,4.1,40).rotateX(-Math.PI/2),padMat);ring.position.set(p.x,.14,p.z);ring.visible=false;root.add(ring);S.padRings[p.id]=ring;}
+  for(const p of PADS){const g=new THREE.Group();g.position.set(p.x,.2,p.z);g.add(new THREE.Mesh(padRingGeo,padMat));g.add(new THREE.Mesh(padBeamGeo,padBeamMat));g.visible=false;root.add(g);S.padRings[p.id]=g;}
   // Plazas on every building plot, so the rival cannot tell which plots hold buildings.
   for(const s of SLOTS){const pl=new THREE.Mesh(new THREE.PlaneGeometry(20,20).rotateX(-Math.PI/2),new THREE.MeshLambertMaterial({map:plazaTex}));pl.position.set(s.x,.1,s.z);pl.receiveShadow=true;root.add(pl);}
   const blocked=(x,z)=>Math.hypot(x,z)<9||wdist(x,z)<9.5||PADS.some(p=>Math.hypot(x-p.x,z-p.z)<8)||Math.hypot(x-LANDMARK[0],z-LANDMARK[1])<11||SLOTS.some(s=>Math.hypot(x-s.x,z-s.z)<12);
@@ -400,7 +402,9 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 
 /* ======================= GAME STATE ======================= */
 let view=null,running=false,T=0;
-let viewSide=0,choice=0,tab=null,placing=null,selected=null,plan={counts:{},target:null,scouts:{}},upSeg='def';
+let viewSide=0,choice=0,tab=null,placing=null,selected=null,plan=newPlan(),upSeg='def';
+function newPlan(){return {counts:{},target:null,scouts:{},scoutPath:{},bearing:null,dirLine:null};}
+let drawMode=null,drawStart=null,drawEnd=null,showAllDef=false,showAllAtk=false;
 let lastTurnKey='',sheetSig='',sheetT=0,useShadows=true;
 const TV=new Map(),IV=new Map();   // threat and interceptor visuals by uid
 
@@ -415,7 +419,7 @@ function startGame(demo){
   ADD.newSandbox((Math.random()*1e9)|0,name,!!demo);
   view=ADD.viewRaw();
   buildCity(SIDES[0],0);buildCity(SIDES[1],1);
-  clearBattle();choice=0;tab=demo?null:'build';placing=null;selected=null;plan={counts:{},target:null,scouts:{}};lastTurnKey='';sheetSig='';
+  clearBattle();choice=0;tab=demo?null:'build';placing=null;selected=null;plan=newPlan();lastTurnKey='';sheetSig='';
   $('menu').hidden=true;$('report').hidden=true;running=true;
   cam.theta=0.7;cam.phi=1.05;
   refreshUI();
@@ -514,15 +518,16 @@ function handleEvents(list){
 function onPhase(){
   const v=view,key=v.phase+'|'+v.turnNo+'|'+v.active;
   if(key===lastTurnKey)return;lastTurnKey=key;
-  closeInfo();
+  closeInfo();if(drawMode)setDraw(null);rebuildPlanGfx();
   if(v.phase==='turn'){
-    if(v.myTurn){plan={counts:{},target:null,scouts:{}};choice=0;tab='attack';const r=v.me.lastRestock;
+    if(v.myTurn){plan=newPlan();choice=0;tab='attack';const r=v.me.lastRestock;
       banner('YOUR TURN','Turn '+v.turnNo+' · +'+fmt(v.me.income)+' income'+(r&&r.n?' · restocked '+r.n+' missiles ('+fmt(r.cost)+')':''),2.6);
       if(r&&r.short)setTimeout(()=>msg(m_factoryDown()?'Factory down: no missiles restocked':'Not enough money to restock every spare missile','warn'),2700);}
     else{tab=null;setPlacing(null);banner(v.enemy.name.toUpperCase()+"'S TURN",'They are planning a strike',2);}
   }else if(v.phase==='battle'){
-    setPlacing(null);tab=null;
-    if(v.battle.iDefend)banner('INCOMING STRIKE','Tap a contact for priority · long-press to hold fire',2.6);
+    setPlacing(null);tab=null;cam.phi=1.0;cam.r=Math.max(170,Math.min(cam.r,230));cam.tx=0;cam.tz=0;
+    if(v.battle.iDefend){banner('INCOMING STRIKE','From the '+compass(v.battle.bearing)+' · tap a contact to fire at it first',2.8);
+      const empty=v.me.batteries.filter(b=>b.load&&b.ammo===0);if(empty.length)setTimeout(()=>msg(empty.map(b=>DEF[b.sys].name).join(', ')+': no missiles loaded!','bad'),2900);}
     else banner('STRIKE LAUNCHED','Watching '+v.enemy.name+"'s city",2.2);
   }else if(v.phase==='report'){showReport();}
   else if(v.phase==='over'){showOver();}
@@ -564,6 +569,7 @@ $('endBtn').onclick=()=>{
   if(view.phase==='setup'){cmd({c:'endSetup'});return;}
   if(myTurn())launch();
 };
+$('quickBtn').onclick=quickStrike;
 $('waitBtn').onclick=()=>{if(myTurn()&&cmd({c:'wait'}))msg('You hold fire and save money','money');};
 function toggleCity(){if(!view)return;if(view.phase==='battle'||view.phase==='report'){msg('The view follows the strike','');return;}choice=choice?0:1;setPlacing(null);closeInfo();
   msg(choice?'Viewing '+view.enemy.name+"'s city · revealed buildings are labelled":'Back to your city','good');refreshUI();}
@@ -574,14 +580,54 @@ $('gmConcede').onclick=()=>{$('gameMenu').hidden=true;if(view&&view.phase!=='ove
 $('gmShadows').onclick=()=>{useShadows=!useShadows;renderer.shadowMap.enabled=useShadows;sun.castShadow=useShadows;$('gmShadows').textContent=useShadows?'Shadows on':'Shadows off';
   scene.traverse(o=>{if(o.material){const ms=Array.isArray(o.material)?o.material:[o.material];ms.forEach(m=>m.needsUpdate=true);}});};
 
-function planEmpty(){for(const k in plan.counts)if(plan.counts[k]>0)return false;for(const k in plan.scouts)if(plan.scouts[k]!=null)return false;return true;}
+const planGfx=new THREE.Group();scene.add(planGfx);
+const ray=new THREE.Raycaster(),groundPlane=new THREE.Plane(new V(0,1,0),0),_ndc=new THREE.Vector2();
+function groundAt(x,y){_ndc.set(x/innerWidth*2-1,-(y/innerHeight)*2+1);ray.setFromCamera(_ndc,camera);const p=new V();return ray.ray.intersectPlane(groundPlane,p)?p:null;}
+function lineMesh(a,b,col,arrow){const g=new THREE.Group();const d=new V().subVectors(b,a),L=d.length();if(L<1)return g;
+  const mat=new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.9,depthTest:false});
+  const bar=new THREE.Mesh(new THREE.BoxGeometry(2.2,.6,L),mat);bar.position.copy(a).add(b).multiplyScalar(.5);bar.position.y=3;bar.lookAt(b.x,3,b.z);bar.renderOrder=9;g.add(bar);
+  if(arrow){const c=new THREE.Mesh(new THREE.ConeGeometry(5,12,12).rotateX(Math.PI/2),mat);c.position.set(b.x,3,b.z);c.lookAt(b.x+d.x,3,b.z+d.z);c.renderOrder=9;g.add(c);}
+  else{const s=new THREE.Mesh(new THREE.SphereGeometry(3,12,8),mat);s.position.set(a.x,3,a.z);s.renderOrder=9;g.add(s);}
+  return g;}
+function rebuildPlanGfx(){while(planGfx.children.length)planGfx.remove(planGfx.children[0]);
+  if(plan.dirLine){const [a,b]=plan.dirLine;planGfx.add(lineMesh(new V(a.x,0,a.z),new V(b.x,0,b.z),0xff5a4e,true));}
+  for(const k in plan.scoutPath){const p=plan.scoutPath[k];if(!p)continue;planGfx.add(lineMesh(new V(p[0].x*U,0,p[0].z*U),new V(p[1].x*U,0,p[1].z*U),0xc48bff,false));}
+  if(drawStart&&drawEnd)planGfx.add(lineMesh(drawStart,drawEnd,drawMode==='dir'?0xff5a4e:0xc48bff,drawMode==='dir'));}
+function setDraw(mode){drawMode=mode;drawStart=drawEnd=null;setPlacing(null);closeInfo();
+  if(mode){choice=1;cam.phi=.45;cam.r=260;cam.tx=0;cam.tz=0;$('placing').hidden=false;$('placing').style.borderColor=mode==='dir'?'#ff5a4e':'#c48bff';
+    $('placeText').innerHTML=mode==='dir'?'Drag from <b>where the strike comes from</b> toward the enemy city':'Drag the <b>'+esc(SCT[mode].name)+'</b> flight line across the enemy city';}
+  else $('placing').hidden=true;
+  sheetSig='';refreshUI();}
+function finishDraw(){
+  const a=drawStart,b=drawEnd,mode=drawMode;drawStart=drawEnd=null;
+  if(!a||!b||a.distanceTo(b)<12){msg('Drag a longer line','warn');rebuildPlanGfx();return;}
+  if(mode==='dir'){plan.bearing=Math.atan2(a.z-b.z,a.x-b.x);plan.dirLine=[{x:a.x,z:a.z},{x:b.x,z:b.z}];msg('Strike will come from the '+compass(plan.bearing),'good');}
+  else{plan.scoutPath[mode]=[{x:a.x/U,z:a.z/U},{x:b.x/U,z:b.z/U}];msg(SCT[mode].name+' will fly this line','good');}
+  drawMode=null;$('placing').hidden=true;tab='attack';sheetSig='';rebuildPlanGfx();refreshUI();}
+const REC_DEF=[['Against drones & UAVs',['korkut','sungur']],['Against cruise missiles & rockets',['hisara','irondome']],['Against ballistic missiles',['davidsling','patriot']]];
+const REC_ATK=['shahed','trg300','som','tayfun','tb2s'];
+const TARGET_ORDER=['factory','command','power','radar','finance','depot','airbase'];
+function quickStrike(){
+  const v=view,m=v.me;if(!myTurn())return;
+  plan={counts:{},target:null,scouts:{},scoutPath:{},bearing:plan.bearing,dirLine:plan.dirLine};
+  const tg=v.enemy.buildings.filter(b=>b.down===0).sort((a,b)=>TARGET_ORDER.indexOf(a.kind)-TARGET_ORDER.indexOf(b.kind))[0];
+  if(tg)plan.target=tg.uid;
+  const parts=[];
+  for(const w of CAT.attacks){const st=m.stock[w.id]||0;if(!st)continue;const n=w.reusable?st:Math.min(st,m.caps[w.id]||0);if(n>0){plan.counts[w.id]=n;parts.push(n+' '+w.name);}}
+  if(v.enemy.buildings.length<7){const sc=CAT.scouts.find(s=>(m.scouts[s.id]||0)>0);
+    if(sc){const b=plan.bearing!=null?plan.bearing:-Math.PI/2+(v.turnNo%3-1)*0.8;plan.scoutPath[sc.id]=[{x:Math.cos(b)*5,z:Math.sin(b)*5},{x:-Math.cos(b)*5,z:-Math.sin(b)*5}];parts.push('scout '+sc.name);}}
+  if(!parts.length){msg('Nothing in stock: buy weapons in Attack, or press Wait','warn');tab='attack';refreshUI();return;}
+  msg('Planned: '+parts.join(', ')+(tg?' → '+BLD[tg.kind].name:'')+' · press GO','good');tab='attack';sheetSig='';rebuildPlanGfx();refreshUI();
+}
+function planEmpty(){for(const k in plan.counts)if(plan.counts[k]>0)return false;for(const k in plan.scoutPath)if(plan.scoutPath[k])return false;return true;}
 function launch(){
   const strikes=[];
   for(const k in plan.counts){const n=plan.counts[k];if(!n)continue;
     const tgt=plan.target;if(ATK[k].precise&&tgt!=null&&view.enemy.buildings.some(b=>b.uid===tgt))strikes.push({weapon:k,n,target:tgt});else strikes.push({weapon:k,n});}
-  const scouts=[];for(const k in plan.scouts){const i=plan.scouts[k];if(i==null)continue;const p=SCOUT_PATHS[i];scouts.push({scout:k,path:[{x:p[1][0],z:p[1][1]},{x:p[2][0],z:p[2][1]}]});}
+  const scouts=[];for(const k in plan.scoutPath){const p=plan.scoutPath[k];if(p&&(view.me.scouts[k]||0)>0)scouts.push({scout:k,path:p});}
   if(!strikes.length&&!scouts.length){msg('Set how many to launch first (Attack tab)','warn');setTab('attack');return;}
-  if(cmd({c:'go',strikes,scouts}))plan={counts:{},target:null,scouts:{}};
+  const go={c:'go',strikes,scouts};if(plan.bearing!=null)go.bearing=plan.bearing;
+  if(cmd(go)){plan=newPlan();rebuildPlanGfx();}
 }
 
 function vsChips(hit,col){return '<div class="vs">'+CLS_ORDER.filter(k=>hit[k]).map(k=>'<i class="y" style="--c:'+CLS_CSS[k]+'">'+CLS_LABEL[k]+' '+Math.round(hit[k])+'%</i>').join('')+'</div>';}
@@ -591,7 +637,7 @@ function sig(){const v=view,m=v.me;return [v.phase,v.myTurn,tab,upSeg,m.budget,J
 function hideSheet(){$('sheet').hidden=true;document.body.classList.remove('sheet-open');}
 function renderSheet(){
   const sh=$('sheet');
-  if(placing){sh.hidden=true;document.body.classList.remove('sheet-open');return;}
+  if(placing||drawMode){sh.hidden=true;document.body.classList.remove('sheet-open');return;}
   if(!tab||!canShop()&&tab!=='city'||!view||(view.phase!=='setup'&&view.phase!=='turn')){hideSheet();return;}
   const s=sig();if(s===sheetSig&&!sh.hidden)return;sheetSig=s;
   const keep=sh.scrollTop,cards=sh.querySelector('.cards'),keepX=cards?cards.scrollLeft:0;
@@ -610,14 +656,19 @@ function sheetHTML(){
             '<button class="mini" data-act="reload" data-k="'+b.uid+'"'+(B<rc?' disabled':'')+'>Buy '+s.load+' now · '+fmt(rc)+'</button>':'')+
           (b.upgradeCost!=null?'<button class="mini" data-act="upBat" data-k="'+b.uid+'"'+(B<b.upgradeCost?' disabled':'')+'>Upgrade '+fmt(b.upgradeCost)+'</button>':'')+'</div></div>';}).join('')+'</div>';
     }
-    h+='<h3>Buy a defence <span class="small">· tap one, then a glowing ring in your city</span></h3><div class="cards">'+CAT.defences.map(s=>{const col=css(SYS_COL[s.id]);
+    const card=s=>{const col=css(SYS_COL[s.id]);
       return '<button class="card'+(placing===s.id?' sel':'')+'" type="button" data-act="place" data-k="'+s.id+'" style="--c:'+col+'"'+(B<s.price?' disabled':'')+'><h4>'+esc(s.name)+'</h4>'+
-        '<div class="kv"><span>Price</span><b>'+fmt(s.price)+'</b></div><div class="kv"><span>Range</span><b>'+s.range+' km</b></div><div class="kv"><span>Missiles</span><b>'+(s.load?s.load+' × '+fmt(s.shot):s.kind==='gun'?'gun':'none')+'</b></div>'+vsChips(s.hit)+'</button>';}).join('')+'</div>';
+        '<div class="kv"><span>Price</span><b>'+fmt(s.price)+'</b></div><div class="kv"><span>Range</span><b>'+s.range+' km</b></div><div class="kv"><span>Missiles</span><b>'+(s.load?s.load+' × '+fmt(s.shot):s.kind==='gun'?'gun':'none')+'</b></div>'+vsChips(s.hit)+'</button>';};
+    h+='<h3>Buy a defence <span class="small">· tap one, then a glowing + in your city</span></h3>';
+    if(!showAllDef){for(const [title,ids] of REC_DEF)h+='<div class="grp">'+title+'</div><div class="cards">'+ids.map(id=>card(DEF[id])).join('')+'</div>';}
+    else h+='<div class="cards">'+CAT.defences.map(card).join('')+'</div>';
+    h+='<button class="mini" data-act="showall" data-k="def">'+(showAllDef?'Show recommended only':'Show all '+CAT.defences.length+' systems')+'</button>';
     return h;
   }
   if(tab==='attack'){
     const mine=myTurn(),targets=v.enemy.buildings;let h='';
     if(mine){
+      h+='<div class="strikebar"><span>Comes from</span><b>'+(plan.bearing!=null?compass(plan.bearing):'north (default)')+'</b><button class="mini" data-act="drawdir">Draw on map</button></div>';
       h+='<div class="strikebar"><span>Target for precise weapons</span><select class="mini" data-act="target"><option value="">Whole city</option>'+targets.map(b=>'<option value="'+b.uid+'"'+(plan.target===b.uid?' selected':'')+'>'+esc(BLD[b.kind].name)+(b.down>0?' (down)':'')+'</option>').join('')+'</select>'+
         (targets.length?'':'<span class="small" style="color:var(--threat)">No buildings found yet · fly a UAV first</span>')+'</div>';
     }
@@ -632,13 +683,14 @@ function sheetHTML(){
           (mine?'<div class="stepper"><span class="small">Launch</span><button class="step" data-act="sdec" data-k="'+w.id+'"'+(q<=0?' disabled':'')+'>−</button><output>'+q+'</output><button class="step" data-act="sinc" data-k="'+w.id+'"'+(q>=fire?' disabled':'')+'>+</button></div>':'')+'</div></div>';}
       for(const s of ownedS){const n=m.scouts[s.id]||0;
         h+='<div class="item" style="--c:'+CLS_CSS.uav+'"><div class="nm"><b>'+esc(s.name)+'</b><span>scout · reveals '+s.reveal+' km either side</span></div><div class="cnt"><b class="big">'+n+'</b><span> ready</span></div><div class="acts">'+
-          (mine?'<select class="mini" data-act="spath" data-k="'+s.id+'"><option value="">Stay home</option>'+SCOUT_PATHS.map((p,i)=>'<option value="'+i+'"'+(plan.scouts[s.id]===i?' selected':'')+'>Fly '+p[0]+'</option>').join('')+'</select>':'<button class="mini" data-act="scout" data-k="'+s.id+'"'+(B<s.price?' disabled':'')+'>Buy '+fmt(s.price)+'</button>')+'</div></div>';}
+          (mine?(plan.scoutPath[s.id]?'<span class="small" style="color:var(--money)">Path drawn ✓</span><button class="mini" data-act="drawscout" data-k="'+s.id+'">Redraw</button><button class="mini" data-act="clearscout" data-k="'+s.id+'">Stay home</button>':'<button class="mini" data-act="drawscout" data-k="'+s.id+'">Draw flight path</button>'):'<button class="mini" data-act="scout" data-k="'+s.id+'"'+(B<s.price?' disabled':'')+'>Buy '+fmt(s.price)+'</button>')+'</div></div>';}
       h+='</div>';
     }else h+='<div class="note">You have no weapons yet. Pick some below.</div>';
-    const rest=CAT.attacks.filter(w=>!owned.includes(w)),restS=CAT.scouts.filter(s=>!ownedS.includes(s));
+    const rest=CAT.attacks.filter(w=>!owned.includes(w)&&(showAllAtk||REC_ATK.includes(w.id))),restS=CAT.scouts.filter(s=>!ownedS.includes(s)&&(showAllAtk||REC_ATK.includes(s.id)));
     h+='<h3>Add a weapon</h3><div class="items">'+rest.map(w=>'<div class="item small-item" style="--c:'+CLS_CSS[w.cls]+'"><div class="nm"><b>'+esc(w.name)+'</b><span>'+esc(w.role)+'</span></div><div class="cnt"><span>'+(w.reusable?fmt(w.unit)+' each':fmt(w.unit)+' each · '+w.perTurn+'/turn')+'</span></div><div class="acts">'+
       (w.reusable?'<button class="mini" data-act="units" data-k="'+w.id+'" data-n="1"'+(B<w.unit?' disabled':'')+'>Buy '+fmt(w.unit)+'</button>':'<button class="mini" data-act="launcher" data-k="'+w.id+'"'+(B<w.launcher?' disabled':'')+'>Launcher '+fmt(w.launcher)+'</button>')+'</div></div>').join('')+
       restS.map(s=>'<div class="item small-item" style="--c:'+CLS_CSS.uav+'"><div class="nm"><b>'+esc(s.name)+'</b><span>Scout UAV. '+esc(s.role)+'</span></div><div class="cnt"></div><div class="acts"><button class="mini" data-act="scout" data-k="'+s.id+'"'+(B<s.price?' disabled':'')+'>Buy '+fmt(s.price)+'</button></div></div>').join('')+'</div>';
+    h+='<button class="mini" data-act="showall" data-k="atk">'+(showAllAtk?'Show recommended only':'Show all weapons')+'</button>';
     h+='<div class="note">'+(mine?'Set how many to launch, then press GO. Nothing launches if the clock runs out.':'A launcher is bought once and sets how many can fly each turn. You launch strikes on your turn.')+'</div>';
     return h;
   }
@@ -674,7 +726,7 @@ function sheetHTML(){
 }
 $('sheet').addEventListener('click',e=>{
   const b=e.target.closest('[data-act]');if(!b||b.disabled||!view)return;const k=b.dataset.k,a=b.dataset.act;
-  if(a==='target'||(a==='spath'&&b.tagName==='SELECT'))return;
+  if(a==='target')return;
   switch(a){
     case 'place':setPlacing(placing===k?null:k);break;
     case 'launcher':if(cmd({c:'buyLauncher',weapon:k}))msg(ATK[k].name+' launcher bought','money');break;
@@ -692,17 +744,20 @@ $('sheet').addEventListener('click',e=>{
     case 'sinc':plan.counts[k]=(plan.counts[k]||0)+1;break;
     case 'sdec':plan.counts[k]=Math.max(0,(plan.counts[k]||0)-1);break;
     case 'sall':{const w=ATK[k],st=view.me.stock[k]||0;plan.counts[k]=w.reusable?st:Math.min(st,view.me.caps[k]||0);}break;
-    case 'spath':plan.scouts[k]=b.dataset.i===''?null:+b.dataset.i;break;
+    case 'drawdir':setDraw('dir');return;
+    case 'drawscout':setDraw(k);return;
+    case 'clearscout':delete plan.scoutPath[k];rebuildPlanGfx();break;
+    case 'showall':if(k==='def')showAllDef=!showAllDef;else showAllAtk=!showAllAtk;break;
   }
   sheetSig='';refreshUI();
 });
 $('sheet').addEventListener('change',e=>{const s=e.target.closest('select');if(!s)return;
   if(s.dataset.act==='target')plan.target=s.value===''?null:+s.value;
-  else if(s.dataset.act==='spath')plan.scouts[s.dataset.k]=s.value===''?null:+s.value;
   sheetSig='';});
 
-function setPlacing(k){placing=k;$('placing').hidden=!k;if(k&&choice!==0){choice=0;}if(k){$('placeName').textContent=DEF[k].name;$('placing').style.borderColor=css(SYS_COL[k]);closeInfo();padMat.color.set(SYS_COL[k]);padMat.opacity=.9;}else{padMat.color.set(0x0b7fa3);padMat.opacity=.6;}sheetSig='';}
-$('cancelPlace').onclick=()=>setPlacing(null);
+function setPlacing(k){placing=k;if(k)$('placing').hidden=false;if(k&&choice!==0){choice=0;}if(k){drawMode=null;$('placeText').innerHTML='Tap a glowing <b>+</b> in your city to deploy <b>'+esc(DEF[k].name)+'</b>';$('placing').style.borderColor=css(SYS_COL[k]);closeInfo();padMat.color.set(SYS_COL[k]);padBeamMat.color.set(SYS_COL[k]);
+    cam.r=Math.max(cam.r,215);cam.phi=Math.min(cam.phi,.8);cam.tx=0;cam.tz=0;}else{padMat.color.set(0x6fe3ff);padBeamMat.color.set(0x6fe3ff);if(!drawMode)$('placing').hidden=true;}sheetSig='';}
+$('cancelPlace').onclick=()=>{if(drawMode)setDraw(null);else setPlacing(null);};
 
 function openInfo(uid){
   selected=uid;const v=view,b=v.me.batteries.find(x=>x.uid===uid);if(!b){closeInfo();return;}
@@ -728,6 +783,32 @@ $('info').addEventListener('click',e=>{const b=e.target.closest('[data-i]');if(!
   openInfo(uid);});
 function closeInfo(){selected=null;$('info').hidden=true;}
 
+function hintHTML(){
+  const v=view,m=v.me;if(!v)return '';
+  const empty=m.batteries.filter(b=>b.load&&b.ammo+(m.interceptors[b.sys]||0)===0);
+  const low=m.batteries.filter(b=>b.load&&b.ammo+(m.interceptors[b.sys]||0)>0&&b.ammo+(m.interceptors[b.sys]||0)<=Math.max(1,b.load/2));
+  const ammoWarn=empty.length?'<span class="warn">'+esc(DEF[empty[0].sys].name)+' is out of missiles</span> · Defence → Buy now':low.length?'<span class="warn">'+esc(DEF[low[0].sys].name)+' is low: '+(low[0].ammo+(m.interceptors[low[0].sys]||0))+' left</span>':'';
+  const hasAtk=Object.values(m.stock).some(n=>n>0),hasScout=Object.values(m.scouts).some(n=>n>0);
+  const ballistic=m.batteries.some(b=>DEF[b.sys].hit.ballistic);
+  if(placing)return '<b>NEXT</b> Tap a glowing <b>+</b> in your city';
+  if(drawMode)return '<b>NEXT</b> Drag a line on the enemy city';
+  if(v.phase==='setup'){
+    if(!m.batteries.length)return '<b>NEXT</b> Tap <b>Defence</b> and place your first defence';
+    if(!Object.values(m.launchers).some(n=>n>0)&&!hasAtk)return '<b>NEXT</b> Tap <b>Attack</b> and buy a launcher, e.g. Shahed-136 drones';
+    if(!hasScout)return '<b>NEXT</b> Buy a <b>scout UAV</b> in Attack: it finds their buildings';
+    if(!ballistic)return '<b>TIP</b> Nothing in your city can stop ballistic missiles · then press <b>Ready</b>';
+    return ammoWarn||'<b>NEXT</b> Press <b>Ready</b> when you are done';
+  }
+  if(v.phase==='turn'&&v.myTurn){
+    if(ammoWarn)return ammoWarn;
+    if(planEmpty())return v.enemy.buildings.length===0&&hasScout?'<b>NEXT</b> Tap <b>Quick strike</b>, or Attack → draw your scout\'s path':'<b>NEXT</b> Tap <b>Quick strike</b> or set weapons in Attack, then <b>GO</b>';
+    return '<b>READY</b> Press <b>GO</b> to launch'+(plan.bearing!=null?' from the '+compass(plan.bearing):'');
+  }
+  if(v.phase==='turn')return v.enemy.name+' is planning a strike'+(ammoWarn?' · '+ammoWarn:'');
+  if(v.phase==='battle')return v.battle.iDefend?'<b>DEFEND</b> Tap a contact to fire at it first · long-press to ignore it':'Watching your strike on '+esc(v.enemy.name);
+  return '';
+}
+function compass(b){const deg=(Math.atan2(Math.cos(b),-Math.sin(b))*180/Math.PI+360)%360;return ['north','north-east','east','south-east','south','south-west','west','north-west'][Math.round(deg/45)%8];}
 function intelHTML(){
   const v=view,m=v.me,w=[];
   if(v.phase==='setup')return '<b>SETUP</b> · Buy and place defences, buy launchers and weapons, a surveillance UAV helps you find their buildings. Press <b>Ready</b> when done.';
@@ -741,8 +822,10 @@ function intelHTML(){
 
 function refreshUI(){
   const v=view,plan_=canShop();
-  $('intel').hidden=!plan_;if(plan_)$('intel').innerHTML=intelHTML();
-  $('tabs').hidden=!plan_;
+  $('intel').hidden=true;
+  const hint=v&&v.phase!=='over'&&v.phase!=='report'?hintHTML():'';$('hint').hidden=!hint;if(hint&&$('hint').innerHTML!==hint)$('hint').innerHTML=hint;
+  $('quickBtn').hidden=!myTurn();
+  $('tabs').hidden=!plan_;$('actions').hidden=!plan_;
   $('waitBtn').hidden=!myTurn();
   if(v&&v.phase==='setup'){$('endBtn').textContent=v.me.ready?'Waiting…':'Ready';$('endBtn').disabled=v.me.ready;$('endBtn').className='btn primary';}
   else{$('endBtn').textContent='GO';$('endBtn').disabled=false;$('endBtn').className='btn go';}
@@ -765,22 +848,26 @@ function pan(dx,dy){ // finger right → map follows right; finger down → map 
 const ptrs=new Map();let downX=0,downY=0,dragged=false,pinch=0,pressT=null;
 const pinchDist=()=>{const p=[...ptrs.values()];return Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y)||1;};
 cv.addEventListener('pointerdown',e=>{initAudio();try{cv.setPointerCapture(e.pointerId);}catch(_){}ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(drawMode&&ptrs.size===1){drawStart=groundAt(e.clientX,e.clientY);drawEnd=null;dragged=true;return;}
   if(ptrs.size===1){downX=e.clientX;downY=e.clientY;dragged=false;clearTimeout(pressT);pressT=setTimeout(()=>{if(!dragged&&ptrs.size===1){dragged=true;longPress(downX,downY);}},520);}
   if(ptrs.size===2){pinch=pinchDist();pmid=midPt();dragged=true;clearTimeout(pressT);}});
 cv.addEventListener('pointermove',e=>{const p=ptrs.get(e.pointerId);if(!p)return;const dx=e.clientX-p.x,dy=e.clientY-p.y;p.x=e.clientX;p.y=e.clientY;
+  if(drawMode&&drawStart&&ptrs.size===1){drawEnd=groundAt(e.clientX,e.clientY);rebuildPlanGfx();return;}
   if(ptrs.size===1){if(Math.hypot(e.clientX-downX,e.clientY-downY)>8){dragged=true;clearTimeout(pressT);}if(dragged){if(e.shiftKey||(e.buttons&2))pan(dx,dy);else{cam.theta-=dx*0.006;cam.phi=Math.min(1.42,Math.max(0.42,cam.phi-dy*0.005));}}}
   else if(ptrs.size===2){const d=pinchDist();cam.r=Math.min(380,Math.max(40,cam.r*pinch/d));pinch=d;const mp=midPt();if(pmid)pan(mp.x-pmid.x,mp.y-pmid.y);pmid=mp;}});
-function up(e){clearTimeout(pressT);pmid=null;if(ptrs.has(e.pointerId)&&ptrs.size===1&&!dragged&&e.type==='pointerup')tap(e.clientX,e.clientY);ptrs.delete(e.pointerId);}
+function up(e){clearTimeout(pressT);pmid=null;if(drawMode&&drawStart&&ptrs.size===1&&e.type==='pointerup'){ptrs.delete(e.pointerId);finishDraw();return;}if(ptrs.has(e.pointerId)&&ptrs.size===1&&!dragged&&e.type==='pointerup')tap(e.clientX,e.clientY);ptrs.delete(e.pointerId);}
 cv.addEventListener('contextmenu',e=>e.preventDefault());cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
 cv.addEventListener('wheel',e=>{e.preventDefault();cam.r=Math.min(380,Math.max(40,cam.r*(1+e.deltaY*0.001)));},{passive:false});
 function project(p){_c.copy(p).project(camera);return _c.z<1&&_c.z>-1?{x:(_c.x*.5+.5)*innerWidth,y:(-_c.y*.5+.5)*innerHeight}:null;}
 function nearestThreat(x,y){let best=null,bd=56;for(const [uid,tv] of TV){const s=project(tv.pos);if(!s)continue;const d=Math.hypot(s.x-x,s.y-y);if(d<bd){bd=d;best=uid;}}return best;}
+function placeAt(padId){const k=placing;if(!k)return;if(cmd({c:'buyBattery',sys:k,pad:padId})){msg(DEF[k].name+' deployed · −'+fmt(DEF[k].price),'money');setPlacing(null);refreshUI();}}
 function tap(x,y){
   if(!view)return;
   if(placing&&canShop()&&viewSide===0){const taken=new Set(view.me.batteries.map(b=>b.pad));let best=null,bd=46;
     for(const p of PADS){if(taken.has(p.id))continue;const s=project(_b.set(p.x,1,p.z));if(!s)continue;const d=Math.hypot(s.x-x,s.y-y);if(d<bd){bd=d;best=p;}}
-    if(!best){msg('Tap one of the glowing rings in your city','');return;}
-    const k=placing;if(cmd({c:'buyBattery',sys:k,pad:best.id})){msg(DEF[k].name+' deployed · −'+fmt(DEF[k].price),'money');setPlacing(null);refreshUI();}return;}
+    if(!best){msg('Tap one of the glowing + rings in your city','');return;}
+    placeAt(best.id);return;}
+  if(drawMode)return;
   if(view.phase==='battle'&&view.battle.iDefend){const uid=nearestThreat(x,y);if(uid!=null){const t=view.battle.threats.find(q=>q.uid===uid);if(cmd({c:'priority',uid}))msg(t&&t.priority?'Priority cleared':'Priority target · batteries engage it first','good');return;}}
   if(viewSide===0){let best=null,bd=44;for(const id in SIDES[0].bats){const b=SIDES[0].bats[id];const s=project(_b.copy(b.pos).setY(2));if(!s)continue;const d=Math.hypot(s.x-x,s.y-y);if(d<bd){bd=d;best=+id;}}
     if(best!=null){openInfo(best);return;}}
@@ -811,7 +898,27 @@ function drawRadar(){
   if(inBattle){for(const t of b.threats){const d=Math.hypot(t.x,t.z);if(d>range*1.02)continue;const [a,c]=map(t.x,t.z);const k=threatShown(t);rx.fillStyle=k?CLS_CSS[k]:CLS_CSS.unk;rx.beginPath();rx.arc(a,c,k==='drone'?1.6:2.8,0,TAU);rx.fill();}
     rx.fillStyle='#d6e8ee';for(const i of b.interceptors){const [a,c]=map(i.x,i.z);rx.fillRect(a-1,c-1,2,2);}}
 }
+const padMarks={},ammoTags={};
+function markEl(pool,id,cls){let el=pool[id];if(!el){el=document.createElement('div');el.className=cls;$('tags').appendChild(el);pool[id]=el;}return el;}
+function updMarkers(){
+  const v=view,show=v&&placing&&viewSide===0&&canShop();
+  const taken=v?new Set(v.me.batteries.map(b=>b.pad)):new Set();
+  for(const p of PADS){const el=markEl(padMarks,p.id,'padmark');
+    if(!show||taken.has(p.id)){el.hidden=true;continue;}const s=project(_b.set(p.x,6,p.z));if(!s){el.hidden=true;continue;}
+    if(!el.onclick)el.onclick=()=>placeAt(p.id);
+    el.hidden=false;el.textContent='+';el.style.transform='translate('+s.x.toFixed(0)+'px,'+s.y.toFixed(0)+'px)';el.style.setProperty('--c',css(SYS_COL[placing]||0x6fe3ff));}
+  const showA=v&&viewSide===0&&v.phase!=='over';const seen=new Set();
+  if(showA)for(const b of v.me.batteries){seen.add(b.uid);const vb=SIDES[0].bats&&SIDES[0].bats[b.uid];const el=markEl(ammoTags,b.uid,'ammo');if(!vb){el.hidden=true;continue;}
+    const s=project(_b.copy(vb.pos).setY(vb.muzzle.y+5));if(!s){el.hidden=true;continue;}
+    const spare=v.me.interceptors[b.sys]||0;
+    const txt=b.load?(b.reloading>0?'reloading':b.ammo+'/'+b.load+(spare?' +'+spare:'')):'';
+    if(!txt){el.hidden=true;continue;}
+    el.hidden=false;el.textContent=txt;el.className='ammo'+(b.load&&b.ammo===0&&!spare?' empty':b.load&&b.ammo<=Math.max(1,b.load/4)?' low':'');
+    el.style.transform='translate('+s.x.toFixed(0)+'px,'+s.y.toFixed(0)+'px)';}
+  for(const id in ammoTags)if(!seen.has(+id))ammoTags[id].hidden=true;
+}
 function updTags(){
+  updMarkers();
   for(const [uid,tv] of TV){const t=tv.data;if(!t){tv.tag.hidden=true;continue;}
     const s=project(tv.pos);if(!s){tv.tag.hidden=true;continue;}
     tv.tag.hidden=false;tv.tag.style.transform='translate('+s.x.toFixed(1)+'px,'+s.y.toFixed(1)+'px)';
@@ -875,8 +982,9 @@ function step(real,draw){
   if(S.bats)for(const id in S.bats){const b=S.bats[id];if(b.pulse){b.pT+=dt;const k=(b.pT%2)/2;b.pulse.scale.setScalar(.5+k*RAD(DEF[b.sys].range)*.35);b.pulse.material.opacity=(1-k)*.35;}
     if(b.sys==='koral'&&b.tur)b.tur.rotation.y+=dt*2;if(b.beam&&b.beamT>0){b.beamT-=dt;if(b.beamT<=0)b.beam.visible=false;}
     const sel=selected===+id&&viewSide===0;if(b.showT>0)b.showT-=dt;b.ring.visible=sel||b.showT>0;}
-  if(placing&&viewSide===0&&S.padRings){const k=1.35+Math.sin(T*6)*.25;for(const id in S.padRings)S.padRings[id].scale.setScalar(k);}
+  if(placing&&viewSide===0&&S.padRings){const k=1+Math.sin(T*6)*.18;for(const id in S.padRings)S.padRings[id].children[0].scale.setScalar(k);padBeamMat.opacity=.16+Math.sin(T*6)*.08;}
   if(S.crit)for(const id in S.crit){const c=S.crit[id];if(c.spin&&!c.down)c.spin.rotation.y+=dt*1.6;if(c.stack&&!c.down&&rand()<.35)for(const p of c.stack){const q=_a.copy(p).add(c.g.position);emit(SMOKE,q.x,q.y,q.z,(rand()-.5)+.8,2+rand(),(rand()-.5),4+rand()*2,2,9,.92,.92,.94,.35,.1,-.2);}}
+  planGfx.visible=viewSide===1&&!!view&&(myTurn()||!!drawMode);
   if(S.cars){const cm=S.carMesh;S.cars.forEach((c,i)=>{c.s+=c.v*dt;if(c.s>c.len/2)c.s=-c.len/2;if(c.s<-c.len/2)c.s=c.len/2;
     const x=c.ax?c.s:c.off,z=c.ax?c.off:c.s;dummy.position.set(x,.45,z);dummy.rotation.set(0,c.ax?Math.PI/2:0,0);dummy.scale.setScalar(wdist(x,z)<9?0:1);dummy.updateMatrix();cm.setMatrixAt(i,dummy.matrix);});cm.instanceMatrix.needsUpdate=true;}
   for(const L of flashes)L.intensity*=Math.exp(-dt*7);

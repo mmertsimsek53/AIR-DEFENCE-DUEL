@@ -114,6 +114,7 @@ export type BattleEvent =
 export interface Battle {
   attacker: PlayerIndex;
   defender: PlayerIndex;
+  bearing: number;         // radians: the side the strike comes from
   time: number;
   threats: Threat[];
   interceptors: Interceptor[];
@@ -165,7 +166,7 @@ export type Command =
   | { c: 'upgradeRadar'; track: 'range' | 'identify' | 'decoy' }
   | { c: 'buyRadarSite' }
   | { c: 'repairNow'; uid: number }
-  | { c: 'go'; strikes: { weapon: string; n: number; target?: number }[]; scouts: { scout: string; path: Point[] }[] }
+  | { c: 'go'; strikes: { weapon: string; n: number; target?: number }[]; scouts: { scout: string; path: Point[] }[]; bearing?: number } // bearing: radians, direction the strike comes FROM (x = cos, z = sin); default north
   | { c: 'wait' }
   | { c: 'concede' }
   | { c: 'setAutoFire'; on: boolean }

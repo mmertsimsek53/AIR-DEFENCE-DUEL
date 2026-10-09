@@ -79,6 +79,9 @@ Status: first outline from Mert, 9 Oct 2026. Everything below "Open questions" i
 ## Defence missile restock (decided 9 Oct)
 - Each missile defence has a standing order "keep N spare" (default: one full reload). At the start of each of your own turns the game buys missiles back up to that level automatically, as far as money allows (not while the factory is down). Change it any time.
 
+## Strike direction & scout paths (decided 9 Oct)
+- The attacker draws on the enemy city map: one line sets the side the strike comes from (±20° spread); each scout UAV gets its own drawn flight line. Default: from the north.
+
 ## Practice (decided 9 Oct)
 - No AI stand-in for matchmaking: you wait for a real online opponent.
 - Separate **Sandbox training** against an AI opponent.

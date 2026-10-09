@@ -157,7 +157,7 @@ export function command(m: Match, pi: PlayerIndex, cmd: Command): CommandResult 
   }
   if (cmd.c === 'go') {
     if (m.phase !== 'turn' || m.active !== pi) return fail('Not your turn.');
-    return launch(m, pi, cmd.strikes, cmd.scouts);
+    return launch(m, pi, cmd.strikes, cmd.scouts, cmd.bearing);
   }
 
   if (cmd.c === 'setRestock') {
@@ -304,7 +304,7 @@ function finish(m: Match, winner: PlayerIndex, reason: Match['endReason']) {
 
 // ---------- launching a strike ----------
 
-function launch(m: Match, pi: PlayerIndex, strikes: { weapon: string; n: number; target?: number }[], scouts: { scout: string; path: Point[] }[]): CommandResult {
+function launch(m: Match, pi: PlayerIndex, strikes: { weapon: string; n: number; target?: number }[], scouts: { scout: string; path: Point[] }[], bearing?: number): CommandResult {
   const att = m.players[pi], def = m.players[other(pi)];
   const airbase = working(att, 'airbase');
   // Check everything first so a bad order launches nothing.
@@ -336,7 +336,7 @@ function launch(m: Match, pi: PlayerIndex, strikes: { weapon: string; n: number;
   if (!spend(att, munitionCost)) return fail('Not enough budget for the UAV munitions.');
 
   const bt: Battle = {
-    attacker: pi, defender: other(pi), time: 0, threats: [], interceptors: [], events: [],
+    attacker: pi, defender: other(pi), bearing: Number.isFinite(bearing) ? (bearing as number) : NORTH, time: 0, threats: [], interceptors: [], events: [],
     stats: { launched: 0, stopped: 0, hits: 0, damage: 0, interceptorsUsed: 0, defenceSpent: 0, attackSpent: munitionCost },
     over: false,
   };
@@ -369,8 +369,9 @@ function topUp(p: PlayerState, b: Battery) {
   b.ammo += n; p.interceptors[s.id] = have - n;
 }
 
+const NORTH = -Math.PI / 2;
 function spawnPoint(m: Match, d = SPAWN_DISTANCE): Point {
-  const a = -Math.PI / 2 + (rnd(m) - 0.5) * (Math.PI / 3); // from the north, ±30°
+  const a = (m.battle?.bearing ?? NORTH) + (rnd(m) - 0.5) * (Math.PI / 4.5); // from the chosen side, ±20°
   return { x: round(Math.cos(a) * d), z: round(Math.sin(a) * d) };
 }
 
@@ -443,7 +444,11 @@ function spawnStrike(m: Match, bt: Battle, att: PlayerState, def: PlayerState, w
 
 function spawnScout(m: Match, bt: Battle, id: string, path: Point[]) {
   const s = scout(id);
-  const start = spawnPoint(m);
+  // Enter along the drawn line: come in from far out, beyond its first point.
+  const p0 = path[0], p1 = path[1] ?? { x: 0, z: 0 };
+  let dx = p0.x - p1.x, dz = p0.z - p1.z; const len = Math.hypot(dx, dz);
+  if (len < 0.01) { const a = m.battle?.bearing ?? NORTH; dx = Math.cos(a); dz = Math.sin(a); } else { dx /= len; dz /= len; }
+  const start = { x: round(p0.x + dx * SPAWN_DISTANCE), z: round(p0.z + dz * SPAWN_DISTANCE) };
   const t = baseThreat(m);
   t.weapon = id; t.cls = 'uav'; t.looksLike = 'uav'; t.isScout = true; t.delay = rnd(m) * 3;
   t.peakAlt = s.altitude === 'medium' ? 5 : s.altitude === 'high' ? 9 : 18;

@@ -83,6 +83,7 @@ button,select,input{font:inherit;color:inherit}
 .tab.on{border-color:var(--pc);color:var(--pc)}
 .btn.primary{background:var(--pc);color:#061018;border-color:var(--pc)}
 .btn.go{background:var(--danger);color:#fff;border-color:var(--danger)}
+.actions .btn{font-size:16px;padding:9px 16px}.actions #endBtn{min-width:96px}
 .btn.danger{color:var(--danger);border-color:rgba(255,90,78,.5)}
 .btn:disabled,.step:disabled{opacity:.35;cursor:not-allowed}
 .sheet{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:10px 12px;display:grid;gap:8px;max-height:44vh;overflow:auto;-webkit-overflow-scrolling:touch}
@@ -116,6 +117,13 @@ button,select,input{font:inherit;color:inherit}
 .mini.on{border-color:var(--pc);color:var(--pc)}
 select.mini{appearance:none;-webkit-appearance:none;background:rgba(255,255,255,.04);max-width:150px}
 .seg{display:flex;gap:4px;flex-wrap:wrap}
+.padmark{position:absolute;left:0;top:0;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;border:3px solid var(--c);background:rgba(5,10,18,.55);color:#fff;font:800 28px/34px var(--display);text-align:center;pointer-events:auto;cursor:pointer;box-shadow:0 0 14px var(--c);animation:pm 1s ease-in-out infinite}
+@keyframes pm{50%{transform-origin:center;box-shadow:0 0 26px var(--c)}}
+.ammo{position:absolute;left:0;top:0;white-space:nowrap;font-size:11px;font-weight:700;color:#061018;background:var(--money);padding:1px 5px;border-radius:3px;margin-left:-18px;margin-top:-10px;pointer-events:none}
+.ammo.low{background:var(--threat)} .ammo.empty{background:var(--danger);color:#fff}
+.hint{position:fixed;z-index:2;left:calc(env(safe-area-inset-left,0px) + 10px);bottom:calc(env(safe-area-inset-bottom,0px) + 10px);max-width:min(46vw,420px);background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--money);border-radius:4px;padding:7px 11px;font-size:12px;line-height:1.4;backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);pointer-events:none}
+.hint b{color:var(--money);font-weight:400;letter-spacing:.06em} .hint .warn{color:var(--danger)}
+.grp{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin-top:2px}
 .items{display:grid;gap:5px}
 .item{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"nm cnt" "acts acts";gap:4px 10px;align-items:center;padding:6px 8px;border:1px solid var(--line);border-left:3px solid var(--c);border-radius:3px}
 .item .nm{grid-area:nm;min-width:0}.item .nm b{display:block;font-family:var(--display);font-weight:700;font-size:15px;color:var(--c)}.item .nm span{font-size:10px;color:var(--dim)}
@@ -239,14 +247,18 @@ select.mini{appearance:none;-webkit-appearance:none;background:rgba(255,255,255,
     <button class="tab" data-tab="upgrades" type="button">Upgrades</button>
     <button class="tab" data-tab="city" type="button">City</button>
     <button class="btn" id="cityTab" type="button">Enemy city</button>
+  </div>
+  <div class="tabs actions" id="actions" hidden>
+    <button class="btn" id="quickBtn" type="button" hidden>Quick strike</button>
     <button class="btn" id="waitBtn" type="button">Wait</button>
     <button class="btn primary" id="endBtn" type="button">Ready</button>
   </div>
 </div>
 
-<div class="placing" id="placing" hidden>Tap a glowing pad to deploy <b id="placeName"></b><button class="btn" id="cancelPlace" type="button">Cancel</button></div>
+<div class="placing" id="placing" hidden><span id="placeText"></span><button class="btn" id="cancelPlace" type="button">Cancel</button></div>
 <div class="panel" id="info" hidden></div>
 <div class="msg" id="msg"></div>
+<div class="hint" id="hint" hidden></div>
 <div class="banner" id="banner"><h2 id="bTitle"></h2><p id="bSub"></p></div>
 
 <div class="overlay" id="menu">
