@@ -145,6 +145,8 @@ select.mini{appearance:none;-webkit-appearance:none;background:rgba(255,255,255,
 .ammobox .arow.low b:first-of-type{color:var(--threat)}.ammobox .arow.empty b{color:var(--danger)}
 .ammobox .topup{font-size:12px;padding:6px 8px;margin-top:3px}
 @media (orientation:landscape) and (max-height:540px){.ammobox{width:170px}}
+.money-row{display:flex;justify-content:space-between;align-items:flex-end;gap:8px}
+.tclock{display:none;text-align:right;line-height:1}.tclock span{display:block;font-size:9px;letter-spacing:.1em;color:var(--dim);text-transform:uppercase}.tclock b{font-size:22px;font-weight:700}.tclock.low b{color:var(--danger)}
 .grp{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin-top:2px}
 .items{display:grid;gap:5px}
 .item{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"nm cnt" "acts acts";gap:4px 10px;align-items:center;padding:6px 8px;border:1px solid var(--line);border-left:3px solid var(--c);border-radius:3px}
@@ -209,6 +211,19 @@ select.mini{appearance:none;-webkit-appearance:none;background:rgba(255,255,255,
   #menu .eyebrow,#menu .more{display:none}
   #menu .mcard h1{font-size:34px}
 }
+/* Landscape phone: one status card (clock inside), small banner in the city view. */
+@media (orientation:landscape) and (max-height:540px){
+  .tc{display:none}
+  .tclock{display:block}
+  .tl{width:200px}
+  .tl .ars,.tl .role{display:none}
+  .ammobox{width:200px}
+  .banner{top:58%;left:calc((230px + 100vw) / 2);width:calc(100vw - 270px)}
+  body.sheet-open .banner{left:calc((230px + 100vw - min(430px,50vw)) / 2)!important;width:calc(100vw - min(430px,50vw) - 250px)!important}
+  .banner h2{font-size:30px!important}
+  .banner p{font-size:12px}
+  .msg{top:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 62px)}
+}
 /* Landscape phone: menus become a panel on the right so the city stays visible on the left. */
 @media (orientation:landscape) and (max-height:540px){
   #dock{left:auto;right:calc(env(safe-area-inset-right,0px) + 8px);transform:none;top:calc(env(safe-area-inset-top,0px) + 8px);bottom:calc(env(safe-area-inset-bottom,0px) + 6px);width:min(430px,50vw);gap:5px;display:flex;flex-direction:column;justify-content:flex-end}
@@ -244,10 +259,10 @@ select.mini{appearance:none;-webkit-appearance:none;background:rgba(255,255,255,
 <div class="hud tl">
   <div class="who"><b id="pname">YOU</b><span id="turnNo"></span></div>
   <div class="role" id="role">Setup</div>
-  <div class="budget" id="budget">$0M</div>
+  <div class="money-row"><div class="budget" id="budget">$0M</div><div class="tclock"><span id="phaseName2"></span><b id="clock2"></b></div></div>
   <div class="kv"><span>Income</span><b id="income">—</b></div>
-  <div class="kv"><span>Defence missiles</span><b id="arsDef">0</b></div>
-  <div class="kv"><span>Strike weapons</span><b id="arsAtk">0</b></div>
+  <div class="kv ars"><span>Defence missiles</span><b id="arsDef">0</b></div>
+  <div class="kv ars"><span>Strike weapons</span><b id="arsAtk">0</b></div>
   <div class="lbl" style="display:flex;justify-content:space-between">City health <span id="hp" style="color:var(--fg)">1000</span></div>
   <div class="bar"><i id="hpBar"></i></div>
   <div class="lbl" style="display:flex;justify-content:space-between"><span id="oppName">Opponent</span> <span id="ohp" style="color:var(--fg)">1000</span></div>

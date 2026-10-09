@@ -527,7 +527,7 @@ function onPhase(){
   closeInfo();if(drawMode)setDraw(null);if(v.phase!=='battle')rebuildPlanGfx();
   if(v.phase==='turn'){
     if(v.myTurn){plan=newPlan();choice=0;tab='attack';const r=v.me.lastRestock;
-      banner('YOUR TURN','Turn '+v.turnNo+' · +'+fmt(v.me.income)+' income'+(r&&r.n?' · restocked '+r.n+' missiles ('+fmt(r.cost)+')':''),2.6);
+      banner('YOUR TURN','+'+fmt(v.me.income)+' income'+(r&&r.n?' · '+r.n+' missiles restocked':''),2);
       if(r&&r.short)setTimeout(()=>msg(m_factoryDown()?'Factory down: no missiles restocked':'Not enough money to restock every spare missile','warn'),2700);}
     else{tab=null;setPlacing(null);banner(v.enemy.name.toUpperCase()+"'S TURN",'They are planning a strike',2);}
   }else if(v.phase==='battle'){
@@ -963,9 +963,9 @@ function updTags(){
     const key=cls+t.engaged+t.priority+t.hold+txt;
     if(key!==tv.key){tv.key=key;tv.tag.className='tag '+cls+(t.engaged?' eng':'')+(t.priority?' prio':'')+(t.hold?' hold':'');tv.span.textContent=txt;}
   }
-  const S=SIDES[viewSide],showL=view&&(view.phase!=='over');
+  const S=SIDES[viewSide],showL=view&&view.phase!=='over'&&(!document.body.classList.contains('sheet-open')||tab==='city');const placed=[];
   if(S.crit)for(const id in S.crit){const c=S.crit[id];if(!showL){c.el.hidden=true;continue;}const s=project(_a.set(c.x,22,c.z));if(!s){c.el.hidden=true;continue;}
-    if(behindDock(s.x)){c.el.hidden=true;continue;}
+    if(behindDock(s.x)||placed.some(r=>Math.abs(r.x-s.x)<130&&Math.abs(r.y-s.y)<20)){c.el.hidden=true;continue;}placed.push(s);
     c.el.hidden=false;c.el.style.transform='translate('+s.x.toFixed(0)+'px,'+s.y.toFixed(0)+'px)';c.el.classList.toggle('dead',c.down);
     const html=esc(c.txt)+(c.revealed?'<span class="eye">◉</span>':'');if(c.el.innerHTML!==html)c.el.innerHTML=html;}
 }
@@ -982,6 +982,7 @@ function updHud(){
   const showClock=v.phase==='setup'||v.phase==='turn'||v.phase==='report';
   $('phaseName').textContent=v.phase==='setup'?'SETUP':v.phase==='turn'?(v.myTurn?'YOUR TURN':'ENEMY TURN'):v.phase==='battle'?(v.battle.iDefend?'DEFEND':'STRIKE'):v.phase==='report'?'NEXT TURN':'OVER';
   $('clock').textContent=showClock?v.secondsLeft:(v.battle?Math.round(v.battle.time)+'s':'');$('clock').classList.toggle('low',showClock&&v.secondsLeft<=10&&v.phase!=='report');
+  $('phaseName2').textContent=$('phaseName').textContent;$('clock2').textContent=$('clock').textContent;document.querySelector('.tclock').classList.toggle('low',showClock&&v.secondsLeft<=10&&v.phase!=='report');
   $('phaseSub').textContent=v.phase==='turn'&&!v.myTurn?'planning':v.weatherBad&&v.phase==='turn'?'bad weather':'';
   if(v.phase==='battle'){const b=v.battle;let ld=0;for(const bb of m.batteries)if(bb.load)ld+=bb.ammo;
     $('status').innerHTML='<span>Contacts</span> '+b.threats.length+' <span>Stopped</span> '+b.stats.stopped+' <span>Hits</span> '+b.stats.hits+(b.iDefend?' <span>Loaded</span> '+ld+' <span>Reloads</span> '+m.reloadsLeft+' <span>Budget</span> '+fmt(m.budget)+' <button class="chip '+(m.autoFire?'on':'bad')+'" id="autoBtn" type="button">Auto-fire '+(m.autoFire?'on':'off')+'</button>':' <span>Damage</span> '+Math.round(b.stats.damage));}
