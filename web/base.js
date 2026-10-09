@@ -213,7 +213,7 @@ BASE.tap=function(x,y){
   const g=X.groundAt(x,y);if(!g)return;
   if(mode&&ghost){const t=worldToTile(g.x,g.z,ghost.size);placeGhost(t.x,t.y);return;}
   let hit=null;for(const b of bv.buildings){const p=tileToWorld(b.x,b.y,b.size),h=b.size*T/2;if(Math.abs(g.x-p.x)<=h&&Math.abs(g.z-p.z)<=h){hit=b;break;}}
-  sel=hit?hit.id:null;refreshUI(true);
+  sel=hit?hit.id:null;win=hit?'info':null;refreshUI(true);
 };
 
 /* ---------- UI ---------- */
@@ -224,45 +224,54 @@ let uiSig='';
 function topHTML(){return RES.map(r=>{const v=bv.res[r],c=bv.cap[r];if(r==='uranium'&&c<=0&&v<=0)return '';const full=v>=c-0.5;
   return '<div class="rchip" style="--r:'+RES_UI[r].c+'"><b>'+Math.floor(v)+'</b><span>/'+c+'</span><small>'+RES_UI[r].n+(bv.perHour[r]?' · +'+Math.round(bv.perHour[r])+'/h':'')+(full?' · FULL':'')+'</small></div>';}).join('')+
   '<div class="rchip hqchip"><b>HQ '+bv.hq+'</b><small>Teams '+(bv.builders-bv.buildersBusy)+'/'+bv.builders+' free</small></div>';}
-function shopHTML(){
-  let h='<div class="seg">'+CAT_UI.map(([k,n])=>'<button class="mini'+(shopCat===k?' on':'')+'" data-bcat="'+k+'">'+n+'</button>').join('')+'<button class="mini" data-bclose="1" style="margin-left:auto">✕</button></div><div class="tiles">';
-  for(const s of bv.shop.filter(s=>s.cat===shopCat&&s.id!=='hq')){
-    const full=s.have>=s.allowed,locked=s.locked,afford=canAfford(s.cost),dis=locked||full||!afford;
-    h+='<button class="tile btile" data-bshop="'+s.id+'" style="--c:'+'#'+(CAT_COL[s.cat]||0x6fe3ff).toString(16).padStart(6,'0')+'"'+(dis?' disabled':'')+'><b class="tn">'+X.esc(s.name)+'</b>'+
-      '<span class="meta">'+(locked?'Needs HQ '+s.unlock:s.have+'/'+s.allowed+' built · '+s.size+'×'+s.size)+'</span>'+
-      (s.produces?'<span class="meta">+'+s.produces.perHour+' '+RES_UI[s.produces.res].n+'/h</span>':s.stores?'<span class="meta">holds '+s.stores.cap+' '+RES_UI[s.stores.res].n+'</span>':'')+
-      '<span class="cost">'+resLine(s.cost)+' · '+tfmt(s.time)+'</span></button>';}
-  return h+'</div>';}
-function infoHTML(b){
+let win=null;const openSecs=new Set(['defence']);
+const colOf=cat=>'#'+(CAT_COL[cat]||0x6fe3ff).toString(16).padStart(6,'0');
+function shopWinHTML(){
+  let h='<div class="head"><h2>Build</h2><button class="close" data-bwin="close">✕</button></div><div class="sub">Headquarters level '+bv.hq+' · '+(bv.builders-bv.buildersBusy)+' of '+bv.builders+' construction teams free</div>';
+  for(const [k,n] of CAT_UI){
+    const items=bv.shop.filter(s=>s.cat===k&&s.id!=='hq');const avail=items.filter(s=>!s.locked&&s.have<s.allowed).length;const open=openSecs.has(k);
+    h+='<div class="sec-h'+(open?' open':'')+'" data-bsec="'+k+'"><span class="dot" style="width:10px;height:10px;border-radius:50%;background:'+colOf(k)+'"></span>'+n+' <span class="cnt">'+avail+' available</span><span class="chev">›</span></div>';
+    if(!open)continue;h+='<div class="sec-body">';
+    for(const s of items){const full=s.have>=s.allowed,dis=s.locked||full||!canAfford(s.cost);
+      const sub=s.locked?'Needs Headquarters '+s.unlock:full?'Built '+s.have+' of '+s.allowed+' · upgrade HQ for more':resLine(s.cost)+' · '+tfmt(s.time);
+      const v=s.produces?'+'+s.produces.perHour+'/h':s.stores?'holds '+s.stores.cap:'';
+      h+='<button class="wrow" data-bshop="'+s.id+'" style="--c:'+colOf(s.cat)+'"'+(dis?' disabled':'')+'><span class="dot"></span><span class="t"><b>'+X.esc(s.name)+'</b><span>'+sub+'</span></span><span class="v">'+v+'</span><span class="chev">›</span></button>';}
+    h+='</div>';}
+  return h;}
+function infoWinHTML(b){
   const s=bv.shop.find(x=>x.id===b.type),d=b.sys?CAT.defences.find(x=>x.id===b.sys):null;
-  let h='<h3>'+X.esc(b.name)+'<small>'+(b.level?'Level '+b.level:'Under construction')+'</small></h3><p>'+X.esc(s.role)+'</p>';
-  if(d)h+='<div class="kv"><span>Range</span><b>'+d.range+' km ('+Math.round(d.range/0.25)+' tiles)</b></div>';
-  if(s.produces)h+='<div class="kv"><span>Produces</span><b>'+RES_UI[s.produces.res].n+'</b></div>';
-  if(b.building)h+='<div class="kv"><span>Ready in</span><b>'+tfmt(b.building.left)+'</b></div><div class="bar"><i style="width:'+Math.round(100*(1-b.building.left/Math.max(1,b.building.total)))+'%"></i></div>';
-  h+='<div class="tabs">';
-  if(b.building)h+='<button class="btn primary" data-binfo="speed"'+(bv.res.gold<b.building.speedUp?' disabled':'')+'>Finish now · '+b.building.speedUp+' Gold</button><button class="btn" data-binfo="cancel">Cancel</button>';
-  else if(b.maxed)h+='<span class="small">Top level</span>';
-  else if(b.hqLocked)h+='<span class="small">Upgrade your Headquarters to go higher</span>';
-  else if(b.nextCost)h+='<button class="btn primary" data-binfo="up"'+(!canAfford(b.nextCost)||bv.buildersBusy>=bv.builders?' disabled':'')+'>Upgrade to L'+(b.level+1)+' · '+resLine(b.nextCost)+' · '+tfmt(b.nextTime)+'</button>';
-  h+='<button class="btn" data-binfo="move">Move</button><button class="btn" data-binfo="close">Close</button></div>';
-  if(!b.building&&!b.maxed&&bv.buildersBusy>=bv.builders)h+='<div class="small" style="color:var(--threat)">All construction teams are busy.</div>';
+  let h='<div class="head"><span class="dot" style="width:12px;height:12px;border-radius:50%;background:'+colOf(b.cat)+'"></span><h2>'+X.esc(b.name)+'</h2><button class="close" data-bwin="close">✕</button></div><div class="sub">'+X.esc(s.role)+'</div>';
+  h+='<div class="stat"><span>Level</span><b>'+(b.level||'—')+(b.building?' → '+b.building.toLevel:'')+'</b></div>';
+  if(s.produces)h+='<div class="stat"><span>Produces</span><b>'+RES_UI[s.produces.res].n+'</b></div>';
+  if(s.stores)h+='<div class="stat"><span>Stores</span><b>'+RES_UI[s.stores.res].n+'</b></div>';
+  if(d)h+='<div class="stat"><span>Range</span><b>'+d.range+' km · '+Math.round(d.range/0.25)+' tiles</b></div>';
+  h+='<div class="stat"><span>Strength</span><b>'+b.hp+'</b></div>';
+  if(b.building)h+='<div class="stat"><span>Ready in</span><b>'+tfmt(b.building.left)+'</b></div><div class="bar"><i style="width:'+Math.round(100*(1-b.building.left/Math.max(1,b.building.total)))+'%"></i></div>';
+  h+='<div class="actions">';
+  if(b.building)h+='<button class="btn primary" data-binfo="speed"'+(bv.res.gold<b.building.speedUp?' disabled':'')+'>Finish now · '+b.building.speedUp+' Gold</button><button class="btn danger" data-binfo="cancel">Cancel</button>';
+  else if(b.nextCost&&!b.maxed&&!b.hqLocked)h+='<button class="btn primary" data-binfo="up"'+(!canAfford(b.nextCost)||bv.buildersBusy>=bv.builders?' disabled':'')+'>Upgrade to level '+(b.level+1)+'</button>';
+  h+='<button class="btn" data-binfo="move">Move</button></div>';
+  if(!b.building&&b.nextCost&&!b.maxed&&!b.hqLocked)h+='<div class="sub" style="margin:0">Upgrade costs '+resLine(b.nextCost)+' · takes '+tfmt(b.nextTime)+(bv.buildersBusy>=bv.builders?' · <span style="color:var(--orange)">all construction teams are busy</span>':'')+'</div>';
+  else if(b.maxed)h+='<div class="sub" style="margin:0">Top level reached.</div>';
+  else if(b.hqLocked)h+='<div class="sub" style="margin:0">Upgrade your Headquarters to go higher.</div>';
   return h;}
 function refreshUI(force){
   if(!bv)return;
   const top=topHTML();if($('bTop').dataset.h!==top){$('bTop').dataset.h=top;$('bTop').innerHTML=top;}
-  const shopOpen=!$('bShop').hidden;
-  if(shopOpen){const h=shopHTML();if(force||$('bShop').dataset.h!==h){$('bShop').dataset.h=h;const st=$('bShop').scrollTop;$('bShop').innerHTML=h;$('bShop').scrollTop=st;}}
-  const b=sel!=null&&!mode?bv.buildings.find(x=>x.id===sel):null;
-  $('bInfo').hidden=!b;if(b){const h=infoHTML(b);if(force||$('bInfo').dataset.h!==h){$('bInfo').dataset.h=h;$('bInfo').innerHTML=h;$('bInfo').style.setProperty('--c','#'+(CAT_COL[b.cat]||0x6fe3ff).toString(16).padStart(6,'0'));}}
-  document.body.classList.toggle('sheet-open',shopOpen);
+  const b=win==='info'&&sel!=null?bv.buildings.find(x=>x.id===sel):null;if(win==='info'&&!b)win=null;
+  $('bWin').hidden=!win;
+  if(win){const h=win==='shop'?shopWinHTML():infoWinHTML(b);const box=$('bWinBox');if(force||box.dataset.h!==h){const st=box.scrollTop;box.dataset.h=h;box.innerHTML=h;box.scrollTop=st;}}
+  document.body.classList.remove('sheet-open');
 }
 function cmd(c){const r=ADD.baseCmd(c);bv=ADD.baseView();syncScene();if(!r.ok)X.msg(r.error,'bad');else saveT=0.5;refreshUI(true);return r.ok;}
 
 document.addEventListener('click',e=>{
-  if(!BASE.active)return;const t=e.target.closest('[data-bcat],[data-bshop],[data-bclose],[data-binfo],[data-bbtn],[data-bplace]');if(!t)return;
-  if(t.dataset.bcat){shopCat=t.dataset.bcat;refreshUI(true);}
-  else if(t.dataset.bclose){$('bShop').hidden=true;refreshUI(true);}
-  else if(t.dataset.bshop){const s=bv.shop.find(x=>x.id===t.dataset.bshop);$('bShop').hidden=true;sel=null;mode='place';ghostType=s.id;ghostAt=freeSpot(s.id,s.size);makeGhost(s.id,s.size);gridLines.material.opacity=.5;
+  if(!BASE.active)return;
+  if(e.target.id==='bWin'){win=null;sel=null;refreshUI(true);return;}           // tap outside the window closes it
+  const t=e.target.closest('[data-bsec],[data-bwin],[data-bshop],[data-binfo],[data-bbtn],[data-bplace]');if(!t)return;
+  if(t.dataset.bsec){const k=t.dataset.bsec;openSecs.has(k)?openSecs.delete(k):openSecs.add(k);refreshUI(true);return;}
+  if(t.dataset.bwin==='close'){win=null;sel=null;refreshUI(true);return;}
+  if(t.dataset.bshop){const s=bv.shop.find(x=>x.id===t.dataset.bshop);win=null;sel=null;mode='place';ghostType=s.id;ghostAt=freeSpot(s.id,s.size);makeGhost(s.id,s.size);gridLines.material.opacity=.5;
     $('bPlace').hidden=false;$('bPlaceTxt').innerHTML='Drag <b>'+X.esc(s.name)+'</b> into place · '+resLine(s.cost);refreshUI(true);}
   else if(t.dataset.bplace==='ok'){if(!ghost)return;if(!ghost.ok){X.msg('It doesn\'t fit there','bad');return;}
     if(mode==='place'){if(cmd({c:'place',type:ghost.type,x:ghostAt.x,y:ghostAt.y})){X.msg(bv.shop.find(x=>x.id===ghost.type).name+' construction started','money');X.sfx('launch');endGhost();}}
@@ -272,10 +281,10 @@ document.addEventListener('click',e=>{
     if(a==='up'){if(cmd({c:'upgrade',id:b.id}))X.msg('Upgrade to level '+(b.level+1)+' started','money');}
     else if(a==='speed'){if(cmd({c:'speedUp',id:b.id}))X.msg(b.name+' finished','good');}
     else if(a==='cancel'){if(cmd({c:'cancel',id:b.id}))X.msg('Cancelled · half the cost refunded','warn');}
-    else if(a==='move'){mode='move';ghostAt={x:b.x,y:b.y};nodes[b.id].g.visible=false;makeGhost(b.type,b.size);gridLines.material.opacity=.5;$('bPlace').hidden=false;$('bPlaceTxt').innerHTML='Drag <b>'+X.esc(b.name)+'</b> to its new place';refreshUI(true);}
+    else if(a==='move'){win=null;mode='move';ghostAt={x:b.x,y:b.y};nodes[b.id].g.visible=false;makeGhost(b.type,b.size);gridLines.material.opacity=.5;$('bPlace').hidden=false;$('bPlaceTxt').innerHTML='Drag <b>'+X.esc(b.name)+'</b> to its new place';refreshUI(true);}
     else if(a==='close'){sel=null;refreshUI(true);}}
   else if(t.dataset.bbtn){const a=t.dataset.bbtn;
-    if(a==='build'){$('bShop').hidden=!$('bShop').hidden;sel=null;refreshUI(true);}
+    if(a==='build'){win=win==='shop'?null:'shop';sel=null;refreshUI(true);}
     else if(a==='menu')BASE.close();
     else if(a==='attack')X.msg('Battles on bases come in the next step · try the city duel from the menu meanwhile','warn');}
 });
@@ -286,7 +295,7 @@ function updLabels(){
     let el=labels[b.id];if(!el){el=document.createElement('div');el.className='blabel';$('tags').appendChild(el);labels[b.id]=el;}
     const n=nodes[b.id];if(!n||!n.g.visible){el.hidden=true;continue;}
     const p=tileToWorld(b.x,b.y,b.size);const s=X.project(_v.set(p.x,b.size*T*.9+2,p.z));
-    if(!s||($('bShop').hidden===false&&s.x>innerWidth-Math.min(430,innerWidth*.5)-16)){el.hidden=true;continue;}
+    if(!s||win){el.hidden=true;continue;}
     const html=b.building?'<b>'+tfmt(b.building.left)+'</b><i style="width:'+Math.round(100*(1-b.building.left/Math.max(1,b.building.total)))+'%"></i>':(sel===b.id?X.esc(b.name)+' · ':'')+'L'+b.level;
     if(el.dataset.h!==html){el.dataset.h=html;el.innerHTML=html;}
     el.className='blabel'+(b.building?' busy':'')+(sel===b.id?' sel':'');

@@ -274,6 +274,62 @@ i[style*="--r"]{font-style:normal;white-space:nowrap}i[style*="--r"]::before{con
   .banner h2{font-size:44px}
 }
 @media (prefers-reduced-motion:reduce){.msg,.banner,.bar i{transition:none}}
+
+/* ======================================================================
+   AirlineRoom look (iOS): dark cards Color(white:0.13), 20pt corners, rows on white 6%, blue buttons,
+   grey section headers, chevrons. Overrides the earlier military-HUD styling everywhere.
+   ====================================================================== */
+:root{--card:#212121;--card2:#2a2a2a;--row:rgba(255,255,255,.06);--row2:rgba(255,255,255,.1);--sep:rgba(255,255,255,.08);--sec:#8e8e93;
+  --blue:#0a84ff;--green:#30d158;--red:#ff453a;--orange:#ff9f0a;--yellow:#ffd60a;--fg:#fff;--dim:#8e8e93;--friend:#64d2ff;--money:#30d158;--danger:#ff453a;--threat:#ff9f0a;--pc:#0a84ff}
+.hud,.sheet,.panel,.intel,.status,.hint,.ammobox,.placing,.msg,.rchip,.livebar,.mcard-box{background:rgba(33,33,33,.94)!important;border:none!important;border-radius:16px!important;box-shadow:0 6px 24px rgba(0,0,0,.35);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.tl{border-top:none!important}
+.sheet,.panel{border-radius:20px!important;padding:14px 14px!important}
+.msg{border-radius:999px!important}
+.tab,.btn,.mini,.chip{font-family:var(--mono)!important;text-transform:none!important;letter-spacing:0!important;font-weight:600!important;border:none!important;border-radius:10px!important;background:var(--row2)!important;color:#fff!important}
+.tab.on,.mini.on,.chip.on{background:var(--blue)!important;color:#fff!important}
+.btn.primary{background:var(--blue)!important;color:#fff!important}
+.btn.go{background:var(--red)!important;color:#fff!important}
+.btn.danger,.chip.bad{background:rgba(255,69,58,.18)!important;color:var(--red)!important}
+.btn:disabled,.mini:disabled{opacity:.4}
+.tile,.item,.row,.card,.wchip,.launch,.strikebar{background:var(--row)!important;border:none!important;border-radius:12px!important;outline:none}
+.tile.sel,.wchip.on{background:rgba(10,132,255,.22)!important;outline:2px solid var(--blue)!important}
+.launch.on{background:rgba(255,69,58,.16)!important}
+.tile .tn,.item .nm b,.row .nm b,.card h4,.wchip b{color:#fff!important;font-family:var(--mono)!important;font-weight:600!important;font-size:15px!important}
+.tile .tn::before,.item .nm b::before,.row .nm b::before,.wchip b::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--c,var(--blue));margin-right:6px;vertical-align:1px}
+.sheet h3,.lbl,.grp,.tile .role,.eyebrow{font-family:var(--mono)!important;font-size:12px!important;font-weight:700!important;color:var(--sec)!important;text-transform:uppercase;letter-spacing:.02em!important}
+.sheet h3 .small{text-transform:none;font-weight:400}
+.who b,.budget,.panel h3,.mcard h1,.banner h2{font-family:var(--mono)!important}
+.who b{color:#fff!important}.budget{color:var(--green)!important}
+.role{color:var(--orange)!important;letter-spacing:0!important;text-transform:none!important;font-size:12px!important}
+.kv span,.small,.meta{color:var(--sec)!important}
+.bar{background:rgba(255,255,255,.12)!important}.bar i{background:var(--green)!important}.bar.enemy i{background:var(--red)!important}.bar i.low{background:var(--red)!important}
+.overlay{background:rgba(0,0,0,.35)!important}
+.overlay .mcard{background:var(--card);border-radius:20px;padding:24px 24px;max-width:420px;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+#menu.overlay{background:rgba(0,0,0,.55)!important}#menu .mcard{max-width:760px}
+.mcard h1{font-weight:700!important;letter-spacing:0!important}
+.field input{background:var(--row2);border:none;border-radius:10px}
+.rchip{border-radius:999px!important;padding:5px 12px!important;display:flex!important;align-items:baseline;gap:5px}
+.rchip b{font-size:15px!important}.rchip small{margin-left:4px}
+.tag span{border-radius:6px;border-left:none}
+.ind{border-radius:6px;border-left:none;letter-spacing:0;font-weight:600}
+.blabel{border-radius:6px}
+/* windows (AirlineRoom popup convention: 420 wide, 0.35 dim, white 0.13, radius 20, max 480 high, 24 vertical padding) */
+.win-dim{position:fixed;inset:0;z-index:7;background:rgba(0,0,0,.35);display:grid;place-items:center;padding:12px}
+.win{width:min(420px,100%);max-height:min(480px,calc(100vh - 24px));overflow:auto;background:var(--card);border-radius:20px;padding:24px 16px;display:grid;gap:12px;box-shadow:0 10px 40px rgba(0,0,0,.5);-webkit-overflow-scrolling:touch}
+.win .head{display:flex;align-items:center;gap:10px}.win .head h2{margin:0;font-size:20px;font-weight:700;flex:1}
+.win .close{width:30px;height:30px;border-radius:50%;background:var(--row2);border:none;color:#fff;font-size:15px;cursor:pointer}
+.win .sub{font-size:13px;color:var(--sec);line-height:1.4;margin-top:-6px}
+.sec-h{display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--row);border-radius:12px;cursor:pointer;font-weight:600;font-size:15px}
+.sec-h .chev{margin-left:auto;color:var(--sec);transition:transform .2s;font-size:13px}.sec-h.open .chev{transform:rotate(90deg)}
+.sec-h .cnt{color:var(--sec);font-weight:400;font-size:13px}
+.sec-body{display:grid;gap:6px;padding:2px 0 4px 10px}
+.wrow{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--row);border-radius:12px;cursor:pointer;width:100%;text-align:left;border:none;color:#fff;font:inherit}
+.wrow:disabled{opacity:.42;cursor:default}
+.wrow .dot{width:10px;height:10px;border-radius:50%;background:var(--c,var(--blue));flex:none}
+.wrow .t{flex:1;min-width:0;display:grid;gap:2px}.wrow .t b{font-weight:600;font-size:15px}.wrow .t span{font-size:12px;color:var(--sec)}
+.wrow .v{font-size:13px;color:var(--sec);white-space:nowrap}.wrow .chev{color:var(--sec);font-size:14px}
+.stat{display:flex;justify-content:space-between;padding:9px 12px;background:var(--row);border-radius:10px;font-size:14px}.stat span{color:var(--sec)}
+.win .actions{display:flex;gap:8px;flex-wrap:wrap}.win .actions .btn{flex:1;min-width:110px;font-size:15px;padding:11px 14px}
 </style>
 </head>
 <body>
@@ -333,8 +389,7 @@ i[style*="--r"]{font-style:normal;white-space:nowrap}i[style*="--r"]::before{con
 <div id="baseUI" hidden>
   <div class="btop" id="bTop"></div>
   <div class="bbtns"><button class="btn" data-bbtn="attack" type="button">Attack</button><button class="btn primary" data-bbtn="build" type="button">Build</button><button class="btn" data-bbtn="menu" type="button">Menu</button></div>
-  <div class="sheet bshop" id="bShop" hidden></div>
-  <div class="panel binfo" id="bInfo" hidden></div>
+  <div class="win-dim" id="bWin" hidden><div class="win" id="bWinBox"></div></div>
   <div class="placing bplace" id="bPlace" hidden><span id="bPlaceTxt"></span><button class="btn primary" data-bplace="ok" type="button">✓ Place</button><button class="btn" data-bplace="cancel" type="button">✕</button></div>
 </div>
 
