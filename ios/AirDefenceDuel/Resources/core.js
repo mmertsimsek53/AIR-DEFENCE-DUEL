@@ -1191,8 +1191,8 @@
   var match;
   var HUMAN = 0;
   var api = {
-    newSandbox(seed, name) {
-      match = createMatch(seed, [name || "You", "Training AI"], [false, true]);
+    newSandbox(seed, name, demo) {
+      match = createMatch(seed, [name || "You", "Training AI"], [!!demo, true]);
     },
     cmd(json) {
       if (!match) return JSON.stringify({ ok: false, error: "No match." });

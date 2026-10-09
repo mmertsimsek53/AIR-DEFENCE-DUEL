@@ -6,8 +6,8 @@ let match: Match | undefined;
 const HUMAN = 0;
 
 const api = {
-  newSandbox(seed: number, name: string): void {
-    match = core.createMatch(seed, [name || 'You', 'Training AI'], [false, true]);
+  newSandbox(seed: number, name: string, demo?: boolean): void {
+    match = core.createMatch(seed, [name || 'You', 'Training AI'], [!!demo, true]);
   },
   cmd(json: string): string {
     if (!match) return JSON.stringify({ ok: false, error: 'No match.' });
