@@ -5,3 +5,4 @@ export { aiStep } from './ai';
 export { viewFor } from './view';
 export * from './geometry';
 export * from './base';
+export * from './raid';

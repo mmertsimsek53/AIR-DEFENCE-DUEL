@@ -3,12 +3,12 @@
 (function(){
 'use strict';
 const X=window.ADDX,THREE=X.THREE,V=X.V,TAU=X.TAU,rand=X.rand,$=id=>document.getElementById(id);
-const T=4;                                   // scene units per grid tile
+const T=0.25*(106/6);                        // scene units per grid tile (0.25 km at the battle scale, so raids line up)
 const BASE={active:false};window.BASE=BASE;
 const RES=['gold','petrol','explosives','uranium'];
-const RES_UI={gold:{n:'Gold',c:'#ffd34d'},petrol:{n:'Petrol',c:'#ff9f43'},explosives:{n:'Explosives',c:'#ff5a4e'},uranium:{n:'Uranium',c:'#a6ff5c'}};
-const CAT_UI=[['defence','Defence'],['resource','Resources'],['storage','Storage'],['production','Weapons'],['core','Core'],['support','Support']];
-const CAT_COL={core:0xd84040,resource:0xf2c832,storage:0x9db0c8,production:0xc0855a,defence:0x6fe3ff,support:0x8fc06a};
+const RES_UI={gold:{n:'Gold',c:'#ffd34d'},petrol:{n:'Petrol',c:'#ff9f43'},explosives:{n:'TNT',c:'#ff5a4e'},uranium:{n:'Uranium',c:'#a6ff5c'}};
+const CAT_UI=[['defence','Defence'],['resource','Resources · Gold & Petrol'],['explosive','Explosives · TNT & Uranium'],['production','Weapons'],['core','Core'],['support','Support']];
+const CAT_COL={core:0xd84040,resource:0xf2c832,explosive:0xff6b4a,storage:0x9db0c8,production:0xc0855a,defence:0x6fe3ff,support:0x8fc06a};
 
 let bv=null,root=null,ground=null,gridLines=null,nodes={},labels={},sel=null,mode=null,ghost=null,ghostType=null,ghostAt={x:0,y:0},dragGhost=false,saveT=0,shopCat='defence',gridN=0;
 const _v=new V();
@@ -121,8 +121,11 @@ const worldToTile=(wx,wz,size)=>({x:Math.round(wx/T+gridN/2-size/2),y:Math.round
 
 function buildGround(){
   if(ground){root.remove(ground);root.remove(gridLines);}
-  const W=gridN*T;
-  ground=new THREE.Group();
+  ground=makeGround(gridN*T);root.add(ground);
+  gridLines=new THREE.GridHelper(gridN*T,gridN,0x2a3a40,0x2a3a40);gridLines.position.y=.12;gridLines.material.transparent=true;gridLines.material.opacity=.0;root.add(gridLines);
+}
+function makeGround(W){
+  const ground=new THREE.Group();
   const pl=new THREE.Mesh(new THREE.PlaneGeometry(W+12,W+12).rotateX(-Math.PI/2),M(0xffffff,{map:gravelTex}));pl.position.y=.05;pl.receiveShadow=true;ground.add(pl);
   const edge=new THREE.Mesh(new THREE.RingGeometry(0,1,4),new THREE.MeshBasicMaterial({color:0}));edge.visible=false;ground.add(edge);
   const line=M(0xe8c22a);for(const s of [-1,1]){ground.add(box(W+12,.06,.5,line,0,.08,s*(W/2+6)));ground.add(box(.5,.06,W+12,line,s*(W/2+6),.08,0));}
@@ -134,8 +137,7 @@ function buildGround(){
   for(let i=1;i<4;i++)for(const s of [-1,1]){const f=W/2+6,o=-f+i*f/2;for(const [x,z] of [[o,s*f],[s*f,o]]){const l=new THREE.Group();l.position.set(x,0,z);l.add(cyl(.1,.12,5,mSteel,0,0,0,6));l.add(box(.9,.3,.5,mWhite,0,5,0));ground.add(l);}}
   // A few parked trucks and sandbag rows for life.
   for(const [x,z,r] of [[-W/2-2,W/4,0],[W/2+2,-W/5,Math.PI]]){const tr=new THREE.Group();tr.position.set(x,0,z);tr.rotation.y=r;X.veh(tr,6,2.4,new THREE.MeshBasicMaterial({color:0x6b7558}));tr.scale.setScalar(.8);ground.add(tr);}
-  root.add(ground);
-  gridLines=new THREE.GridHelper(W,gridN,0x2a3a40,0x2a3a40);gridLines.position.y=.12;gridLines.material.transparent=true;gridLines.material.opacity=.0;root.add(gridLines);
+  return ground;
 }
 
 function syncScene(){
@@ -186,14 +188,14 @@ function freeSpot(type,size){const g=gridN,c=Math.floor(g/2-size/2);for(let r=0;
 function endGhost(){if(ghost){root.remove(ghost.g);ghost=null;}mode=null;dragGhost=false;gridLines.material.opacity=0;$('bPlace').hidden=true;refreshUI(true);}
 
 /* ---------- open / close ---------- */
-BASE.open=function(){
+BASE.open=function(back){
   const name=(($('nameIn')&&$('nameIn').value)||'').trim()||'Commander';
-  load(name);
+  if(!BASE.loaded){load(name);BASE.loaded=true;}else ADD.baseTick();
   X.hideCities();
   if(!root){root=new THREE.Group();X.scene.add(root);root.add(selRing);}
   root.visible=true;BASE.active=true;sel=null;mode=null;gridN=0;
   bv=ADD.baseView();syncScene();
-  X.cam.theta=0.75;X.cam.phi=0.85;X.cam.r=Math.max(56,gridN*T*0.7);X.cam.tx=0;X.cam.tz=0;
+  if(!back)X.cam.theta=0.75;X.cam.phi=0.85;X.cam.r=Math.max(56,gridN*T*0.7);X.cam.tx=0;X.cam.tz=0;
   $('menu').hidden=true;$('baseUI').hidden=false;document.body.classList.add('base-mode');
   refreshUI(true);
 };
@@ -218,11 +220,12 @@ BASE.tap=function(x,y){
 
 /* ---------- UI ---------- */
 const resLine=c=>RES.filter(r=>c&&c[r]).map(r=>'<i style="--r:'+RES_UI[r].c+'">'+Math.ceil(c[r])+'</i>').join(' ')||'<i>free</i>';
+const mult=(c,n)=>{const o={};for(const r of RES)if(c[r])o[r]=c[r]*n;return o;};
 const canAfford=c=>RES.every(r=>!c||!c[r]||bv.res[r]>=c[r]);
 const tfmt=s=>s>=3600?Math.floor(s/3600)+'h '+Math.floor(s%3600/60)+'m':s>=60?Math.floor(s/60)+'m '+(s%60)+'s':s+'s';
 let uiSig='';
-function topHTML(){return RES.map(r=>{const v=bv.res[r],c=bv.cap[r];if(r==='uranium'&&c<=0&&v<=0)return '';const full=v>=c-0.5;
-  return '<div class="rchip" style="--r:'+RES_UI[r].c+'"><b>'+Math.floor(v)+'</b><span>/'+c+'</span><small>'+RES_UI[r].n+(bv.perHour[r]?' · +'+Math.round(bv.perHour[r])+'/h':'')+(full?' · FULL':'')+'</small></div>';}).join('')+
+function topHTML(){return [['Resources',['gold','petrol']],['Explosives',['explosives','uranium']]].map(([g,rs])=>'<div class="rgroup"><span class="rg">'+g+'</span>'+rs.map(r=>{const v=bv.res[r],c=bv.cap[r];if(r==='uranium'&&c<=0&&v<=0)return '';const full=v>=c-0.5;
+  return '<div class="rchip" style="--r:'+RES_UI[r].c+'"><b>'+Math.floor(v)+'</b><span>/'+c+'</span><small>'+RES_UI[r].n+(bv.perHour[r]?' · +'+Math.round(bv.perHour[r])+'/h':'')+(full?' · FULL':'')+'</small></div>';}).join('')+'</div>').join('')+
   '<div class="rchip hqchip"><b>HQ '+bv.hq+'</b><small>Teams '+(bv.builders-bv.buildersBusy)+'/'+bv.builders+' free</small></div>';}
 let win=null;const openSecs=new Set(['defence']);
 const colOf=cat=>'#'+(CAT_COL[cat]||0x6fe3ff).toString(16).padStart(6,'0');
@@ -247,6 +250,12 @@ function infoWinHTML(b){
   if(d)h+='<div class="stat"><span>Range</span><b>'+d.range+' km · '+Math.round(d.range/0.25)+' tiles</b></div>';
   h+='<div class="stat"><span>Strength</span><b>'+b.hp+'</b></div>';
   if(b.building)h+='<div class="stat"><span>Ready in</span><b>'+tfmt(b.building.left)+'</b></div><div class="bar"><i style="width:'+Math.round(100*(1-b.building.left/Math.max(1,b.building.total)))+'%"></i></div>';
+  const pr=b.level>0&&bv.production.find(p=>p.prod===b.type);
+  if(pr){h+='<div class="sec-h open" style="cursor:default">Produce weapons <span class="cnt">'+pr.stored+' / '+pr.cap+' stored</span></div><div class="sec-body">';
+    for(const w of pr.weapons){const nm=(CAT.attacks.find(a=>a.id===w.id)||CAT.scouts.find(a=>a.id===w.id)).name;const room=pr.cap-pr.stored;
+      h+='<div class="wrow" style="--c:#ff9f0a;cursor:default"><span class="dot"></span><span class="t"><b>'+X.esc(nm)+' <span style="color:var(--sec);font-weight:400">· '+w.have+' in stock</span></b><span>'+(w.ok?resLine(w.cost)+' each':w.why)+'</span></span>'+
+        (w.ok?'<button class="mini" data-bprod="'+w.id+'" data-n="1"'+(room<1||!canAfford(w.cost)?' disabled':'')+'>+1</button><button class="mini" data-bprod="'+w.id+'" data-n="5"'+(room<5||!canAfford(mult(w.cost,5))?' disabled':'')+'>+5</button>':'')+'</div>';}
+    h+='</div>';}
   h+='<div class="actions">';
   if(b.building)h+='<button class="btn primary" data-binfo="speed"'+(bv.res.gold<b.building.speedUp?' disabled':'')+'>Finish now · '+b.building.speedUp+' Gold</button><button class="btn danger" data-binfo="cancel">Cancel</button>';
   else if(b.nextCost&&!b.maxed&&!b.hqLocked)h+='<button class="btn primary" data-binfo="up"'+(!canAfford(b.nextCost)||bv.buildersBusy>=bv.builders?' disabled':'')+'>Upgrade to level '+(b.level+1)+'</button>';
@@ -255,12 +264,20 @@ function infoWinHTML(b){
   else if(b.maxed)h+='<div class="sub" style="margin:0">Top level reached.</div>';
   else if(b.hqLocked)h+='<div class="sub" style="margin:0">Upgrade your Headquarters to go higher.</div>';
   return h;}
+function raidWinHTML(){
+  const ars=Object.entries(bv.arsenal).filter(([,n])=>n>0);
+  let h='<div class="head"><h2>Attack</h2><button class="close" data-bwin="close">✕</button></div><div class="sub">Find a rival base at your level (HQ '+bv.hq+'). Their buildings are hidden until you scout them or hit them. Raids won '+bv.raids.won+' · lost '+bv.raids.lost+'.</div>';
+  h+='<div class="sec-h open" style="cursor:default">Your arsenal <span class="cnt">'+ars.reduce((s,[,n])=>s+n,0)+' ready</span></div><div class="sec-body">';
+  if(!ars.length)h+='<div class="sub" style="margin:0">Empty. Tap a Drone Workshop, Rocket Park or Airfield on your base to produce weapons.</div>';
+  for(const [id,n] of ars){const w=CAT.attacks.find(a=>a.id===id)||CAT.scouts.find(a=>a.id===id);h+='<div class="stat"><span>'+X.esc(w?w.name:id)+'</span><b>'+n+'</b></div>';}
+  h+='</div><div class="actions"><button class="btn primary" data-braid="go"'+(ars.length?'':' disabled')+'>Find a rival ›</button></div>';
+  return h;}
 function refreshUI(force){
   if(!bv)return;
   const top=topHTML();if($('bTop').dataset.h!==top){$('bTop').dataset.h=top;$('bTop').innerHTML=top;}
   const b=win==='info'&&sel!=null?bv.buildings.find(x=>x.id===sel):null;if(win==='info'&&!b)win=null;
   $('bWin').hidden=!win;
-  if(win){const h=win==='shop'?shopWinHTML():infoWinHTML(b);const box=$('bWinBox');if(force||box.dataset.h!==h){const st=box.scrollTop;box.dataset.h=h;box.innerHTML=h;box.scrollTop=st;}}
+  if(win){const h=win==='shop'?shopWinHTML():win==='raid'?raidWinHTML():win==='result'?resultWinHTML():infoWinHTML(b);const box=$('bWinBox');if(force||box.dataset.h!==h){const st=box.scrollTop;box.dataset.h=h;box.innerHTML=h;box.scrollTop=st;}}
   document.body.classList.remove('sheet-open');
 }
 function cmd(c){const r=ADD.baseCmd(c);bv=ADD.baseView();syncScene();if(!r.ok)X.msg(r.error,'bad');else saveT=0.5;refreshUI(true);return r.ok;}
@@ -268,7 +285,9 @@ function cmd(c){const r=ADD.baseCmd(c);bv=ADD.baseView();syncScene();if(!r.ok)X.
 document.addEventListener('click',e=>{
   if(!BASE.active)return;
   if(e.target.id==='bWin'){win=null;sel=null;refreshUI(true);return;}           // tap outside the window closes it
-  const t=e.target.closest('[data-bsec],[data-bwin],[data-bshop],[data-binfo],[data-bbtn],[data-bplace]');if(!t)return;
+  const t=e.target.closest('[data-bsec],[data-bwin],[data-bshop],[data-binfo],[data-bbtn],[data-bplace],[data-bprod],[data-braid]');if(!t)return;
+  if(t.dataset.bprod){const n=+t.dataset.n;if(cmd({c:'produce',weapon:t.dataset.bprod,n}))X.msg(n+' produced','money');return;}
+  if(t.dataset.braid==='go'){startRaid();return;}
   if(t.dataset.bsec){const k=t.dataset.bsec;openSecs.has(k)?openSecs.delete(k):openSecs.add(k);refreshUI(true);return;}
   if(t.dataset.bwin==='close'){win=null;sel=null;refreshUI(true);return;}
   if(t.dataset.bshop){const s=bv.shop.find(x=>x.id===t.dataset.bshop);win=null;sel=null;mode='place';ghostType=s.id;ghostAt=freeSpot(s.id,s.size);makeGhost(s.id,s.size);gridLines.material.opacity=.5;
@@ -286,7 +305,7 @@ document.addEventListener('click',e=>{
   else if(t.dataset.bbtn){const a=t.dataset.bbtn;
     if(a==='build'){win=win==='shop'?null:'shop';sel=null;refreshUI(true);}
     else if(a==='menu')BASE.close();
-    else if(a==='attack')X.msg('Battles on bases come in the next step · try the city duel from the menu meanwhile','warn');}
+    else if(a==='attack'){win=win==='raid'?null:'raid';sel=null;refreshUI(true);}}
 });
 
 /* ---------- labels: level badges and construction timers ---------- */
@@ -302,6 +321,64 @@ function updLabels(){
     el.hidden=false;el.style.transform='translate('+s.x.toFixed(0)+'px,'+s.y.toFixed(0)+'px)';
   }
 }
+
+/* ---------- raid: the rival base under fog ---------- */
+let raidRoot=null,raidNodes={},raidLabels={},raidGrid=0,raidInfo=null;
+const tarpM=M(0x6d7266),rubbleM=M(0x2a2622,{emissive:0x1a0a02});
+function startRaid(){
+  save();const r=ADD.raidStart();if(!r.ok){X.msg(r.error,'bad');return;}
+  raidInfo=r.rival;win=null;sel=null;endGhost();
+  BASE.active=false;root.visible=false;$('baseUI').hidden=true;document.body.classList.remove('base-mode');document.body.classList.add('raid-mode');
+  for(const id in labels){labels[id].hidden=true;}
+  if(raidRoot)X.scene.remove(raidRoot);raidRoot=new THREE.Group();X.scene.add(raidRoot);raidNodes={};raidGrid=0;
+  for(const id in raidLabels)raidLabels[id].remove();raidLabels={};
+  X.startRaid();
+}
+BASE.raidStep=function(){
+  const map=ADD.raidMap();if(!map||!raidRoot)return;
+  if(raidGrid!==map.grid){raidGrid=map.grid;raidRoot.add(makeGround(raidGrid*T));}
+  const all=[...map.structures.map(s=>({...s,k:'s'+s.uid})),...map.defences.map(d=>({...d,k:'d'+d.uid,type:d.sys?'def_'+d.sys:undefined,destroyed:false}))];
+  for(const s of all){
+    const state=s.destroyed?'x':s.revealed&&s.type?'r'+s.type+(s.level||1):'h';let n=raidNodes[s.k];
+    if(!n||n.state!==state){
+      if(n)raidRoot.remove(n.g);const g=new THREE.Group();g.position.set(s.x*(T/0.25),0,s.z*(T/0.25));const S=s.size*T;
+      if(state==='h'){g.add(box(S-1,2.2,S-1,tarpM));g.add(box(S-.6,.2,S-.6,M(0x55594f),0,2.2,0));}
+      else if(state==='x'){g.add(box(S-1,.8,S-1,rubbleM));for(let i=0;i<4;i++)g.add(box(1+rand()*1.5,.6+rand(),1+rand()*1.5,rubbleM,(rand()-.5)*(S-3),.8,(rand()-.5)*(S-3)));}
+      else{const m=makeModel(s.type,s.size,s.level||1,s.sys);g.add(m.g);g.userData.anim=m.anim;}
+      raidRoot.add(g);n=raidNodes[s.k]={g,state};
+    }
+    if(state==='x'&&rand()<.08){const p=n.g.position;X.emit(X.SMOKE,p.x+(rand()-.5)*4,1.5,p.z+(rand()-.5)*4,(rand()-.5)+.8,3+rand()*2,(rand()-.5),5,2.5,12,.16,.15,.15,.6,.15,0);}
+    if(n.g.userData.anim)try{n.g.userData.anim(1/60);}catch(e){}
+    // labels for what you have found
+    let el=raidLabels[s.k];if(!el){el=document.createElement('div');el.className='blabel';$('tags').appendChild(el);raidLabels[s.k]=el;}
+    if(!s.revealed||!s.name&&!s.sys){el.hidden=true;continue;}
+    const p=X.project(_v.set(n.g.position.x,s.size*T+3,n.g.position.z));if(!p){el.hidden=true;continue;}
+    const nm=s.name||(CAT.defences.find(d=>d.id===s.sys)||{}).name||'';
+    const html=s.destroyed?X.esc(nm)+' · destroyed':X.esc(nm)+(s.hpPct!=null&&s.hpPct<100?' · '+s.hpPct+'%':'');
+    if(el.dataset.h!==html){el.dataset.h=html;el.innerHTML=html;}el.className='blabel'+(s.destroyed?' busy':'');el.hidden=false;el.style.transform='translate('+p.x.toFixed(0)+'px,'+p.y.toFixed(0)+'px)';
+  }
+  // raid card
+  const max=map.structures.length||1,down=map.structures.filter(s=>s.destroyed).length,found=all.filter(s=>s.revealed).length;
+  const hp=map.structures.reduce((t,s)=>t+s.hpPct,0)/max;const pct=Math.round(100-hp);
+  const stars=(pct>=50?1:0)+(map.structures.some(s=>s.destroyed&&s.type==='hq')?1:0)+(pct>=100?1:0);
+  const html='<b>'+X.esc(raidInfo?raidInfo.name:'Rival base')+'</b><span>HQ '+(raidInfo?raidInfo.hq:'?')+' · '+found+' of '+all.length+' found</span><div class="stars">'+[0,1,2].map(i=>'<i class="'+(i<stars?'on':'')+'">★</i>').join('')+'</div><span>'+pct+'% destroyed · '+down+' buildings down</span>';
+  if($('raidBox').dataset.h!==html){$('raidBox').dataset.h=html;$('raidBox').innerHTML=html;}
+};
+BASE.raidEnd=function(result){
+  setTimeout(save,50);
+  if(raidRoot){X.scene.remove(raidRoot);raidRoot=null;}for(const id in raidLabels)raidLabels[id].remove();raidLabels={};
+  document.body.classList.remove('raid-mode');
+  BASE.open(true);
+  if(result){win='result';lastResult=result;refreshUI(true);}
+};
+let lastResult=null;
+function resultWinHTML(){const r=lastResult;
+  return '<div class="head"><h2>'+(r.stars?'Raid successful':'Raid failed')+'</h2><button class="close" data-bwin="close">✕</button></div>'+
+    '<div class="stars big">'+[0,1,2].map(i=>'<i class="'+(i<r.stars?'on':'')+'">★</i>').join('')+'</div>'+
+    '<div class="stat"><span>Destroyed</span><b>'+r.destroyedPct+'%</b></div><div class="stat"><span>Headquarters</span><b>'+(r.hqDown?'destroyed':'standing')+'</b></div>'+
+    '<div class="sec-h open" style="cursor:default">Loot</div><div class="sec-body">'+RES.map(k=>'<div class="stat"><span>'+RES_UI[k].n+'</span><b>+'+(r.loot[k]||0)+'</b></div>').join('')+'</div>'+
+    '<div class="stat"><span>XP</span><b>'+(r.xp>=0?'+':'')+r.xp+'</b></div>'+
+    '<div class="stat"><span>Weapons used</span><b>'+(Object.entries(r.used).map(([k,n])=>n+' '+((CAT.attacks.find(a=>a.id===k)||CAT.scouts.find(a=>a.id===k)||{}).name||k)).join(', ')||'none')+'</b></div>';}
 
 /* ---------- frame ---------- */
 let tickT=0;

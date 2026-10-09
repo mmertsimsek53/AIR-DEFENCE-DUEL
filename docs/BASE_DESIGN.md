@@ -151,3 +151,9 @@ Note: a persistent base with offline raids needs the server (accounts, saved bas
 4. **Defence placement by range** is the core of base design: each category covers its own radius, so short-range systems guard buildings, long-range ones cover the whole base.
 5. **Attackers investigate first** (scout UAVs reveal buildings and defences), then attack.
 6. Build order: Step 1 base rules + building visuals + editor · Step 2 battles on bases (scout → live attack, stars, loot) · Step 3 crews.
+
+## Step 2 built (9 Oct 2026)
+- Weapons are produced on the base from resources (Gold = price, TNT = warhead, Petrol = fuel, Uranium = ballistic/hypersonic) in their production buildings; production building levels set storage and which weapons unlock. Starter gift: 6 Shahed + 1 TB2 scout.
+- Raid: Attack → Find a rival (AI base at your HQ level, defences spread by range) → rival base under fog (grey covers) → scout/strike live → stars (50% / HQ / 100%), loot (up to 30% of their stock, more if storages fall), XP. Structures have strength (weapon damage × 10); warheads ≥ 40 also hit neighbours at 50%.
+- Resources shown in two groups: Resources (Gold, Petrol) and Explosives (TNT, Uranium).
+- Next: AI raids on your base (your defences and interceptor stock defend it), crews.

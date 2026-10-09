@@ -17,6 +17,8 @@ const CHEAP_THREATS: ThreatClass[] = ['drone', 'decoy'];
 const EXPENSIVE_SHOT = 1.0; // auto-fire never spends a shot this dear on drones/decoys (priority overrides)
 
 const rnd = (m: Match) => nextRandom(m);
+const R = (m: Match) => m.cityRadius ?? CITY_RADIUS;
+export const HP_SCALE = 10; // raid damage multiplier: weapon damage × 10 = structure strength lost
 const uid = (m: Match) => m.nextUid++;
 const dist = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.z - b.z);
 const round = (v: number) => Math.round(v * 1000) / 1000;
@@ -54,7 +56,7 @@ export function createMatch(seed: number, names: [string, string], ai: [boolean,
     version: 1, rng: seed | 0, time: 0, phase: 'setup', phaseEndsAt: RULES.setupSeconds, active: 0, turnNo: 0,
     weatherBad: false, players: [newPlayer(0, names[0], ai[0]), newPlayer(1, names[1], ai[1])], nextUid: 1, log: [], timed: opts.timed !== false,
   };
-  for (const p of m.players) for (const b of BUILDINGS) addBuilding(m, p, b.kind);
+  for (const p of m.players) for (const b of BUILDINGS) if (b.kind !== 'structure') addBuilding(m, p, b.kind);
   return m;
 }
 
@@ -147,7 +149,7 @@ export function command(m: Match, pi: PlayerIndex, cmd: Command): CommandResult 
     return fireOne(m, bt, cmd);
   }
   if (cmd.c === 'continue') {
-    if (m.phase === 'report') { startTurn(m, other(m.lastReport!.attacker)); return ok; }
+    if (m.phase === 'report') { if (m.raid) { m.phase = 'over'; m.winner = m.lastReport!.attacker; return ok; } startTurn(m, other(m.lastReport!.attacker)); return ok; }
     return fail('Nothing to continue.');
   }
   if (cmd.c === 'endSetup') {
@@ -410,7 +412,7 @@ function fireOne(m: Match, bt: Battle, cmd: { weapon?: string; scout?: string; f
   const att = m.players[bt.attacker], def = m.players[bt.defender];
   const ok_ = (p: Point) => p && Number.isFinite(p.x) && Number.isFinite(p.z);
   if (!ok_(cmd.from) || !ok_(cmd.to)) return fail('Pick a start and an aim point.');
-  if (Math.hypot(cmd.from.x, cmd.from.z) < CITY_RADIUS + 0.5) return fail('Start outside the city.');
+  if (Math.hypot(cmd.from.x, cmd.from.z) < R(m) + 0.5) return fail('Start outside the target area.');
   const airbase = working(att, 'airbase');
   if (cmd.scout) {
     if (!SCOUTS.some(s => s.id === cmd.scout)) return fail('Unknown UAV.');
@@ -449,7 +451,7 @@ function spawnPoint(m: Match, d = SPAWN_DISTANCE): Point {
 
 function randomCityPoint(m: Match, inside: boolean): Point {
   const a = rnd(m) * Math.PI * 2;
-  const r = inside ? Math.sqrt(rnd(m)) * CITY_RADIUS : CITY_RADIUS + 0.5 + rnd(m) * 4;
+  const r = inside ? Math.sqrt(rnd(m)) * R(m) : R(m) + 0.5 + rnd(m) * 4;
   return { x: round(Math.cos(a) * r), z: round(Math.sin(a) * r) };
 }
 
@@ -552,7 +554,7 @@ function spawnStrike(m: Match, bt: Battle, att: PlayerState, def: PlayerState, w
     const share = Math.min(1, (w.scatter ?? 1) + 0.1 * (up.guidance ?? 0));
     aim = randomCityPoint(m, rnd(m) < share);
   }
-  t.landsInCity = w.cls !== 'decoy' && Math.hypot(aim.x, aim.z) <= CITY_RADIUS;
+  t.landsInCity = w.cls !== 'decoy' && Math.hypot(aim.x, aim.z) <= R(m);
   if (w.cls === 'uav') {
     t.munitions = w.munitions ?? 0;
     t.path = [start, ...via, tb ? { x: tb.x, z: tb.z } : to ? { x: round(to.x), z: round(to.z) } : randomCityPoint(m, true), start];
@@ -602,7 +604,7 @@ function step(m: Match, dt: number) {
   const clock = m.timed !== false;
   if (m.phase === 'setup' && clock && m.time >= m.phaseEndsAt) startTurn(m, 0);
   else if (m.phase === 'turn' && clock && m.time >= m.phaseEndsAt) { log(m, `${m.players[m.active].name} ran out of time.`); startTurn(m, other(m.active)); }
-  else if (m.phase === 'report' && m.time >= m.phaseEndsAt) startTurn(m, other(m.lastReport!.attacker));
+  else if (m.phase === 'report' && !m.raid && m.time >= m.phaseEndsAt) startTurn(m, other(m.lastReport!.attacker));
   else if (m.phase === 'battle' && m.battle) battleStep(m, m.battle, dt);
 }
 
@@ -744,7 +746,7 @@ function moveThreat(m: Match, bt: Battle, att: PlayerState, def: PlayerState, t:
     }
   }
   // Scouts and UAVs reveal what's under them.
-  if ((t.isScout || t.cls === 'uav') && Math.hypot(t.x, t.z) < CITY_RADIUS + 3) {
+  if ((t.isScout || t.cls === 'uav') && Math.hypot(t.x, t.z) < R(m) + 3) {
     const rr = t.isScout ? t.revealRadius : 1;
     for (const bd of def.buildings) if (!bd.revealed && dist(bd, t) <= rr) { bd.revealed = true; emit(bt, { t: 'reveal', building: bd.uid }); }
     for (const bb of def.batteries) if (!bb.revealed && dist(def.pads[bb.pad], t) <= rr) bb.revealed = true;
@@ -784,11 +786,12 @@ function arrive(m: Match, bt: Battle, att: PlayerState, def: PlayerState, t: Thr
   const pt = t.path[t.path.length - 1];
   if (!t.landsInCity) { emit(bt, { t: 'impact', x: pt.x, z: pt.z, damage: 0 }); return; }
   let bUid = t.targetBuilding;
-  if (bUid == null) { const near = def.buildings.find(b => dist(b, pt) <= RULES.buildingHitRadius); bUid = near?.uid; }
+  if (bUid == null) { const near = def.buildings.filter(b => b.down < 99 && dist(b, pt) <= (b.r ?? RULES.buildingHitRadius)).sort((a, b) => dist(a, pt) - dist(b, pt))[0]; bUid = near?.uid; }
   impact(m, bt, def, pt, t.damage, bUid);
 }
 
 function impact(m: Match, bt: Battle, def: PlayerState, pt: Point, damage: number, buildingUid?: number) {
+  if (m.raid) { raidImpact(m, bt, def, pt, damage, buildingUid); return; }
   def.health = round(def.health - damage);
   def.scars.push({ x: pt.x, z: pt.z, d: damage });
   if (def.scars.length > 300) def.scars.shift();
@@ -805,6 +808,28 @@ function impact(m: Match, bt: Battle, def: PlayerState, pt: Point, damage: numbe
     emit(bt, { t: 'msg', text: `${name} knocked out.`, tone: 'bad' });
     if (b.kind === 'depot') loseSurfaceStock(def);
   }
+}
+
+/** Raid damage: structures lose strength (damage × HP_SCALE); big warheads also hurt neighbours. */
+function raidImpact(m: Match, bt: Battle, def: PlayerState, pt: Point, damage: number, buildingUid?: number) {
+  def.scars.push({ x: pt.x, z: pt.z, d: damage }); if (def.scars.length > 300) def.scars.shift();
+  bt.stats.hits++; bt.stats.damage = round(bt.stats.damage + damage);
+  emit(bt, { t: 'impact', x: pt.x, z: pt.z, damage, building: buildingUid });
+  const hurt = (b: Building, amount: number) => {
+    if (b.hp == null || b.down >= 99) return;
+    if (!b.revealed) { b.revealed = true; emit(bt, { t: 'reveal', building: b.uid }); }
+    b.hp = Math.max(0, b.hp - amount);
+    if (b.hp <= 0) {
+      b.down = 99;
+      emit(bt, { t: 'knockout', building: b.uid, kind: b.kind });
+      emit(bt, { t: 'msg', text: `${b.name ?? 'Building'} destroyed.`, tone: 'good' });
+      if (b.kind === 'depot') loseSurfaceStock(def);
+    }
+  };
+  const direct = buildingUid != null ? def.buildings.find(x => x.uid === buildingUid) : undefined;
+  if (direct) hurt(direct, damage * HP_SCALE);
+  if (damage >= 40) for (const b of def.buildings) if (b !== direct && dist(b, pt) <= 0.6) hurt(b, damage * HP_SCALE * 0.5);
+  def.health = def.buildings.reduce((s, b) => s + (b.hp ?? 0), 0);
 }
 
 function loseSurfaceStock(p: PlayerState) {
@@ -892,6 +917,13 @@ function endBattle(m: Match, bt: Battle) {
     knockedOut: def.buildings.filter(b => b.battleDamage >= RULES.knockoutDamage && b.down > 0).map(b => BUILDINGS.find(x => x.kind === b.kind)!.name),
     revealed: def.buildings.filter(b => b.revealed).length,
   };
+  if (m.raid) {
+    const max = def.buildings.reduce((s, b) => s + (b.maxHp ?? 0), 0), left = def.buildings.reduce((s, b) => s + (b.hp ?? 0), 0);
+    const destroyedPct = max > 0 ? Math.round(100 * (1 - left / max)) : 0;
+    const hqDown = def.buildings.some(b => b.kind === 'command' && b.down >= 99);
+    m.lastReport.raid = { destroyedPct, hqDown, stars: (destroyedPct >= 50 ? 1 : 0) + (hqDown ? 1 : 0) + (destroyedPct >= 100 ? 1 : 0) };
+    m.lastReport.knockedOut = def.buildings.filter(b => b.down >= 99).map(b => b.name ?? 'Building');
+  }
   m.phase = 'report';
   m.phaseEndsAt = m.time + REPORT_SECONDS;
   log(m, `Strike over: ${bt.stats.stopped} stopped, ${bt.stats.hits} hits, ${bt.stats.damage} damage.`);

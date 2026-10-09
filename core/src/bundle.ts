@@ -4,6 +4,7 @@ import type { Command, Match } from './types';
 
 let match: Match | undefined;
 let base: core.Base | undefined;
+let rival: core.Base | undefined;
 const HUMAN = 0;
 
 const api = {
@@ -46,7 +47,7 @@ const api = {
   quit(): void { match = undefined; },
   // ---------- persistent base ----------
   baseLoad(json: string | null, name: string): void {
-    try { if (json) { const b = JSON.parse(json) as core.Base; if (b && b.version === 1 && Array.isArray(b.buildings)) { base = b; core.baseTick(base, Date.now()); return; } } } catch { /* start fresh */ }
+    try { if (json) { const b = JSON.parse(json) as core.Base; if (b && b.version === 1 && Array.isArray(b.buildings)) { if (!b.arsenal) b.arsenal = { ...core.STARTER_ARSENAL }; base = b; core.baseTick(base, Date.now()); return; } } } catch { /* start fresh */ }
     base = core.newBase(name || 'Commander', Date.now());
   },
   baseSave(): string { return base ? JSON.stringify(base) : ''; },
@@ -54,6 +55,22 @@ const api = {
   baseTick(): void { if (base) core.baseTick(base, Date.now()); },
   baseView() { return base ? core.baseView(base, Date.now()) : null; },
   baseCanPlace(type: string, x: number, y: number, ignore?: number) { return !!base && core.canPlaceAt(base, type, x, y, ignore); },
+  // ---------- raids ----------
+  raidStart(): { ok: boolean; error?: string; rival?: { name: string; hq: number } } {
+    if (!base) return { ok: false, error: 'No base.' };
+    core.baseTick(base, Date.now());
+    if (!Object.values(base.arsenal ?? {}).some(n => n > 0)) return { ok: false, error: 'Your arsenal is empty: produce weapons in a Drone Workshop, Rocket Park, Airfield…' };
+    const hq = core.hqLevel(base), seed = (Math.random() * 1e9) | 0;
+    rival = core.generateBase(hq, seed, ['Red Crescent Base', 'Steel Falcon Base', 'Desert Viper Base', 'Iron Hill Base'][seed % 4]);
+    match = core.createRaid(base, rival, seed);
+    return { ok: true, rival: { name: rival.name, hq } };
+  },
+  raidMap() { return match && match.raid ? core.raidMapFor(match) : null; },
+  raidFinish() {
+    if (!base || !rival || !match || !match.raid) return null;
+    const r = core.raidResult(match, base, rival); core.applyRaid(base, r);
+    match = undefined; rival = undefined; return r;
+  },
   save(): string { return match ? JSON.stringify(match) : ''; },
   load(json: string): boolean { try { match = JSON.parse(json) as Match; return true; } catch { return false; } },
 };

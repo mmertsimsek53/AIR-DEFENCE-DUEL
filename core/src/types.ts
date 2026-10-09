@@ -26,6 +26,8 @@ export interface Building extends Point {
   down: number;           // turns until repaired (0 = working)
   revealed: boolean;      // the enemy knows where it is
   battleDamage: number;
+  // Base raids: every structure has strength and a footprint.
+  hp?: number; maxHp?: number; r?: number; name?: string; baseType?: string; size?: number; level?: number;
 }
 
 export interface PlayerState {
@@ -136,6 +138,8 @@ export interface Match {
   phase: Phase;
   phaseEndsAt: number;
   timed?: boolean;          // false = no setup/turn clock (sandbox); missing = timed
+  raid?: { grid: number };  // a single strike on a military base (no turns); grid = the defender's base size in tiles
+  cityRadius?: number;      // km; defaults to the old city radius
   active: PlayerIndex;       // whose turn (the attacker in a battle)
   turnNo: number;
   weatherBad: boolean;
@@ -154,6 +158,7 @@ export interface BattleReport {
   interceptorsUsed: number; defenceSpent: number; attackSpent: number;
   knockedOut: string[];
   revealed: number;
+  raid?: { destroyedPct: number; hqDown: boolean; stars: number };
 }
 
 // Commands a player sends. The engine checks every one.

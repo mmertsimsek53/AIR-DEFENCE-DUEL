@@ -1,13 +1,14 @@
 // Persistent military base (Clash-of-Clans style). Times are real time (ms timestamps passed in by the host;
 // the server will pass its own clock). Numbers are first-draft test values: short timers so a base grows in a session.
-import { DEFENCES } from './data';
+import { ATTACKS, DEFENCES, SCOUTS } from './data';
 
 export type Res = 'gold' | 'petrol' | 'explosives' | 'uranium';
 export const RESOURCES: Res[] = ['gold', 'petrol', 'explosives', 'uranium'];
-export const RES_NAMES: Record<Res, string> = { gold: 'Gold', petrol: 'Petrol', explosives: 'Explosives', uranium: 'Uranium' };
+export const RES_NAMES: Record<Res, string> = { gold: 'Gold', petrol: 'Petrol', explosives: 'TNT', uranium: 'Uranium' };
+/** Two groups (Mert, 9 Oct): Resources = Gold, Petrol · Explosives = TNT, Uranium. The id 'explosives' is TNT. */
 export type Cost = Partial<Record<Res, number>>;
 
-export type BuildingCat = 'core' | 'resource' | 'storage' | 'production' | 'defence' | 'support';
+export type BuildingCat = 'core' | 'resource' | 'explosive' | 'storage' | 'production' | 'defence' | 'support';
 
 export interface BuildingType {
   id: string;
@@ -41,14 +42,14 @@ const CORE_TYPES: BuildingType[] = [
 const RESOURCE_TYPES: BuildingType[] = [
   B({ id: 'treasury', name: 'Treasury', cat: 'resource', size: 3, unlock: 1, maxLevel: 10, counts: upTo(1, 2, 2, 3, 3, 4, 4, 5), cost: { gold: 150, petrol: 50 }, time: 10, hp: 400, produces: { res: 'gold', perHour: 600 }, role: 'Government funding: produces Gold.' }),
   B({ id: 'oilwell', name: 'Oil Well', cat: 'resource', size: 2, unlock: 1, maxLevel: 10, counts: upTo(1, 2, 2, 3, 3, 4, 4, 5), cost: { gold: 200 }, time: 10, hp: 350, produces: { res: 'petrol', perHour: 400 }, role: 'Pumps oil and refines it: produces Petrol, the fuel for every launch.' }),
-  B({ id: 'explosives', name: 'Explosives Plant', cat: 'resource', size: 3, unlock: 1, maxLevel: 10, counts: upTo(1, 1, 2, 2, 3, 3, 4), cost: { gold: 300, petrol: 100 }, time: 20, hp: 450, produces: { res: 'explosives', perHour: 250 }, role: 'Makes high explosive (RDX/TNT): the filling of every warhead.' }),
-  B({ id: 'uranium', name: 'Uranium Mine', cat: 'resource', size: 3, unlock: 5, maxLevel: 6, counts: fromHQ(5, 1, 1, 2), cost: { gold: 3000, petrol: 1000 }, time: 120, hp: 600, produces: { res: 'uranium', perHour: 40 }, role: 'Mines and processes uranium for heavy penetrator warheads.' }),
+  B({ id: 'explosives', name: 'TNT Plant', cat: 'explosive', size: 3, unlock: 1, maxLevel: 10, counts: upTo(1, 1, 2, 2, 3, 3, 4), cost: { gold: 300, petrol: 100 }, time: 20, hp: 450, produces: { res: 'explosives', perHour: 250 }, role: 'Makes TNT: the filling of every warhead.' }),
+  B({ id: 'uranium', name: 'Uranium Mine', cat: 'explosive', size: 3, unlock: 5, maxLevel: 6, counts: fromHQ(5, 1, 1, 2), cost: { gold: 3000, petrol: 1000 }, time: 120, hp: 600, produces: { res: 'uranium', perHour: 40 }, role: 'Mines and processes uranium for heavy penetrator warheads.' }),
 ];
 const STORAGE_TYPES: BuildingType[] = [
-  B({ id: 'goldvault', name: 'Gold Vault', cat: 'storage', size: 3, unlock: 1, maxLevel: 10, counts: upTo(1, 1, 2, 2, 2, 3), cost: { gold: 300 }, time: 15, hp: 600, stores: { res: 'gold', cap: 2500 }, role: 'Stores Gold. Raiders can steal part of it.' }),
-  B({ id: 'fueldepot', name: 'Fuel Depot', cat: 'storage', size: 3, unlock: 1, maxLevel: 10, counts: upTo(1, 1, 2, 2, 2, 3), cost: { gold: 300 }, time: 15, hp: 500, stores: { res: 'petrol', cap: 2000 }, role: 'Stores Petrol in tanks.' }),
-  B({ id: 'magazine', name: 'Explosives Magazine', cat: 'storage', size: 3, unlock: 1, maxLevel: 10, counts: upTo(1, 1, 1, 2, 2, 2, 3), cost: { gold: 350, petrol: 50 }, time: 20, hp: 700, stores: { res: 'explosives', cap: 1500 }, role: 'Earth-covered bunker storing Explosives.' }),
-  B({ id: 'uraniumstore', name: 'Uranium Store', cat: 'storage', size: 2, unlock: 5, maxLevel: 6, counts: fromHQ(5, 1, 1, 1, 2), cost: { gold: 2500, petrol: 500 }, time: 90, hp: 800, stores: { res: 'uranium', cap: 300 }, role: 'Shielded casks storing Uranium.' }),
+  B({ id: 'goldvault', name: 'Gold Vault', cat: 'resource', size: 3, unlock: 1, maxLevel: 10, counts: upTo(1, 1, 2, 2, 2, 3), cost: { gold: 300 }, time: 15, hp: 600, stores: { res: 'gold', cap: 2500 }, role: 'Stores Gold. Raiders can steal part of it.' }),
+  B({ id: 'fueldepot', name: 'Fuel Depot', cat: 'resource', size: 3, unlock: 1, maxLevel: 10, counts: upTo(1, 1, 2, 2, 2, 3), cost: { gold: 300 }, time: 15, hp: 500, stores: { res: 'petrol', cap: 2000 }, role: 'Stores Petrol in tanks.' }),
+  B({ id: 'magazine', name: 'TNT Magazine', cat: 'explosive', size: 3, unlock: 1, maxLevel: 10, counts: upTo(1, 1, 1, 2, 2, 2, 3), cost: { gold: 350, petrol: 50 }, time: 20, hp: 700, stores: { res: 'explosives', cap: 1500 }, role: 'Earth-covered bunker storing TNT.' }),
+  B({ id: 'uraniumstore', name: 'Uranium Store', cat: 'explosive', size: 2, unlock: 5, maxLevel: 6, counts: fromHQ(5, 1, 1, 1, 2), cost: { gold: 2500, petrol: 500 }, time: 90, hp: 800, stores: { res: 'uranium', cap: 300 }, role: 'Shielded casks storing Uranium.' }),
 ];
 const PRODUCTION_TYPES: BuildingType[] = [
   B({ id: 'missilefactory', name: 'Missile Factory', cat: 'production', size: 3, unlock: 1, maxLevel: 8, counts: upTo(1, 1, 1, 1, 2), cost: { gold: 500, petrol: 100 }, time: 30, hp: 700, role: 'Builds interceptor missiles for your air defences. Knocked out: no new missiles.' }),
@@ -100,6 +101,54 @@ export const levelStorage = (t: BuildingType, level: number) => (t.stores ? t.st
 export const maxLevelAt = (t: BuildingType, hq: number) => (t.id === 'hq' ? 10 : Math.max(0, Math.min(t.maxLevel, hq - t.unlock + 2)));
 export const countAt = (t: BuildingType, hq: number) => t.counts[Math.max(1, Math.min(10, hq)) - 1] ?? 0;
 
+// ---------- weapons made on the base ----------
+
+/** Which production building makes which weapons (in unlock order: first at building level 1, then 2, 3…). */
+export const PRODUCTION: Record<string, string[]> = {
+  droneworkshop: ['shahed', 'gerbera', 'kargu'],
+  rocketpark: ['grad', 'trg300', 'himars'],
+  airfield: ['tb2s', 'tb2', 'anka', 'akinci', 'globalhawk'],
+  cruisesite: ['som', 'tomahawk'],
+  silo: ['tayfun', 'iskander', 'kinzhal'],
+};
+const HQ_FOR: Record<string, number> = { iskander: 8, kinzhal: 10 };
+/** How many units each production building holds per level. */
+const CAPACITY_PER_LEVEL: Record<string, number> = { droneworkshop: 10, rocketpark: 3, airfield: 1, cruisesite: 2, silo: 1 };
+const FUEL: Record<string, number> = { drone: 2, decoy: 1, uav: 15, rocket: 3, cruise: 6, ballistic: 10, hypersonic: 14 };
+
+/** Resource cost of one unit. Gold = price, Explosives = warhead, Petrol = fuel, Uranium = heavy warheads. */
+export function weaponCost(id: string): Cost {
+  const w = ATTACKS.find(a => a.id === id);
+  if (w) {
+    const salvo = w.salvo ?? 1, munitions = w.munitions ?? 1;
+    return {
+      gold: Math.max(1, Math.round(w.unit * 10)),
+      explosives: Math.round(w.damage * salvo * munitions / 4),
+      petrol: (FUEL[w.cls] ?? 2) * (w.salvo ? 4 : 1),
+      ...(w.cls === 'ballistic' ? { uranium: 2 } : w.cls === 'hypersonic' ? { uranium: 6 } : {}),
+    };
+  }
+  const sc = SCOUTS.find(x => x.id === id);
+  if (sc) return { gold: Math.round(sc.price * 10), petrol: 10 };
+  return { gold: 1 };
+}
+export function producerOf(weapon: string): string | undefined { return Object.keys(PRODUCTION).find(k => PRODUCTION[k].includes(weapon)); }
+/** Units this kind of production building can hold in total (all of them, by level). */
+export function capacityOf(b: Base, prod: string): number {
+  return b.buildings.filter(x => x.type === prod && x.level >= 1).reduce((s, x) => s + x.level * (CAPACITY_PER_LEVEL[prod] ?? 1), 0) + (prod === 'airfield' && b.buildings.some(x => x.type === 'airfield' && x.level >= 1) ? 1 : 0);
+}
+export function storedOf(b: Base, prod: string): number { return PRODUCTION[prod].reduce((s, w) => s + (b.arsenal?.[w] ?? 0), 0); }
+/** Weapon available? (its production building at the right level, and HQ for the heaviest). */
+export function canMake(b: Base, weapon: string): { ok: boolean; why?: string } {
+  const prod = producerOf(weapon); if (!prod) return { ok: false, why: 'Unknown weapon.' };
+  const need = PRODUCTION[prod].indexOf(weapon) + 1, lvl = Math.max(0, ...b.buildings.filter(x => x.type === prod).map(x => x.level));
+  const t = buildingType(prod)!;
+  if (lvl < 1) return { ok: false, why: `Build a ${t.name} first.` };
+  if (lvl < need) return { ok: false, why: `Needs ${t.name} level ${need}.` };
+  if ((HQ_FOR[weapon] ?? 0) > hqLevel(b)) return { ok: false, why: `Needs Headquarters level ${HQ_FOR[weapon]}.` };
+  return { ok: true };
+}
+
 // ---------- state ----------
 
 export interface BaseBuilding {
@@ -118,6 +167,8 @@ export interface Base {
   nextId: number;
   lastTick: number;              // ms
   xp: number;
+  arsenal?: Record<string, number>; // built strike weapons, UAV airframes and scouts
+  raids?: { won: number; lost: number };
 }
 
 export type BaseCommand =
@@ -125,15 +176,19 @@ export type BaseCommand =
   | { c: 'upgrade'; id: number }
   | { c: 'move'; id: number; x: number; y: number }
   | { c: 'speedUp'; id: number }
-  | { c: 'cancel'; id: number };
+  | { c: 'cancel'; id: number }
+  | { c: 'produce'; weapon: string; n: number };
 
 export type BaseResult = { ok: true } | { ok: false; error: string };
 const fail = (error: string): BaseResult => ({ ok: false, error });
 
 export const hqLevel = (b: Base) => Math.max(1, b.buildings.find(x => x.type === 'hq')?.level ?? 1);
 
+/** Gift so a new commander can raid straight away. */
+export const STARTER_ARSENAL: Record<string, number> = { shahed: 6, tb2s: 1 };
+
 export function newBase(name: string, now: number): Base {
-  const b: Base = { version: 1, name, res: { gold: 1500, petrol: 600, explosives: 300, uranium: 0 }, buildings: [], nextId: 1, lastTick: now, xp: 1000 };
+  const b: Base = { version: 1, name, res: { gold: 1500, petrol: 600, explosives: 300, uranium: 0 }, buildings: [], nextId: 1, lastTick: now, xp: 1000, arsenal: { ...STARTER_ARSENAL } };
   const g = gridSize(1), mid = Math.floor(g / 2);
   const put = (type: string, x: number, y: number) => b.buildings.push({ id: b.nextId++, type, level: 1, x, y });
   put('hq', mid - 2, mid - 2);
@@ -252,6 +307,15 @@ export function baseCommand(b: Base, cmd: BaseCommand, now: number): BaseResult 
       b.res.gold -= cost; x.level = x.build.toLevel; x.build = undefined;
       return { ok: true };
     }
+    case 'produce': {
+      const ok = canMake(b, cmd.weapon); if (!ok.ok) return fail(ok.why!);
+      const prod = producerOf(cmd.weapon)!, n = Math.max(1, Math.floor(cmd.n));
+      if (storedOf(b, prod) + n > capacityOf(b, prod)) return fail(`No room: ${buildingType(prod)!.name}s hold ${capacityOf(b, prod)} in total. Upgrade or build more.`);
+      const one = weaponCost(cmd.weapon), cost: Cost = {}; for (const r of RESOURCES) if (one[r]) cost[r] = one[r]! * n;
+      if (!canPay(b, cost)) return fail(`Needs ${costText(cost)}.`);
+      pay(b, cost); b.arsenal = b.arsenal ?? {}; b.arsenal[cmd.weapon] = (b.arsenal[cmd.weapon] ?? 0) + n;
+      return { ok: true };
+    }
     case 'cancel': {
       const x = b.buildings.find(o => o.id === cmd.id); if (!x?.build) return fail('Nothing to cancel.');
       const t = buildingType(x.type)!, cost = levelCost(t, x.build.toLevel);
@@ -283,6 +347,9 @@ export function baseView(b: Base, now: number) {
         hp: levelHp(t, Math.max(1, x.level)),
       };
     }),
+    arsenal: { ...(b.arsenal ?? {}) }, raids: b.raids ?? { won: 0, lost: 0 },
+    production: Object.keys(PRODUCTION).map(prod => ({ prod, cap: capacityOf(b, prod), stored: storedOf(b, prod),
+      weapons: PRODUCTION[prod].map(w => ({ id: w, cost: weaponCost(w), have: b.arsenal?.[w] ?? 0, ...canMake(b, w) })) })),
     shop: BUILDING_TYPES.map(t => ({ id: t.id, name: t.name, cat: t.cat, size: t.size, unlock: t.unlock, role: t.role, sys: t.sys, cost: levelCost(t, 1), time: levelTime(t, 1),
       have: b.buildings.filter(x => x.type === t.id).length, allowed: countAt(t, hq), locked: hq < t.unlock,
       produces: t.produces ? { res: t.produces.res, perHour: Math.round(levelProduction(t, 1)) } : null, stores: t.stores ? { res: t.stores.res, cap: Math.round(levelStorage(t, 1)) } : null })),

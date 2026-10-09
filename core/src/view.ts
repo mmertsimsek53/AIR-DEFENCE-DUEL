@@ -1,5 +1,5 @@
 // What one player is allowed to see. The server will send exactly this; the sandbox uses it too.
-import { BUILDINGS, ECONOMY, RADAR_LEVELS, attack, defence } from './data';
+import { BUILDINGS, CITY_RADIUS, ECONOMY, RADAR_LEVELS, attack, defence } from './data';
 import { batteryLoad, incomeFor, launchCap, radarRange, storedUnits, topUpNeeds, upgradeBatteryCost } from './match';
 import type { Match, PlayerIndex } from './types';
 
@@ -17,6 +17,7 @@ export function viewFor(m: Match, pi: PlayerIndex) {
     myTurn: m.phase === 'turn' && m.active === pi,
     active: m.active,
     turnNo: m.turnNo,
+    radius: m.cityRadius ?? CITY_RADIUS, raid: !!m.raid,
     weatherBad: m.weatherBad,
     winner: m.winner, endReason: m.endReason, iWon: m.winner === pi,
     me: {

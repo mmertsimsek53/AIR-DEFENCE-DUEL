@@ -92,9 +92,11 @@
     { kind: "depot", name: "Ammunition depot", effect: "Stock above the protected slots is lost", repairNow: 40 },
     { kind: "factory", name: "Missile factory", effect: "Can't buy missiles or rockets", repairNow: 40 },
     { kind: "airbase", name: "Airbase", effect: "UAVs can't take off", repairNow: 30 },
-    { kind: "finance", name: "Financial district", effect: "Income \u221230%", repairNow: 50 }
+    { kind: "finance", name: "Financial district", effect: "Income \u221230%", repairNow: 50 },
+    { kind: "structure", name: "Building", effect: "No special effect", repairNow: 0 }
   ];
   var FINANCE_PENALTY = 0.3;
+  var XP = { start: 1e3, win: 30, bigWinBonus: 10, bigWinHealth: 500, loss: -20, concede: -25, window: 100, widenEvery: 15, widenBy: 50 };
   var defence = (id) => DEFENCES.find((s) => s.id === id);
   var attack = (id) => ATTACKS.find((s) => s.id === id);
   var scout = (id) => SCOUTS.find((s) => s.id === id);
@@ -160,6 +162,8 @@
   var CHEAP_THREATS = ["drone", "decoy"];
   var EXPENSIVE_SHOT = 1;
   var rnd = (m) => nextRandom(m);
+  var R = (m) => m.cityRadius ?? CITY_RADIUS;
+  var HP_SCALE = 10;
   var uid = (m) => m.nextUid++;
   var dist = (a2, b) => Math.hypot(a2.x - b.x, a2.z - b.z);
   var round = (v) => Math.round(v * 1e3) / 1e3;
@@ -219,7 +223,7 @@
       log: [],
       timed: opts.timed !== false
     };
-    for (const p of m.players) for (const b of BUILDINGS) addBuilding(m, p, b.kind);
+    for (const p of m.players) for (const b of BUILDINGS) if (b.kind !== "structure") addBuilding(m, p, b.kind);
     return m;
   }
   var working = (p, kind) => p.buildings.some((b) => b.kind === kind && b.down === 0);
@@ -312,6 +316,11 @@
     }
     if (cmd.c === "continue") {
       if (m.phase === "report") {
+        if (m.raid) {
+          m.phase = "over";
+          m.winner = m.lastReport.attacker;
+          return ok;
+        }
         startTurn(m, other(m.lastReport.attacker));
         return ok;
       }
@@ -611,7 +620,7 @@
     const att = m.players[bt.attacker], def = m.players[bt.defender];
     const ok_ = (p) => p && Number.isFinite(p.x) && Number.isFinite(p.z);
     if (!ok_(cmd.from) || !ok_(cmd.to)) return fail("Pick a start and an aim point.");
-    if (Math.hypot(cmd.from.x, cmd.from.z) < CITY_RADIUS + 0.5) return fail("Start outside the city.");
+    if (Math.hypot(cmd.from.x, cmd.from.z) < R(m) + 0.5) return fail("Start outside the target area.");
     const airbase = working(att, "airbase");
     if (cmd.scout) {
       if (!SCOUTS.some((s) => s.id === cmd.scout)) return fail("Unknown UAV.");
@@ -655,7 +664,7 @@
   }
   function randomCityPoint(m, inside) {
     const a2 = rnd(m) * Math.PI * 2;
-    const r = inside ? Math.sqrt(rnd(m)) * CITY_RADIUS : CITY_RADIUS + 0.5 + rnd(m) * 4;
+    const r = inside ? Math.sqrt(rnd(m)) * R(m) : R(m) + 0.5 + rnd(m) * 4;
     return { x: round(Math.cos(a2) * r), z: round(Math.sin(a2) * r) };
   }
   function baseThreat(m) {
@@ -815,7 +824,7 @@
       const share = Math.min(1, (w.scatter ?? 1) + 0.1 * (up.guidance ?? 0));
       aim = randomCityPoint(m, rnd(m) < share);
     }
-    t.landsInCity = w.cls !== "decoy" && Math.hypot(aim.x, aim.z) <= CITY_RADIUS;
+    t.landsInCity = w.cls !== "decoy" && Math.hypot(aim.x, aim.z) <= R(m);
     if (w.cls === "uav") {
       t.munitions = w.munitions ?? 0;
       t.path = [start, ...via, tb ? { x: tb.x, z: tb.z } : to ? { x: round(to.x), z: round(to.z) } : randomCityPoint(m, true), start];
@@ -874,7 +883,7 @@
     else if (m.phase === "turn" && clock && m.time >= m.phaseEndsAt) {
       log(m, `${m.players[m.active].name} ran out of time.`);
       startTurn(m, other(m.active));
-    } else if (m.phase === "report" && m.time >= m.phaseEndsAt) startTurn(m, other(m.lastReport.attacker));
+    } else if (m.phase === "report" && !m.raid && m.time >= m.phaseEndsAt) startTurn(m, other(m.lastReport.attacker));
     else if (m.phase === "battle" && m.battle) battleStep(m, m.battle, dt);
   }
   function emit(bt, e) {
@@ -1062,7 +1071,7 @@
         bt.threats.push(d2);
       }
     }
-    if ((t.isScout || t.cls === "uav") && Math.hypot(t.x, t.z) < CITY_RADIUS + 3) {
+    if ((t.isScout || t.cls === "uav") && Math.hypot(t.x, t.z) < R(m) + 3) {
       const rr = t.isScout ? t.revealRadius : 1;
       for (const bd of def.buildings) if (!bd.revealed && dist(bd, t) <= rr) {
         bd.revealed = true;
@@ -1112,12 +1121,16 @@
     }
     let bUid = t.targetBuilding;
     if (bUid == null) {
-      const near = def.buildings.find((b) => dist(b, pt) <= RULES.buildingHitRadius);
+      const near = def.buildings.filter((b) => b.down < 99 && dist(b, pt) <= (b.r ?? RULES.buildingHitRadius)).sort((a2, b) => dist(a2, pt) - dist(b, pt))[0];
       bUid = near?.uid;
     }
     impact(m, bt, def, pt, t.damage, bUid);
   }
   function impact(m, bt, def, pt, damage, buildingUid) {
+    if (m.raid) {
+      raidImpact(m, bt, def, pt, damage, buildingUid);
+      return;
+    }
     def.health = round(def.health - damage);
     def.scars.push({ x: pt.x, z: pt.z, d: damage });
     if (def.scars.length > 300) def.scars.shift();
@@ -1139,6 +1152,33 @@
       emit(bt, { t: "msg", text: `${name} knocked out.`, tone: "bad" });
       if (b.kind === "depot") loseSurfaceStock(def);
     }
+  }
+  function raidImpact(m, bt, def, pt, damage, buildingUid) {
+    def.scars.push({ x: pt.x, z: pt.z, d: damage });
+    if (def.scars.length > 300) def.scars.shift();
+    bt.stats.hits++;
+    bt.stats.damage = round(bt.stats.damage + damage);
+    emit(bt, { t: "impact", x: pt.x, z: pt.z, damage, building: buildingUid });
+    const hurt = (b, amount) => {
+      if (b.hp == null || b.down >= 99) return;
+      if (!b.revealed) {
+        b.revealed = true;
+        emit(bt, { t: "reveal", building: b.uid });
+      }
+      b.hp = Math.max(0, b.hp - amount);
+      if (b.hp <= 0) {
+        b.down = 99;
+        emit(bt, { t: "knockout", building: b.uid, kind: b.kind });
+        emit(bt, { t: "msg", text: `${b.name ?? "Building"} destroyed.`, tone: "good" });
+        if (b.kind === "depot") loseSurfaceStock(def);
+      }
+    };
+    const direct = buildingUid != null ? def.buildings.find((x) => x.uid === buildingUid) : void 0;
+    if (direct) hurt(direct, damage * HP_SCALE);
+    if (damage >= 40) {
+      for (const b of def.buildings) if (b !== direct && dist(b, pt) <= 0.6) hurt(b, damage * HP_SCALE * 0.5);
+    }
+    def.health = def.buildings.reduce((s, b) => s + (b.hp ?? 0), 0);
   }
   function loseSurfaceStock(p) {
     const safe = ECONOMY.storage.values[p.econ.storage];
@@ -1240,6 +1280,13 @@
       knockedOut: def.buildings.filter((b) => b.battleDamage >= RULES.knockoutDamage && b.down > 0).map((b) => BUILDINGS.find((x) => x.kind === b.kind).name),
       revealed: def.buildings.filter((b) => b.revealed).length
     };
+    if (m.raid) {
+      const max = def.buildings.reduce((s, b) => s + (b.maxHp ?? 0), 0), left = def.buildings.reduce((s, b) => s + (b.hp ?? 0), 0);
+      const destroyedPct = max > 0 ? Math.round(100 * (1 - left / max)) : 0;
+      const hqDown = def.buildings.some((b) => b.kind === "command" && b.down >= 99);
+      m.lastReport.raid = { destroyedPct, hqDown, stars: (destroyedPct >= 50 ? 1 : 0) + (hqDown ? 1 : 0) + (destroyedPct >= 100 ? 1 : 0) };
+      m.lastReport.knockedOut = def.buildings.filter((b) => b.down >= 99).map((b) => b.name ?? "Building");
+    }
     m.phase = "report";
     m.phaseEndsAt = m.time + REPORT_SECONDS;
     log(m, `Strike over: ${bt.stats.stopped} stopped, ${bt.stats.hits} hits, ${bt.stats.damage} damage.`);
@@ -1358,6 +1405,8 @@
       myTurn: m.phase === "turn" && m.active === pi,
       active: m.active,
       turnNo: m.turnNo,
+      radius: m.cityRadius ?? CITY_RADIUS,
+      raid: !!m.raid,
       weatherBad: m.weatherBad,
       winner: m.winner,
       endReason: m.endReason,
@@ -1445,7 +1494,8 @@
 
   // src/base.ts
   var RESOURCES = ["gold", "petrol", "explosives", "uranium"];
-  var RES_NAMES = { gold: "Gold", petrol: "Petrol", explosives: "Explosives", uranium: "Uranium" };
+  var RES_NAMES = { gold: "Gold", petrol: "Petrol", explosives: "TNT", uranium: "Uranium" };
+  var TILE_KM = 0.25;
   var gridSize = (hq) => 20 + 2 * (Math.max(1, Math.min(10, hq)) - 1);
   var upTo = (...c) => {
     const out = [...c];
@@ -1463,14 +1513,14 @@
   var RESOURCE_TYPES = [
     B({ id: "treasury", name: "Treasury", cat: "resource", size: 3, unlock: 1, maxLevel: 10, counts: upTo(1, 2, 2, 3, 3, 4, 4, 5), cost: { gold: 150, petrol: 50 }, time: 10, hp: 400, produces: { res: "gold", perHour: 600 }, role: "Government funding: produces Gold." }),
     B({ id: "oilwell", name: "Oil Well", cat: "resource", size: 2, unlock: 1, maxLevel: 10, counts: upTo(1, 2, 2, 3, 3, 4, 4, 5), cost: { gold: 200 }, time: 10, hp: 350, produces: { res: "petrol", perHour: 400 }, role: "Pumps oil and refines it: produces Petrol, the fuel for every launch." }),
-    B({ id: "explosives", name: "Explosives Plant", cat: "resource", size: 3, unlock: 1, maxLevel: 10, counts: upTo(1, 1, 2, 2, 3, 3, 4), cost: { gold: 300, petrol: 100 }, time: 20, hp: 450, produces: { res: "explosives", perHour: 250 }, role: "Makes high explosive (RDX/TNT): the filling of every warhead." }),
-    B({ id: "uranium", name: "Uranium Mine", cat: "resource", size: 3, unlock: 5, maxLevel: 6, counts: fromHQ(5, 1, 1, 2), cost: { gold: 3e3, petrol: 1e3 }, time: 120, hp: 600, produces: { res: "uranium", perHour: 40 }, role: "Mines and processes uranium for heavy penetrator warheads." })
+    B({ id: "explosives", name: "TNT Plant", cat: "explosive", size: 3, unlock: 1, maxLevel: 10, counts: upTo(1, 1, 2, 2, 3, 3, 4), cost: { gold: 300, petrol: 100 }, time: 20, hp: 450, produces: { res: "explosives", perHour: 250 }, role: "Makes TNT: the filling of every warhead." }),
+    B({ id: "uranium", name: "Uranium Mine", cat: "explosive", size: 3, unlock: 5, maxLevel: 6, counts: fromHQ(5, 1, 1, 2), cost: { gold: 3e3, petrol: 1e3 }, time: 120, hp: 600, produces: { res: "uranium", perHour: 40 }, role: "Mines and processes uranium for heavy penetrator warheads." })
   ];
   var STORAGE_TYPES = [
-    B({ id: "goldvault", name: "Gold Vault", cat: "storage", size: 3, unlock: 1, maxLevel: 10, counts: upTo(1, 1, 2, 2, 2, 3), cost: { gold: 300 }, time: 15, hp: 600, stores: { res: "gold", cap: 2500 }, role: "Stores Gold. Raiders can steal part of it." }),
-    B({ id: "fueldepot", name: "Fuel Depot", cat: "storage", size: 3, unlock: 1, maxLevel: 10, counts: upTo(1, 1, 2, 2, 2, 3), cost: { gold: 300 }, time: 15, hp: 500, stores: { res: "petrol", cap: 2e3 }, role: "Stores Petrol in tanks." }),
-    B({ id: "magazine", name: "Explosives Magazine", cat: "storage", size: 3, unlock: 1, maxLevel: 10, counts: upTo(1, 1, 1, 2, 2, 2, 3), cost: { gold: 350, petrol: 50 }, time: 20, hp: 700, stores: { res: "explosives", cap: 1500 }, role: "Earth-covered bunker storing Explosives." }),
-    B({ id: "uraniumstore", name: "Uranium Store", cat: "storage", size: 2, unlock: 5, maxLevel: 6, counts: fromHQ(5, 1, 1, 1, 2), cost: { gold: 2500, petrol: 500 }, time: 90, hp: 800, stores: { res: "uranium", cap: 300 }, role: "Shielded casks storing Uranium." })
+    B({ id: "goldvault", name: "Gold Vault", cat: "resource", size: 3, unlock: 1, maxLevel: 10, counts: upTo(1, 1, 2, 2, 2, 3), cost: { gold: 300 }, time: 15, hp: 600, stores: { res: "gold", cap: 2500 }, role: "Stores Gold. Raiders can steal part of it." }),
+    B({ id: "fueldepot", name: "Fuel Depot", cat: "resource", size: 3, unlock: 1, maxLevel: 10, counts: upTo(1, 1, 2, 2, 2, 3), cost: { gold: 300 }, time: 15, hp: 500, stores: { res: "petrol", cap: 2e3 }, role: "Stores Petrol in tanks." }),
+    B({ id: "magazine", name: "TNT Magazine", cat: "explosive", size: 3, unlock: 1, maxLevel: 10, counts: upTo(1, 1, 1, 2, 2, 2, 3), cost: { gold: 350, petrol: 50 }, time: 20, hp: 700, stores: { res: "explosives", cap: 1500 }, role: "Earth-covered bunker storing TNT." }),
+    B({ id: "uraniumstore", name: "Uranium Store", cat: "explosive", size: 2, unlock: 5, maxLevel: 6, counts: fromHQ(5, 1, 1, 1, 2), cost: { gold: 2500, petrol: 500 }, time: 90, hp: 800, stores: { res: "uranium", cap: 300 }, role: "Shielded casks storing Uranium." })
   ];
   var PRODUCTION_TYPES = [
     B({ id: "missilefactory", name: "Missile Factory", cat: "production", size: 3, unlock: 1, maxLevel: 8, counts: upTo(1, 1, 1, 1, 2), cost: { gold: 500, petrol: 100 }, time: 30, hp: 700, role: "Builds interceptor missiles for your air defences. Knocked out: no new missiles." }),
@@ -1542,10 +1592,55 @@
   var levelStorage = (t, level) => t.stores ? t.stores.cap * Math.pow(1.6, level - 1) : 0;
   var maxLevelAt = (t, hq) => t.id === "hq" ? 10 : Math.max(0, Math.min(t.maxLevel, hq - t.unlock + 2));
   var countAt = (t, hq) => t.counts[Math.max(1, Math.min(10, hq)) - 1] ?? 0;
+  var PRODUCTION = {
+    droneworkshop: ["shahed", "gerbera", "kargu"],
+    rocketpark: ["grad", "trg300", "himars"],
+    airfield: ["tb2s", "tb2", "anka", "akinci", "globalhawk"],
+    cruisesite: ["som", "tomahawk"],
+    silo: ["tayfun", "iskander", "kinzhal"]
+  };
+  var HQ_FOR = { iskander: 8, kinzhal: 10 };
+  var CAPACITY_PER_LEVEL = { droneworkshop: 10, rocketpark: 3, airfield: 1, cruisesite: 2, silo: 1 };
+  var FUEL = { drone: 2, decoy: 1, uav: 15, rocket: 3, cruise: 6, ballistic: 10, hypersonic: 14 };
+  function weaponCost(id) {
+    const w = ATTACKS.find((a2) => a2.id === id);
+    if (w) {
+      const salvo = w.salvo ?? 1, munitions = w.munitions ?? 1;
+      return {
+        gold: Math.max(1, Math.round(w.unit * 10)),
+        explosives: Math.round(w.damage * salvo * munitions / 4),
+        petrol: (FUEL[w.cls] ?? 2) * (w.salvo ? 4 : 1),
+        ...w.cls === "ballistic" ? { uranium: 2 } : w.cls === "hypersonic" ? { uranium: 6 } : {}
+      };
+    }
+    const sc = SCOUTS.find((x) => x.id === id);
+    if (sc) return { gold: Math.round(sc.price * 10), petrol: 10 };
+    return { gold: 1 };
+  }
+  function producerOf(weapon) {
+    return Object.keys(PRODUCTION).find((k) => PRODUCTION[k].includes(weapon));
+  }
+  function capacityOf(b, prod) {
+    return b.buildings.filter((x) => x.type === prod && x.level >= 1).reduce((s, x) => s + x.level * (CAPACITY_PER_LEVEL[prod] ?? 1), 0) + (prod === "airfield" && b.buildings.some((x) => x.type === "airfield" && x.level >= 1) ? 1 : 0);
+  }
+  function storedOf(b, prod) {
+    return PRODUCTION[prod].reduce((s, w) => s + (b.arsenal?.[w] ?? 0), 0);
+  }
+  function canMake(b, weapon) {
+    const prod = producerOf(weapon);
+    if (!prod) return { ok: false, why: "Unknown weapon." };
+    const need = PRODUCTION[prod].indexOf(weapon) + 1, lvl = Math.max(0, ...b.buildings.filter((x) => x.type === prod).map((x) => x.level));
+    const t = buildingType(prod);
+    if (lvl < 1) return { ok: false, why: `Build a ${t.name} first.` };
+    if (lvl < need) return { ok: false, why: `Needs ${t.name} level ${need}.` };
+    if ((HQ_FOR[weapon] ?? 0) > hqLevel(b)) return { ok: false, why: `Needs Headquarters level ${HQ_FOR[weapon]}.` };
+    return { ok: true };
+  }
   var fail2 = (error) => ({ ok: false, error });
   var hqLevel = (b) => Math.max(1, b.buildings.find((x) => x.type === "hq")?.level ?? 1);
+  var STARTER_ARSENAL = { shahed: 6, tb2s: 1 };
   function newBase(name, now) {
-    const b = { version: 1, name, res: { gold: 1500, petrol: 600, explosives: 300, uranium: 0 }, buildings: [], nextId: 1, lastTick: now, xp: 1e3 };
+    const b = { version: 1, name, res: { gold: 1500, petrol: 600, explosives: 300, uranium: 0 }, buildings: [], nextId: 1, lastTick: now, xp: 1e3, arsenal: { ...STARTER_ARSENAL } };
     const g = gridSize(1), mid = Math.floor(g / 2);
     const put = (type, x, y) => b.buildings.push({ id: b.nextId++, type, level: 1, x, y });
     put("hq", mid - 2, mid - 2);
@@ -1673,6 +1768,19 @@
         x.build = void 0;
         return { ok: true };
       }
+      case "produce": {
+        const ok2 = canMake(b, cmd.weapon);
+        if (!ok2.ok) return fail2(ok2.why);
+        const prod = producerOf(cmd.weapon), n = Math.max(1, Math.floor(cmd.n));
+        if (storedOf(b, prod) + n > capacityOf(b, prod)) return fail2(`No room: ${buildingType(prod).name}s hold ${capacityOf(b, prod)} in total. Upgrade or build more.`);
+        const one = weaponCost(cmd.weapon), cost = {};
+        for (const r of RESOURCES) if (one[r]) cost[r] = one[r] * n;
+        if (!canPay(b, cost)) return fail2(`Needs ${costText(cost)}.`);
+        pay(b, cost);
+        b.arsenal = b.arsenal ?? {};
+        b.arsenal[cmd.weapon] = (b.arsenal[cmd.weapon] ?? 0) + n;
+        return { ok: true };
+      }
       case "cancel": {
         const x = b.buildings.find((o) => o.id === cmd.id);
         if (!x?.build) return fail2("Nothing to cancel.");
@@ -1718,6 +1826,14 @@
           hp: levelHp(t, Math.max(1, x.level))
         };
       }),
+      arsenal: { ...b.arsenal ?? {} },
+      raids: b.raids ?? { won: 0, lost: 0 },
+      production: Object.keys(PRODUCTION).map((prod) => ({
+        prod,
+        cap: capacityOf(b, prod),
+        stored: storedOf(b, prod),
+        weapons: PRODUCTION[prod].map((w) => ({ id: w, cost: weaponCost(w), have: b.arsenal?.[w] ?? 0, ...canMake(b, w) }))
+      })),
       shop: BUILDING_TYPES.map((t) => ({
         id: t.id,
         name: t.name,
@@ -1737,9 +1853,231 @@
     };
   }
 
+  // src/raid.ts
+  var KIND = {
+    hq: "command",
+    radar: "radar",
+    power: "power",
+    ammobunker: "depot",
+    magazine: "depot",
+    missilefactory: "factory",
+    airfield: "airbase",
+    treasury: "finance",
+    goldvault: "finance"
+  };
+  var centreKm = (g, x, y, size) => ({ x: (x + size / 2 - g / 2) * TILE_KM, z: (y + size / 2 - g / 2) * TILE_KM });
+  function emptyPlayer(index, name, isAI) {
+    return {
+      index,
+      name,
+      isAI,
+      budget: 0,
+      health: 0,
+      pads: [],
+      scars: [],
+      batteries: [],
+      buildings: [],
+      interceptors: {},
+      launchers: {},
+      stock: {},
+      scouts: {},
+      launched: {},
+      offUp: {},
+      econ: { income: 0, storage: 0, logistics: 1, repair: 0 },
+      radar: { range: 0, identify: 0, decoy: 0 },
+      autoFire: true,
+      reloadsLeft: 0,
+      spent: 0,
+      conceded: false,
+      ready: true,
+      restock: {}
+    };
+  }
+  function defender(b, index, isAI) {
+    const p = emptyPlayer(index, b.name, isAI), g = gridSize(hqLevel(b));
+    for (const x of b.buildings) {
+      if (x.level < 1) continue;
+      const t = buildingType(x.type), c = centreKm(g, x.x, x.y, t.size);
+      if (t.sys) {
+        const pad = { id: p.pads.length, x: c.x, z: c.z };
+        p.pads.push(pad);
+        const s = defence(t.sys);
+        const bat = { uid: 1e5 + x.id, sys: t.sys, pad: pad.id, level: Math.min(3, x.level), ammo: Math.round(s.load * (1 + 0.25 * (Math.min(3, x.level) - 1))), cooldown: 0, reloading: 0, holdFire: false, revealed: false, kills: 0, dwell: 0 };
+        p.batteries.push(bat);
+        if (s.load > 0) p.interceptors[s.id] = (p.interceptors[s.id] ?? 0) + s.load;
+        continue;
+      }
+      const hp = levelHp(t, x.level);
+      const bd = {
+        uid: x.id,
+        kind: KIND[x.type] ?? "structure",
+        x: c.x,
+        z: c.z,
+        down: 0,
+        revealed: false,
+        battleDamage: 0,
+        hp,
+        maxHp: hp,
+        r: t.size * TILE_KM / 2 * 1.15,
+        name: t.name,
+        baseType: x.type,
+        size: t.size,
+        level: x.level
+      };
+      p.buildings.push(bd);
+    }
+    const radar = Math.max(0, ...b.buildings.filter((x) => x.type === "radar" && x.level >= 1).map((x) => x.level));
+    p.radar = { range: Math.min(3, Math.max(0, radar - 1)), identify: Math.min(3, Math.max(0, radar - 1)), decoy: Math.min(3, Math.max(0, radar - 2)) };
+    p.health = p.buildings.reduce((s, x) => s + (x.hp ?? 0), 0);
+    return p;
+  }
+  function attacker(b) {
+    const p = emptyPlayer(0, b.name, false);
+    for (const [id, n] of Object.entries(b.arsenal ?? {})) {
+      if (n <= 0) continue;
+      if (SCOUTS.some((s) => s.id === id)) {
+        p.scouts[id] = n;
+        continue;
+      }
+      const w = ATTACKS.find((a2) => a2.id === id);
+      if (!w) continue;
+      p.stock[id] = n;
+      if (!w.reusable) p.launchers[id] = Math.ceil(n / w.perTurn);
+    }
+    return p;
+  }
+  function createRaid(att, def, seed) {
+    const g = gridSize(hqLevel(def));
+    const m = {
+      version: 1,
+      rng: seed | 0,
+      time: 0,
+      phase: "battle",
+      phaseEndsAt: Infinity,
+      active: 0,
+      turnNo: 1,
+      weatherBad: false,
+      players: [attacker(att), defender(def, 1, true)],
+      nextUid: 2e5,
+      log: [],
+      timed: false,
+      raid: { grid: g },
+      cityRadius: g * TILE_KM / 2
+    };
+    m.battle = {
+      attacker: 0,
+      defender: 1,
+      bearing: -Math.PI / 2,
+      live: true,
+      open: true,
+      time: 0,
+      threats: [],
+      interceptors: [],
+      events: [],
+      stats: { launched: 0, stopped: 0, hits: 0, damage: 0, interceptorsUsed: 0, defenceSpent: 0, attackSpent: 0 },
+      over: false
+    };
+    m.players[1].reloadsLeft = 2;
+    return m;
+  }
+  function generateBase(hq, seed, name) {
+    const st = { rng: seed | 0 }, rnd2 = () => nextRandom(st);
+    const b = newBase(name, 0);
+    b.buildings = [];
+    const g = gridSize(hq), mid = g / 2;
+    const occ = Array.from({ length: g }, () => Array(g).fill(false));
+    const free = (x, y, s) => {
+      if (x < 0 || y < 0 || x + s > g || y + s > g) return false;
+      for (let i = x; i < x + s; i++) for (let j = y; j < y + s; j++) if (occ[i][j]) return false;
+      return true;
+    };
+    const put = (type, level, tx, ty) => {
+      const t = buildingType(type);
+      const s = t.size;
+      for (let r = 0; r < g; r++) for (let k = 0; k < 24; k++) {
+        const a2 = rnd2() * Math.PI * 2, x = Math.round(tx + Math.cos(a2) * r - s / 2), y = Math.round(ty + Math.sin(a2) * r - s / 2);
+        if (free(x, y, s)) {
+          for (let i = x; i < x + s; i++) for (let j = y; j < y + s; j++) occ[i][j] = true;
+          b.buildings.push({ id: b.nextId++, type, level, x, y });
+          return;
+        }
+      }
+    };
+    const lvl = (type) => {
+      const t = buildingType(type);
+      const top = Math.max(1, maxLevelAt(t, hq));
+      return Math.max(1, top - (rnd2() < 0.5 ? 1 : 0));
+    };
+    put("hq", hq, mid, mid);
+    for (const t of BUILDING_TYPES) {
+      if (t.id === "hq" || t.sys || hq < t.unlock) continue;
+      for (let i = 0; i < countAt(t, hq); i++) {
+        const a2 = rnd2() * Math.PI * 2, r = (0.15 + rnd2() * 0.25) * g;
+        put(t.id, lvl(t.id), mid + Math.cos(a2) * r, mid + Math.sin(a2) * r);
+      }
+    }
+    for (const t of BUILDING_TYPES.filter((x) => x.sys && hq >= x.unlock)) {
+      const range = defence(t.sys).range, ring = range < 10 ? 0.18 : range < 50 ? 0.3 : 0.38;
+      for (let i = 0; i < countAt(t, hq); i++) {
+        const a2 = rnd2() * Math.PI * 2;
+        put(t.id, lvl(t.id), mid + Math.cos(a2) * ring * g, mid + Math.sin(a2) * ring * g);
+      }
+    }
+    const cap = storageCap(b);
+    for (const r of RESOURCES) b.res[r] = Math.round(cap[r] * (0.4 + rnd2() * 0.4));
+    return b;
+  }
+  function raidResult(m, att, def) {
+    const r = m.lastReport?.raid ?? { destroyedPct: 0, hqDown: false, stars: 0 };
+    const defP = m.players[1], storagesDown = defP.buildings.filter((x) => x.down >= 99 && ["goldvault", "fueldepot", "magazine", "uraniumstore", "treasury", "oilwell", "explosives", "uranium"].includes(x.baseType ?? "")).length;
+    const share = Math.min(0.3, 0.2 * r.destroyedPct / 100 + 0.03 * storagesDown);
+    const loot = {};
+    for (const res of RESOURCES) loot[res] = Math.floor(def.res[res] * share);
+    const used = {};
+    const attP = m.players[0];
+    for (const [id, n] of Object.entries(att.arsenal ?? {})) {
+      const left = SCOUTS.some((s) => s.id === id) ? attP.scouts[id] ?? 0 : attP.stock[id] ?? 0;
+      if (n - left > 0) used[id] = n - left;
+    }
+    const xp = r.stars === 0 ? XP.loss : XP.win + (r.stars === 3 ? XP.bigWinBonus : 0) - (3 - r.stars) * 5;
+    return { stars: r.stars, destroyedPct: r.destroyedPct, hqDown: r.hqDown, loot, xp, used };
+  }
+  function applyRaid(att, res) {
+    const cap = storageCap(att);
+    for (const r of RESOURCES) att.res[r] = Math.min(cap[r], att.res[r] + res.loot[r]);
+    for (const [id, n] of Object.entries(res.used)) {
+      att.arsenal[id] = Math.max(0, (att.arsenal[id] ?? 0) - n);
+      if (!att.arsenal[id]) delete att.arsenal[id];
+    }
+    att.xp = Math.max(0, att.xp + res.xp);
+    att.raids = att.raids ?? { won: 0, lost: 0 };
+    if (res.stars > 0) att.raids.won++;
+    else att.raids.lost++;
+  }
+  function raidMapFor(m) {
+    const def = m.players[1];
+    return {
+      grid: m.raid?.grid ?? 20,
+      structures: def.buildings.map((b) => ({
+        uid: b.uid,
+        x: b.x,
+        z: b.z,
+        size: b.size ?? 2,
+        revealed: b.revealed,
+        destroyed: b.down >= 99,
+        hpPct: b.maxHp ? Math.round(100 * (b.hp ?? 0) / b.maxHp) : 100,
+        type: b.revealed ? b.baseType : void 0,
+        level: b.revealed ? b.level : void 0,
+        name: b.revealed ? b.name : void 0
+      })),
+      defences: def.batteries.map((bt) => ({ uid: bt.uid, x: def.pads[bt.pad].x, z: def.pads[bt.pad].z, size: defence(bt.sys).range >= 40 ? 3 : 2, revealed: bt.revealed, sys: bt.revealed ? bt.sys : void 0, level: bt.revealed ? bt.level : void 0 }))
+    };
+  }
+
   // src/bundle.ts
   var match;
   var base;
+  var rival;
   var HUMAN = 0;
   var api = {
     newSandbox(seed, name, demo) {
@@ -1813,6 +2151,7 @@
         if (json) {
           const b = JSON.parse(json);
           if (b && b.version === 1 && Array.isArray(b.buildings)) {
+            if (!b.arsenal) b.arsenal = { ...STARTER_ARSENAL };
             base = b;
             baseTick(base, Date.now());
             return;
@@ -1836,6 +2175,27 @@
     },
     baseCanPlace(type, x, y, ignore) {
       return !!base && canPlaceAt(base, type, x, y, ignore);
+    },
+    // ---------- raids ----------
+    raidStart() {
+      if (!base) return { ok: false, error: "No base." };
+      baseTick(base, Date.now());
+      if (!Object.values(base.arsenal ?? {}).some((n) => n > 0)) return { ok: false, error: "Your arsenal is empty: produce weapons in a Drone Workshop, Rocket Park, Airfield\u2026" };
+      const hq = hqLevel(base), seed = Math.random() * 1e9 | 0;
+      rival = generateBase(hq, seed, ["Red Crescent Base", "Steel Falcon Base", "Desert Viper Base", "Iron Hill Base"][seed % 4]);
+      match = createRaid(base, rival, seed);
+      return { ok: true, rival: { name: rival.name, hq } };
+    },
+    raidMap() {
+      return match && match.raid ? raidMapFor(match) : null;
+    },
+    raidFinish() {
+      if (!base || !rival || !match || !match.raid) return null;
+      const r = raidResult(match, base, rival);
+      applyRaid(base, r);
+      match = void 0;
+      rival = void 0;
+      return r;
     },
     save() {
       return match ? JSON.stringify(match) : "";

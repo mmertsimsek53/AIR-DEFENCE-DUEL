@@ -142,7 +142,7 @@ export const ECONOMY = {
 } as const;
 export type EconomyId = keyof typeof ECONOMY;
 
-export type BuildingKind = 'command' | 'radar' | 'power' | 'depot' | 'factory' | 'airbase' | 'finance';
+export type BuildingKind = 'command' | 'radar' | 'power' | 'depot' | 'factory' | 'airbase' | 'finance' | 'structure';
 export const BUILDINGS: { kind: BuildingKind; name: string; effect: string; repairNow: number }[] = [
   { kind: 'command', name: 'Command centre', effect: 'Next turn 30 s instead of 60 s', repairNow: 40 },
   { kind: 'radar', name: 'Radar site', effect: "That radar's coverage is lost", repairNow: 30 },
@@ -151,6 +151,7 @@ export const BUILDINGS: { kind: BuildingKind; name: string; effect: string; repa
   { kind: 'factory', name: 'Missile factory', effect: "Can't buy missiles or rockets", repairNow: 40 },
   { kind: 'airbase', name: 'Airbase', effect: "UAVs can't take off", repairNow: 30 },
   { kind: 'finance', name: 'Financial district', effect: 'Income −30%', repairNow: 50 },
+  { kind: 'structure', name: 'Building', effect: 'No special effect', repairNow: 0 },
 ];
 export const FINANCE_PENALTY = 0.3;
 

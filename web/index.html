@@ -159,6 +159,11 @@ body.base-mode .tl,body.base-mode .tc,body.base-mode .tr,body.base-mode #dock,bo
 .rchip{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--r,var(--friend));border-radius:4px;padding:4px 9px;display:grid;line-height:1.15;backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px)}
 .rchip b{font-size:17px;font-weight:700;color:var(--r,var(--fg))}.rchip span{font-size:10px;color:var(--dim);display:inline}.rchip small{font-size:9px;color:var(--dim);letter-spacing:.04em}
 .rchip.hqchip{--r:#6fe3ff}
+.raidbox{display:none;position:fixed;z-index:2;top:calc(env(safe-area-inset-top,0px) + 8px);left:calc(env(safe-area-inset-left,0px) + 10px);padding:9px 12px;width:220px;gap:2px}
+body.raid-mode .raidbox{display:grid}body.raid-mode #cityBtn{display:none!important}body.raid-mode .tl,body.raid-mode .ammobox,body.raid-mode #ammoBox{display:none!important}
+.raidbox b{font-size:15px}.raidbox span{font-size:11px;color:var(--sec)}
+.stars{display:flex;gap:2px;font-size:20px;color:rgba(255,255,255,.2)}.stars i{font-style:normal}.stars i.on{color:var(--yellow)}.stars.big{font-size:44px;justify-content:center}
+.rgroup{display:flex;gap:4px;align-items:center;background:rgba(0,0,0,.25);border-radius:999px;padding:2px 4px 2px 10px}.rgroup .rg{font-size:10px;font-weight:700;color:#c7c7cc;text-transform:uppercase;letter-spacing:.03em;margin-right:2px}
 .bbtns{position:fixed;z-index:2;right:calc(env(safe-area-inset-right,0px) + 10px);bottom:calc(env(safe-area-inset-bottom,0px) + 10px);display:flex;gap:6px}
 .bbtns .btn{font-size:15px;padding:9px 18px}
 .bshop{position:fixed;z-index:2;right:calc(env(safe-area-inset-right,0px) + 8px);top:calc(env(safe-area-inset-top,0px) + 8px);bottom:calc(env(safe-area-inset-bottom,0px) + 62px);width:min(430px,50vw);max-height:none;overflow:auto}
@@ -386,6 +391,7 @@ i[style*="--r"]{font-style:normal;white-space:nowrap}i[style*="--r"]::before{con
 <div class="hud ammobox" id="ammoBox" hidden></div>
 <div class="banner" id="banner"><h2 id="bTitle"></h2><p id="bSub"></p></div>
 
+<div class="hud raidbox" id="raidBox"></div>
 <div id="baseUI" hidden>
   <div class="btop" id="bTop"></div>
   <div class="bbtns"><button class="btn" data-bbtn="attack" type="button">Attack</button><button class="btn primary" data-bbtn="build" type="button">Build</button><button class="btn" data-bbtn="menu" type="button">Menu</button></div>

@@ -408,6 +408,7 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 
 /* ======================= GAME STATE ======================= */
 let view=null,running=false,T=0;
+let raidMode=false;
 let viewSide=0,choice=0,tab=null,placing=null,selected=null,plan=newPlan(),upSeg='def';
 let liveSel=null,liveFrom=null; // live attack: chosen weapon/scout and start point
 const liveGfx=new THREE.Group();scene.add(liveGfx);
@@ -536,10 +537,10 @@ function onPhase(){
     setPlacing(null);tab=null;cam.phi=1.0;cam.r=Math.max(170,Math.min(cam.r,230));cam.tx=0;cam.tz=0;
     if(v.battle.iDefend){banner('INCOMING STRIKE','From the '+compass(v.battle.bearing)+' · tap a contact to fire at it first',2.8);
       const empty=v.me.batteries.filter(b=>b.load&&b.ammo===0);if(empty.length)setTimeout(()=>msg(empty.map(b=>DEF[b.sys].name).join(', ')+': no missiles loaded!','bad'),2900);}
-    else if(v.battle.open){cam.r=330;cam.phi=.75;banner('ATTACK','Pick a weapon, tap its start, then its target',2.2);}
+    else if(v.battle.open){cam.r=raidMode?190:330;cam.phi=raidMode?.8:.75;banner('ATTACK','Pick a weapon, tap its start, then its target',2.2);}
     else banner('STRIKE LAUNCHED','Watching '+v.enemy.name+"'s city",2.2);
   }else if(v.phase==='report'){showReport();}
-  else if(v.phase==='over'){showOver();}
+  else if(v.phase==='over'){if(!raidMode)showOver();}
   if(v.phase!=='report'&&v.phase!=='over')$('report').hidden=true;
   sheetSig='';refreshUI();
 }
@@ -547,6 +548,9 @@ function onPhase(){
 function m_factoryDown(){return view.me.buildings.some(b=>b.kind==='factory'&&b.down>0);}
 function showReport(){
   const v=view,r=v.report;if(!r)return;
+  if(raidMode&&r.raid){$('repEyebrow').textContent='Raid report';$('repTitle').textContent='★'.repeat(r.raid.stars)+'☆'.repeat(3-r.raid.stars);
+    $('repBody').innerHTML=[['Destroyed',r.raid.destroyedPct+'%'],['Headquarters',r.raid.hqDown?'destroyed':'standing'],['Weapons launched',r.launched],['Shot down',r.stopped],['Hits',r.hits]].map(l=>'<div class="kv"><span>'+l[0]+'</span><b>'+l[1]+'</b></div>').join('');
+    $('repBtn').textContent='Back to base';$('repMenu').hidden=true;$('report').hidden=false;return;}
   const attackerIsMe=v.battle?!v.battle.iDefend:false;
   const lines=[['Contacts launched',r.launched],['Stopped',r.stopped],['Hits',r.hits],['City damage',Math.round(r.damage)],
     ['Interceptors fired',r.interceptorsUsed+' · '+fmt(r.defenceSpent)],['Strike cost',fmt(r.attackSpent)]];
@@ -564,7 +568,8 @@ function showOver(){
   $('repBody').innerHTML='<div class="kv"><span>Result</span><b style="text-align:right">'+esc(why)+'</b></div><div class="kv"><span>Your city</span><b>'+Math.round(v.me.health)+'</b></div><div class="kv"><span>'+esc(v.enemy.name)+'</span><b>'+Math.round(v.enemy.health)+'</b></div>';
   $('repBtn').textContent='Play again';$('repMenu').hidden=false;$('report').hidden=false;
 }
-$('repBtn').onclick=()=>{if(view&&view.phase==='over'){startGame(false);return;}$('report').hidden=true;cmd({c:'continue'});};
+$('repBtn').onclick=()=>{if(raidMode){$('report').hidden=true;cmd({c:'continue'});const res=ADD.raidFinish();raidMode=false;running=false;view=null;clearBattle();refreshUI();BASE.raidEnd(res);return;}
+  if(view&&view.phase==='over'){startGame(false);return;}$('report').hidden=true;cmd({c:'continue'});};
 $('repMenu').onclick=()=>{toMenu();};
 function toMenu(){running=false;ADD.quit();view=null;clearBattle();for(const S of SIDES)if(S.root){scene.remove(S.root);for(const el of S.labelEls)el.remove();S.root=null;}
   $('report').hidden=true;$('gameMenu').hidden=true;$('menu').hidden=false;tab=null;setPlacing(null);closeInfo();
@@ -915,7 +920,7 @@ function tap(x,y){
     placeAt(best.id);return;}
   if(drawMode)return;
   if(view.phase==='battle'&&!view.battle.iDefend&&view.battle.open&&liveSel){const g=groundAt(x,y);if(!g)return;const km=toKm(g);
-    if(!liveFrom){if(Math.hypot(km.x,km.z)<6.8){msg('Start outside the city · tap further out','warn');return;}liveFrom=km;refreshUI();return;}
+    if(!liveFrom){if(Math.hypot(km.x,km.z)<view.radius+0.6){msg(view.raid?'Start outside the base · tap further out':'Start outside the city · tap further out','warn');return;}liveFrom=km;refreshUI();return;}
     const [kind,id]=liveSel.split(':');const c={c:'fire',from:liveFrom,to:km};if(kind==='s')c.scout=id;else c.weapon=id;
     if(cmd(c)){const nm=kind==='s'?SCT[id].name:ATK[id].name;msg(nm+' launched','good');sfx('launch');}
     liveFrom=null;refreshUI();return;}
@@ -1040,8 +1045,9 @@ function step(real,draw){
   if(running){
     ADD.tick(real); // the game clock follows real time even if frames drop
     view=ADD.viewRaw();
-    const want=wantedSide();if(want!==viewSide||!SIDES[viewSide].root.visible)showSide(want);
-    syncCity(SIDES[0],true);syncCity(SIDES[1],false);
+    if(raidMode){for(const S of SIDES)if(S.root)S.root.visible=false;viewSide=1;BASE.raidStep(dt);}
+    else{const want=wantedSide();if(want!==viewSide||!SIDES[viewSide].root.visible)showSide(want);
+    syncCity(SIDES[0],true);syncCity(SIDES[1],false);}
     syncBattle();handleEvents(ADD.eventsRaw());
     onPhase();
     sheetT-=dt;if(sheetT<=0){sheetT=.3;refreshUI();}
@@ -1076,7 +1082,9 @@ window.ADDX={THREE,V,TAU,rand,scene,camera,renderer,cam,emit,SMOKE,GLOW,explode,
   shadowy,boxPart,cylPart,MATS,steel,darkMat,concrete,whiteMat,stone,olive,tyre,glassMat,veh,tubes,canvasTex,noise,burnt,burntMats,
   hideCities:()=>{for(const S of SIDES)if(S.root)S.root.visible=false;},
   showMenuCity:()=>{if(!SIDES[0].root)buildCity(SIDES[0],0);showSide(0);SIDES[0].root.visible=true;},
-  toMenu:()=>toMenu()};
+  toMenu:()=>toMenu(),
+  startRaid:()=>{raidMode=true;view=ADD.viewRaw();clearBattle();tab=null;placing=null;selected=null;liveSel=null;liveFrom=null;lastTurnKey='';sheetSig='';
+    $('menu').hidden=true;$('report').hidden=true;running=true;cam.theta=0.75;cam.phi=.8;cam.r=190;cam.tx=0;cam.tz=0;refreshUI();}};
 window.__scr=(x,z)=>project(new V(x,0,z));
 window.__padXY=id=>{const p=PADS.find(q=>q.id===id);return p&&project(_b.set(p.x,1,p.z));};
 window.__advance=sec=>{const n=Math.max(1,Math.round(sec/0.05));for(let i=0;i<n;i++)step(0.05,i===n-1);return view&&{phase:view.phase,turn:view.turnNo,me:view.me.health,foe:view.enemy.health};};
