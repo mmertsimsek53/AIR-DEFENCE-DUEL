@@ -44,6 +44,7 @@ Status: first outline from Mert, 9 Oct 2026. Everything below "Open questions" i
 
 ## End of match (decided 9 Oct)
 - A player concedes (accepts the loss), or a city is destroyed.
+- City health bar: every hit on homes or buildings lowers it; at zero the city is destroyed.
 - Disconnect: 60 s to come back, then the absent player loses.
 
 ## Menus & upgrades (decided 9 Oct)
@@ -55,10 +56,24 @@ Status: first outline from Mert, 9 Oct 2026. Everything below "Open questions" i
 ## Turkish systems (decided 9 Oct)
 - Turkish systems are added to the v1 list alongside the others (Korkut, Sungur, ALKA, Koral, Hisar-A+, Hisar-O+, Siper; Kargu-2, Akıncı, TRG-300, SOM, Tayfun).
 
-## Critical buildings, surveillance, radar (decided 9 Oct — details PROPOSED, to confirm)
+## Critical buildings, surveillance, radar (decided 9 Oct — first version to try, then adjust)
 - The city has critical buildings; hitting one disrupts a function.
 - Surveillance UAVs reveal where the enemy's important buildings are. Once revealed, a building stays visible for the rest of the match.
-- Radars are built and upgraded for range, target identification, and telling decoys from real threats.
+- Buildings are hidden from the enemy until revealed.
+
+| Building | If hit |
+|---|---|
+| Command centre | Your next turn is shortened (60 s → 30 s) |
+| Radar sites | That radar's coverage is lost until repaired |
+| Power plant | Lasers (ALKA, Iron Beam) and Koral off; radar range drops |
+| Ammunition depot | Missiles stored above ground are lost |
+| Missile factory | No new missiles next turn |
+| Airbase | Your UAVs can't take off next turn |
+| Financial district / port | Income drops for a few turns |
+
+- Damaged buildings repair themselves after a few turns, or faster if you pay.
+- Surveillance UAVs (e.g. TB2 scouting, Anka, Global Hawk) reveal buildings under their path. Cheap = low, slow, easy to shoot down; expensive = high, sees more. Unrevealed → you can only aim at the city in general.
+- Radars: 3 levels each for **range** (earlier warning), **identification** (threat type vs "unknown"), **decoy detection** (how soon fakes are marked). Real radar names per level (e.g. Kalkan → EL/M-2084 → AN/TPY-2).
 
 ## Practice (decided 9 Oct)
 - No AI stand-in for matchmaking: you wait for a real online opponent.
