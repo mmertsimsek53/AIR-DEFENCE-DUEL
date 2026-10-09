@@ -132,6 +132,11 @@ select.mini{appearance:none;-webkit-appearance:none;background:rgba(255,255,255,
 .tile .hits{display:flex;gap:3px;flex-wrap:wrap}
 .tile .hits i{font-style:normal;font-size:8.5px;letter-spacing:.04em;padding:0 3px;border-radius:2px;color:#061018;background:var(--k)}
 .sheet{overflow-x:hidden}
+.launch{grid-column:1/-1;display:flex;align-items:center;gap:6px;justify-content:flex-end;padding:4px 6px;border:1px solid rgba(255,90,78,.45);border-radius:3px;background:rgba(255,90,78,.06)}
+.launch span{font-family:var(--display);font-weight:800;font-size:13px;letter-spacing:.1em;color:var(--danger);margin-right:auto}
+.launch output{min-width:58px;text-align:center;font-family:var(--display);font-weight:800;font-size:20px}.launch output small{font-size:11px;color:var(--dim);font-weight:500}
+.launch.on{background:rgba(255,90,78,.18);border-color:var(--danger)}
+.launch .step{width:34px;height:30px}
 .grp{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin-top:2px}
 .items{display:grid;gap:5px}
 .item{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"nm cnt" "acts acts";gap:4px 10px;align-items:center;padding:6px 8px;border:1px solid var(--line);border-left:3px solid var(--c);border-radius:3px}

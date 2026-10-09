@@ -37,9 +37,10 @@ function toScene(x,z,alt,out){const r=Math.hypot(x,z),k=r>1e-6?RAD(r)/r:U;return
 /* ======================= RENDERER & WORLD ======================= */
 const cv=$('c');
 const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true,powerPreference:'high-performance'});
-const PR=Math.min(devicePixelRatio||1,1.75);
+const MOBILE=/iPhone|iPad|Android/.test(navigator.userAgent)||matchMedia('(pointer:coarse)').matches;
+const PR=Math.min(devicePixelRatio||1,MOBILE?1.35:1.75);
 renderer.setPixelRatio(PR);renderer.setClearColor(0xa9c4dc);
-renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.shadowMap.enabled=true;renderer.shadowMap.type=MOBILE?THREE.PCFShadowMap:THREE.PCFSoftShadowMap;
 renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;
 const scene=new THREE.Scene();
 scene.fog=new THREE.FogExp2(0xbfd2e4,0.0021);
@@ -52,7 +53,7 @@ scene.add(new THREE.Mesh(new THREE.SphereGeometry(2000,32,16),new THREE.ShaderMa
 })));
 scene.add(new THREE.HemisphereLight(0xcfe3ff,0x6b5f48,0.7));
 const sun=new THREE.DirectionalLight(0xfff0d6,1.15);
-sun.position.copy(SUN).multiplyScalar(300);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);
+sun.position.copy(SUN).multiplyScalar(300);sun.castShadow=true;sun.shadow.mapSize.set(MOBILE?1536:2048,MOBILE?1536:2048);
 {const c=sun.shadow.camera;c.left=-125;c.right=125;c.top=125;c.bottom=-125;c.near=50;c.far=700;}
 sun.shadow.bias=-0.0006;sun.shadow.normalBias=0.4;scene.add(sun);scene.add(sun.target);
 const flashes=[0,1,2,3].map(()=>{const l=new THREE.PointLight(0xffa04a,0,140,1.5);scene.add(l);return l;});
@@ -75,7 +76,7 @@ const runwayTex=canvasTex(32,128,(x,w,h)=>{noise(x,w,h,'#3c4046',['#35393f','#44
  inst.castShadow=true;scene.add(inst);}
 
 /* ======================= PARTICLES ======================= */
-const PVS='attribute vec3 pcolor;attribute float psize;attribute float palpha;uniform float scale;varying vec3 vC;varying float vA;void main(){vC=pcolor;vA=palpha;vec4 mv=modelViewMatrix*vec4(position,1.0);gl_PointSize=psize*scale/max(1.0,-mv.z);gl_Position=projectionMatrix*mv;}';
+const PVS='attribute vec3 pcolor;attribute float psize;attribute float palpha;uniform float scale;varying vec3 vC;varying float vA;void main(){vC=pcolor;vA=palpha;vec4 mv=modelViewMatrix*vec4(position,1.0);gl_PointSize=min(psize*scale/max(1.0,-mv.z),72.0);gl_Position=projectionMatrix*mv;}';
 const PFS='varying vec3 vC;varying float vA;void main(){float d=length(gl_PointCoord-0.5);float a=smoothstep(0.5,0.0,d);if(a*vA<0.004)discard;gl_FragColor=vec4(vC,a*vA);}';
 const psMats=[];let pScale=500;
 function makePS(N,blending,order){
@@ -89,7 +90,9 @@ function makePS(N,blending,order){
 }
 const SMOKE=makePS(7500,THREE.NormalBlending,2);
 const GLOW=makePS(10000,THREE.AdditiveBlending,3);
+let quality=1,frameMs=16;
 function emit(s,x,y,z,vx,vy,vz,life,s0,s1,r,g,b,a0,drag,grav){
+  if(quality<1&&rand()>quality)return;
   const i=s.cur;s.cur=(i+1)%s.N;const j=i*3;
   s.pos[j]=x;s.pos[j+1]=y;s.pos[j+2]=z;s.vel[j]=vx;s.vel[j+1]=vy;s.vel[j+2]=vz;
   s.col[j]=r;s.col[j+1]=g;s.col[j+2]=b;s.life[i]=life;s.max[i]=life;s.s0[i]=s0;s.s1[i]=s1;s.a0[i]=a0;s.drag[i]=drag||0;s.grav[i]=grav||0;s.size[i]=s0;s.alpha[i]=a0;
@@ -625,7 +628,7 @@ function launch(){
   for(const k in plan.counts){const n=plan.counts[k];if(!n)continue;
     const tgt=plan.target;if(ATK[k].precise&&tgt!=null&&view.enemy.buildings.some(b=>b.uid===tgt))strikes.push({weapon:k,n,target:tgt});else strikes.push({weapon:k,n});}
   const scouts=[];for(const k in plan.scoutPath){const p=plan.scoutPath[k];if(p&&(view.me.scouts[k]||0)>0)scouts.push({scout:k,path:p});}
-  if(!strikes.length&&!scouts.length){msg('Set how many to launch first (Attack tab)','warn');setTab('attack');return;}
+  if(!strikes.length&&!scouts.length){quickStrike();if(!planEmpty())setTimeout(()=>msg('Nothing was chosen, so Quick strike filled it in · check it and press GO again','warn'),2900);return;}
   const go={c:'go',strikes,scouts};if(plan.bearing!=null)go.bearing=plan.bearing;
   if(cmd(go)){plan=newPlan();rebuildPlanGfx();}
 }
@@ -667,25 +670,25 @@ function sheetHTML(){
   }
   if(tab==='attack'){
     const mine=myTurn(),targets=v.enemy.buildings;let h='';
-    if(mine){
-      h+='<div class="strikebar"><span>Comes from</span><b>'+(plan.bearing!=null?compass(plan.bearing):'north (default)')+'</b><button class="mini" data-act="drawdir">Draw on map</button></div>';
-      h+='<div class="strikebar"><span>Target for precise weapons</span><select class="mini" data-act="target"><option value="">Whole city</option>'+targets.map(b=>'<option value="'+b.uid+'"'+(plan.target===b.uid?' selected':'')+'>'+esc(BLD[b.kind].name)+(b.down>0?' (down)':'')+'</option>').join('')+'</select>'+
-        (targets.length?'':'<span class="small" style="color:var(--threat)">No buildings found yet · fly a UAV first</span>')+'</div>';
-    }
     const owned=CAT.attacks.filter(w=>(m.launchers[w.id]||0)>0||(m.stock[w.id]||0)>0);
     const ownedS=CAT.scouts.filter(s=>(m.scouts[s.id]||0)>0);
     if(owned.length||ownedS.length){
-      h+='<h3>Your weapons</h3><div class="items">';
+      h+='<h3>'+(mine?'Choose what to launch':'Your weapons')+'</h3><div class="items">';
       for(const w of owned){const st=m.stock[w.id]||0,cap=w.reusable?st:(m.caps[w.id]||0),fire=Math.min(st,cap),buyN=w.reusable?1:Math.max(1,cap-st),q=Math.min(plan.counts[w.id]||0,fire);plan.counts[w.id]=q;
         h+='<div class="item" style="--c:'+CLS_CSS[w.cls]+'"><div class="nm"><b>'+esc(w.name)+'</b><span>'+(w.reusable?'reusable UAV':(m.launchers[w.id]||0)+' launcher · fires '+cap+'/turn')+' · '+(w.precise?'precise':'unguided')+'</span></div>'+
           '<div class="cnt"><b class="big'+(st===0?' bad':'')+'">'+st+'</b><span> in stock</span></div><div class="acts">'+
           '<button class="mini" data-act="units" data-k="'+w.id+'" data-n="'+buyN+'"'+(B<w.unit*buyN?' disabled':'')+'>Buy '+buyN+' · '+fmt(w.unit*buyN)+'</button>'+
-          (mine?'<div class="stepper"><span class="small">Launch</span><button class="step" data-act="sdec" data-k="'+w.id+'"'+(q<=0?' disabled':'')+'>−</button><output>'+q+'</output><button class="step" data-act="sinc" data-k="'+w.id+'"'+(q>=fire?' disabled':'')+'>+</button></div>':'')+'</div></div>';}
+          '</div>'+(mine?'<div class="launch'+(q>0?' on':'')+'"><span>LAUNCH</span><button class="step" data-act="sdec" data-k="'+w.id+'"'+(q<=0?' disabled':'')+'>−</button><output>'+q+'<small> of '+fire+'</small></output><button class="step" data-act="sinc" data-k="'+w.id+'"'+(q>=fire?' disabled':'')+'>+</button><button class="mini" data-act="sall" data-k="'+w.id+'"'+(fire===0||q===fire?' disabled':'')+'>All</button></div>':'')+'</div>';}
       for(const s of ownedS){const n=m.scouts[s.id]||0;
         h+='<div class="item" style="--c:'+CLS_CSS.uav+'"><div class="nm"><b>'+esc(s.name)+'</b><span>scout · reveals '+s.reveal+' km either side</span></div><div class="cnt"><b class="big">'+n+'</b><span> ready</span></div><div class="acts">'+
           (mine?(plan.scoutPath[s.id]?'<span class="small" style="color:var(--money)">Path drawn ✓</span><button class="mini" data-act="drawscout" data-k="'+s.id+'">Redraw</button><button class="mini" data-act="clearscout" data-k="'+s.id+'">Stay home</button>':'<button class="mini" data-act="drawscout" data-k="'+s.id+'">Draw flight path</button>'):'<button class="mini" data-act="scout" data-k="'+s.id+'"'+(B<s.price?' disabled':'')+'>Buy '+fmt(s.price)+'</button>')+'</div></div>';}
       h+='</div>';
     }else h+='<div class="note">You have no weapons yet. Pick some below.</div>';
+    if(mine){
+      h+='<div class="strikebar"><span>Comes from</span><b>'+(plan.bearing!=null?compass(plan.bearing):'north (default)')+'</b><button class="mini" data-act="drawdir">Draw on map</button></div>';
+      h+='<div class="strikebar"><span>Target for precise weapons</span><select class="mini" data-act="target"><option value="">Whole city</option>'+targets.map(b=>'<option value="'+b.uid+'"'+(plan.target===b.uid?' selected':'')+'>'+esc(BLD[b.kind].name)+(b.down>0?' (down)':'')+'</option>').join('')+'</select>'+
+        (targets.length?'':'<span class="small" style="color:var(--threat)">No buildings found yet · fly a UAV first</span>')+'</div>';
+    }
     const rest=CAT.attacks.filter(w=>!owned.includes(w)&&(showAllAtk||REC_ATK.includes(w.id))),restS=CAT.scouts.filter(s=>!ownedS.includes(s)&&(showAllAtk||REC_ATK.includes(s.id)));
     const wt=(id,name,col,meta,act,price,n)=>'<button class="tile" type="button" data-act="'+act+'" data-k="'+id+'"'+(n?' data-n="'+n+'"':'')+' style="--c:'+col+'"'+(B<price?' disabled':'')+'><b class="tn">'+esc(name)+'</b><span class="meta">'+meta+'</span><span class="meta"><b>'+fmt(price)+'</b></span></button>';
     h+='<h3>Add a weapon <span class="small">· tap to buy its launcher (or the UAV)</span></h3><div class="tiles">'+
@@ -971,6 +974,10 @@ const dummy=new THREE.Object3D();
 function frame(now){
   requestAnimationFrame(frame);
   const real=Math.max(0,Math.min(0.25,(now-last)/1000));last=Math.max(last,now); // rAF times can lag performance.now()
+  // Adaptive quality: if frames take longer than ~22 ms, thin out particles and soften shadows; recover when smooth.
+  frameMs=frameMs*.92+real*1000*.08;
+  if(frameMs>24&&quality>.35){quality=Math.max(.35,quality-.02);if(quality<.7&&sun.shadow.mapSize.x>1024){sun.shadow.mapSize.set(1024,1024);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}}}
+  else if(frameMs<17&&quality<1)quality=Math.min(1,quality+.005);
   step(real,true);
 }
 function step(real,draw){
