@@ -45,6 +45,16 @@ Status: first outline from Mert, 9 Oct 2026. Everything below "Open questions" i
 - A player concedes (accepts the loss), or a city is destroyed.
 - Disconnect: 60 s to come back, then the absent player loses.
 
+## Menus & upgrades (decided 9 Oct)
+- Three upgrade menus: **Defensive upgrades** · **Offensive upgrades** · **Economy** (storage, logistics, per-turn income increase).
+- No research in Duel mode: every weapon is available from the start; the limit is money (never enough to buy everything).
+- Real system names are used (Mert's decision; re-check before public App Store release).
+- Weapons range from the simplest (guns, MANPADS, drones) to the top end. Catalogue: `docs/WEAPONS_CATALOG.md`.
+
+## Practice (decided 9 Oct)
+- No AI stand-in for matchmaking: you wait for a real online opponent.
+- Separate **Sandbox training** against an AI opponent.
+
 ## Progression (decided 9 Oct)
 - Every duel starts from zero (budget, systems, research).
 - Only XP carries over; it is used for matchmaking.
@@ -57,5 +67,4 @@ Status: first outline from Mert, 9 Oct 2026. Everything below "Open questions" i
 ## Open questions
 - How much XP for a win / loss / concession?
 - Starting budget, money per turn, prices of each missile / defence / upgrade.
-- What does research unlock — new weapon types, better accuracy, cheaper missiles?
-- Is there a computer opponent while waiting for a match?
+- Income: truly fixed per turn, or tied to city GDP (damage lowers income) like the prototype?
