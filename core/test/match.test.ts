@@ -139,3 +139,30 @@ describe('strike direction', () => {
     for (const t of m.battle!.threats) expect(t.path[0].x).toBeGreaterThan(200);
   });
 });
+
+describe('drawn routes and top-up', () => {
+  it('drones follow the drawn route; ballistic missiles ignore it', () => {
+    const m = createMatch(41, ['A', 'B']);
+    command(m, 0, { c: 'buyLauncher', weapon: 'shahed' }); command(m, 0, { c: 'buyUnits', weapon: 'shahed', n: 2 });
+    command(m, 0, { c: 'buyLauncher', weapon: 'iskander' }); command(m, 0, { c: 'buyUnits', weapon: 'iskander', n: 1 });
+    command(m, 0, { c: 'endSetup' }); command(m, 1, { c: 'endSetup' });
+    const route = [{ x: 30, z: 0 }, { x: 20, z: 10 }, { x: 10, z: -10 }, { x: 3, z: 0 }];
+    expect(command(m, 0, { c: 'go', strikes: [{ weapon: 'shahed', n: 2 }, { weapon: 'iskander', n: 1 }], scouts: [], route }).ok).toBe(true);
+    const drone = m.battle!.threats.find(t => t.weapon === 'shahed')!;
+    const isk = m.battle!.threats.find(t => t.weapon === 'iskander')!;
+    expect(drone.path.length).toBeGreaterThan(20);
+    expect(drone.path.some(p => Math.abs(p.x - 20) < 0.5 && Math.abs(p.z - 10) < 0.5)).toBe(true);
+    expect(isk.path).toHaveLength(2);
+    expect(m.battle!.bearing).toBeCloseTo(0, 5); // from the east
+  });
+
+  it('Top up fills magazines and spares in one go', () => {
+    const m = createMatch(42, ['A', 'B']);
+    command(m, 0, { c: 'buyBattery', sys: 'hisara', pad: 0 });
+    m.players[0].batteries[0].ammo = 1;
+    expect(command(m, 0, { c: 'topUp' }).ok).toBe(true);
+    expect(m.players[0].batteries[0].ammo).toBe(4);
+    expect(m.players[0].interceptors.hisara).toBe(4);
+    expect(command(m, 0, { c: 'topUp' }).ok).toBe(false); // already full
+  });
+});

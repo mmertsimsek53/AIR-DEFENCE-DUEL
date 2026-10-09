@@ -139,6 +139,12 @@ select.mini{appearance:none;-webkit-appearance:none;background:rgba(255,255,255,
 .launch output{min-width:58px;text-align:center;font-family:var(--display);font-weight:700;font-size:20px}.launch output small{font-size:11px;color:var(--dim);font-weight:500}
 .launch.on{background:rgba(255,90,78,.18);border-color:var(--danger)}
 .launch .step{width:34px;height:30px}
+.ammobox{left:calc(env(safe-area-inset-left,0px) + 10px);width:196px;padding:7px 10px;display:grid;gap:3px;max-height:calc(100vh - 290px);overflow:auto;z-index:1}
+.ammobox .arow{display:grid;grid-template-columns:1fr auto auto;gap:6px;font-size:12px;align-items:baseline}
+.ammobox .arow span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ammobox .arow b{font-weight:600}.ammobox .arow .sp{color:var(--dim);min-width:26px;text-align:right}
+.ammobox .arow.low b:first-of-type{color:var(--threat)}.ammobox .arow.empty b{color:var(--danger)}
+.ammobox .topup{font-size:12px;padding:6px 8px;margin-top:3px}
+@media (orientation:landscape) and (max-height:540px){.ammobox{width:170px}}
 .grp{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin-top:2px}
 .items{display:grid;gap:5px}
 .item{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"nm cnt" "acts acts";gap:4px 10px;align-items:center;padding:6px 8px;border:1px solid var(--line);border-left:3px solid var(--c);border-radius:3px}
@@ -281,6 +287,7 @@ select.mini{appearance:none;-webkit-appearance:none;background:rgba(255,255,255,
 <div class="panel" id="info" hidden></div>
 <div class="msg" id="msg"></div>
 <div class="hint" id="hint" hidden></div>
+<div class="hud ammobox" id="ammoBox" hidden></div>
 <div class="banner" id="banner"><h2 id="bTitle"></h2><p id="bSub"></p></div>
 
 <div class="overlay" id="menu">

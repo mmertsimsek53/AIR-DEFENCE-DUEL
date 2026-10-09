@@ -1,6 +1,6 @@
 // What one player is allowed to see. The server will send exactly this; the sandbox uses it too.
 import { BUILDINGS, ECONOMY, RADAR_LEVELS, attack, defence } from './data';
-import { batteryLoad, incomeFor, launchCap, radarRange, storedUnits, upgradeBatteryCost } from './match';
+import { batteryLoad, incomeFor, launchCap, radarRange, storedUnits, topUpNeeds, upgradeBatteryCost } from './match';
 import type { Match, PlayerIndex } from './types';
 
 export function viewFor(m: Match, pi: PlayerIndex) {
@@ -28,6 +28,7 @@ export function viewFor(m: Match, pi: PlayerIndex) {
       radarNames: RADAR_LEVELS.names,
       storage: { used: storedUnits(me), safe: ECONOMY.storage.values[me.econ.storage] },
       autoFire: me.autoFire, reloadsLeft: me.reloadsLeft, restock: me.restock, lastRestock: me.lastRestock,
+      topUpCost: Object.entries(topUpNeeds(me)).reduce((s, [k, n]) => s + Math.max(0, n) * defence(k).shot, 0),
     },
     enemy: {
       name: foe.name, health: foe.health, scars: foe.scars,
@@ -35,7 +36,7 @@ export function viewFor(m: Match, pi: PlayerIndex) {
       batteries: foe.batteries.filter(b => b.revealed).map(b => ({ uid: b.uid, sys: b.sys, name: defence(b.sys).name, x: foe.pads[b.pad].x, z: foe.pads[b.pad].z })),
     },
     battle: bt && {
-      attacker: bt.attacker, defender: bt.defender, iDefend, time: bt.time, bearing: bt.bearing,
+      attacker: bt.attacker, defender: bt.defender, iDefend, time: bt.time, bearing: bt.bearing, route: iDefend ? undefined : bt.route,
       threats: bt.threats.filter(t => t.alive && t.delay <= 0 && (!iDefend || t.detected)).map(t => {
         const isDecoy = t.cls === 'decoy' || t.weapon === 'decoy';
         // A defender who has identified a decoy but not yet unmasked it sees what it imitates.

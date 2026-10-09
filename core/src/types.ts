@@ -85,6 +85,7 @@ export interface Threat {
   ewChecked: boolean;
   returning: boolean;      // UAV turned back / going home
   munitions: number;
+  dropLeg: number;         // armed UAV: the path leg that ends over its target
   dropCooldown: number;
   revealRadius: number;
   spawnedDecoys: boolean;
@@ -115,6 +116,7 @@ export interface Battle {
   attacker: PlayerIndex;
   defender: PlayerIndex;
   bearing: number;         // radians: the side the strike comes from
+  route?: Point[];         // drawn strike route (km), first point = where it comes from
   time: number;
   threats: Threat[];
   interceptors: Interceptor[];
@@ -158,6 +160,7 @@ export type Command =
   | { c: 'sellBattery'; uid: number }
   | { c: 'buyInterceptors'; sys: string; n: number }
   | { c: 'setRestock'; sys: string; n: number }
+  | { c: 'topUp' }
   | { c: 'buyLauncher'; weapon: string }
   | { c: 'buyUnits'; weapon: string; n: number }
   | { c: 'buyScout'; scout: string }
@@ -166,7 +169,7 @@ export type Command =
   | { c: 'upgradeRadar'; track: 'range' | 'identify' | 'decoy' }
   | { c: 'buyRadarSite' }
   | { c: 'repairNow'; uid: number }
-  | { c: 'go'; strikes: { weapon: string; n: number; target?: number }[]; scouts: { scout: string; path: Point[] }[]; bearing?: number } // bearing: radians, direction the strike comes FROM (x = cos, z = sin); default north
+  | { c: 'go'; strikes: { weapon: string; n: number; target?: number }[]; scouts: { scout: string; path: Point[] }[]; bearing?: number; route?: Point[] } // bearing: radians, direction the strike comes FROM (x = cos, z = sin); default north
   | { c: 'wait' }
   | { c: 'concede' }
   | { c: 'setAutoFire'; on: boolean }

@@ -80,7 +80,9 @@ Status: first outline from Mert, 9 Oct 2026. Everything below "Open questions" i
 - Each missile defence has a standing order "keep N spare" (default: one full reload). At the start of each of your own turns the game buys missiles back up to that level automatically, as far as money allows (not while the factory is down). Change it any time.
 
 ## Strike direction & scout paths (decided 9 Oct)
-- The attacker draws on the enemy city map: one line sets the side the strike comes from (±20° spread); each scout UAV gets its own drawn flight line. Default: from the north.
+- The attacker draws freehand on the enemy city map. Strike route: start far out, go around as wanted, end at the city. Drones, decoys and UAVs follow it exactly; cruise missiles follow a smoothed version (no sharp turns); rockets, ballistic and hypersonic missiles only take its direction. Each scout UAV gets its own freehand path. Default without a route: straight from the north (±20°).
+- Low flyers lift over the hills outside the city (visual).
+- "Top up all" fills every magazine and every spare stock to its standing order in one tap; magazines also refill from the depot at the start of your own turn.
 
 ## Practice (decided 9 Oct)
 - No AI stand-in for matchmaking: you wait for a real online opponent.

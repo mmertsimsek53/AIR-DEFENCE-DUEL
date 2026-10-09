@@ -157,9 +157,16 @@ export function command(m: Match, pi: PlayerIndex, cmd: Command): CommandResult 
   }
   if (cmd.c === 'go') {
     if (m.phase !== 'turn' || m.active !== pi) return fail('Not your turn.');
-    return launch(m, pi, cmd.strikes, cmd.scouts, cmd.bearing);
+    return launch(m, pi, cmd.strikes, cmd.scouts, cmd.bearing, cmd.route);
   }
 
+  if (cmd.c === 'topUp') {
+    if (!canShop(m, pi)) return fail('You can buy only during setup or your own turn.');
+    if (!working(p, 'factory')) return fail('Missile factory is knocked out.');
+    const r = topUpAll(p);
+    if (r.n === 0) return fail(r.short ? 'Not enough money to top up.' : 'Everything is already full.');
+    return ok;
+  }
   if (cmd.c === 'setRestock') {
     const s = DEFENCES.find(x => x.id === cmd.sys); if (!s || s.load === 0) return fail('That system needs no missiles.');
     p.restock[s.id] = Math.max(0, Math.min(99, Math.floor(cmd.n)));
@@ -270,6 +277,7 @@ function startTurn(m: Match, who: PlayerIndex) {
   const commandHit = !working(p, 'command');
   p.budget = round(p.budget + incomeFor(p));
   autoRestock(p);
+  for (const b of p.batteries) topUp(p, b);
   p.launched = {};
   m.weatherBad = rnd(m) < RULES.badWeatherChance;
   m.phaseEndsAt = m.time + (commandHit ? RULES.turnSecondsCommandHit : RULES.turnSeconds);
@@ -294,6 +302,26 @@ function autoRestock(p: PlayerState) {
   p.lastRestock = { n, cost, short };
 }
 
+/** Cost of filling every magazine and every spare stock up to its standing order. */
+export function topUpNeeds(p: PlayerState): Record<string, number> {
+  const need: Record<string, number> = {};
+  for (const b of p.batteries) { const s = defence(b.sys); if (s.load > 0) need[s.id] = (need[s.id] ?? 0) + (batteryLoad(b) - b.ammo); }
+  for (const sys in need) need[sys] += Math.max(0, (p.restock[sys] ?? 0) - (p.interceptors[sys] ?? 0));
+  return need;
+}
+function topUpAll(p: PlayerState): { n: number; cost: number; short: boolean } {
+  let n = 0, cost = 0, short = false;
+  const need = topUpNeeds(p);
+  for (const sys in need) {
+    const s = defence(sys), want = need[sys]; if (want <= 0) continue;
+    const afford = Math.min(want, Math.floor((p.budget + 1e-9) / s.shot)); if (afford < want) short = true; if (afford <= 0) continue;
+    p.budget = round(p.budget - afford * s.shot); p.spent = round(p.spent + afford * s.shot);
+    p.interceptors[sys] = (p.interceptors[sys] ?? 0) + afford; n += afford; cost = round(cost + afford * s.shot);
+  }
+  for (const b of p.batteries) topUp(p, b);
+  return { n, cost, short };
+}
+
 function finish(m: Match, winner: PlayerIndex, reason: Match['endReason']) {
   m.phase = 'over';
   m.winner = winner;
@@ -304,7 +332,16 @@ function finish(m: Match, winner: PlayerIndex, reason: Match['endReason']) {
 
 // ---------- launching a strike ----------
 
-function launch(m: Match, pi: PlayerIndex, strikes: { weapon: string; n: number; target?: number }[], scouts: { scout: string; path: Point[] }[], bearing?: number): CommandResult {
+function cleanPath(pts: Point[] | undefined): Point[] | undefined {
+  if (!Array.isArray(pts) || pts.length < 2) return undefined;
+  const out = pts.slice(0, 300).filter(p => p && Number.isFinite(p.x) && Number.isFinite(p.z))
+    .map(p => ({ x: round(Math.max(-300, Math.min(300, p.x))), z: round(Math.max(-300, Math.min(300, p.z))) }));
+  return out.length >= 2 ? out : undefined;
+}
+
+function launch(m: Match, pi: PlayerIndex, strikes: { weapon: string; n: number; target?: number }[], scouts: { scout: string; path: Point[] }[], bearing?: number, rawRoute?: Point[]): CommandResult {
+  const route = cleanPath(rawRoute);
+  if (route) bearing = Math.atan2(route[0].z, route[0].x); // the route's first point is where the strike comes from
   const att = m.players[pi], def = m.players[other(pi)];
   const airbase = working(att, 'airbase');
   // Check everything first so a bad order launches nothing.
@@ -326,7 +363,7 @@ function launch(m: Match, pi: PlayerIndex, strikes: { weapon: string; n: number;
     if (!airbase) return fail('Airbase is knocked out: UAVs cannot take off.');
     wantScouts[s.scout] = (wantScouts[s.scout] ?? 0) + 1;
     if ((att.scouts[s.scout] ?? 0) < wantScouts[s.scout]) return fail(`No ${scout(s.scout).name} available.`);
-    if (s.path.length < 1) return fail('Draw a path for the UAV.');
+    if (!Array.isArray(s.path) || s.path.length < 1) return fail('Draw a path for the UAV.');
   }
   if (Object.keys(want).length === 0 && scouts.length === 0) return fail('Nothing to launch.');
 
@@ -336,7 +373,7 @@ function launch(m: Match, pi: PlayerIndex, strikes: { weapon: string; n: number;
   if (!spend(att, munitionCost)) return fail('Not enough budget for the UAV munitions.');
 
   const bt: Battle = {
-    attacker: pi, defender: other(pi), bearing: Number.isFinite(bearing) ? (bearing as number) : NORTH, time: 0, threats: [], interceptors: [], events: [],
+    attacker: pi, defender: other(pi), route, bearing: Number.isFinite(bearing) ? (bearing as number) : NORTH, time: 0, threats: [], interceptors: [], events: [],
     stats: { launched: 0, stopped: 0, hits: 0, damage: 0, interceptorsUsed: 0, defenceSpent: 0, attackSpent: munitionCost },
     over: false,
   };
@@ -386,7 +423,7 @@ function baseThreat(m: Match): Threat {
     uid: uid(m), weapon: '', cls: 'drone', looksLike: 'drone', isScout: false, path: [], leg: 0, speed: 0,
     speedIn: 0, x: 0, z: 0, alt: 0, peakAlt: 0, traveled: 0, total: 0, delay: 0, alive: true, landed: false, landsInCity: false,
     damage: 0, precise: false, low: false, detected: false, identified: false, decoyMarked: false, priority: false,
-    hold: false, engaged: 0, ewChecked: false, returning: false, munitions: 0, dropCooldown: 0, revealRadius: 0,
+    hold: false, engaged: 0, ewChecked: false, returning: false, munitions: 0, dropLeg: 1, dropCooldown: 0, revealRadius: 0,
     spawnedDecoys: false, stealth: 0,
   };
 }
@@ -404,13 +441,52 @@ function setSpeeds(t: Threat, from: Point, flight: number) {
 }
 const speedNow = (t: Threat) => (Math.hypot(t.x, t.z) > TERMINAL ? t.speed : t.speedIn);
 
+/** Even spacing along a polyline. */
+function resample(pts: Point[], step: number): Point[] {
+  const out: Point[] = [pts[0]]; let carry = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i], L = dist(a, b); let d = step - carry;
+    while (d <= L) { out.push({ x: a.x + (b.x - a.x) * d / L, z: a.z + (b.z - a.z) * d / L }); d += step; }
+    carry = L - (d - step);
+  }
+  const last = pts[pts.length - 1]; if (dist(out[out.length - 1], last) > step * 0.3) out.push(last);
+  return out;
+}
+/** Corner cutting: each pass rounds every corner. */
+function chaikin(pts: Point[], passes: number): Point[] {
+  let p = pts;
+  for (let k = 0; k < passes; k++) {
+    const q: Point[] = [p[0]];
+    for (let i = 0; i < p.length - 1; i++) { const a = p[i], b = p[i + 1]; q.push({ x: a.x * .75 + b.x * .25, z: a.z * .75 + b.z * .25 }, { x: a.x * .25 + b.x * .75, z: a.z * .25 + b.z * .75 }); }
+    q.push(p[p.length - 1]); p = q;
+  }
+  return p;
+}
+/** How a weapon follows a drawn route: drones/UAVs exactly, cruise missiles smoothed (no sharp turns), rockets/ballistic not at all. */
+function routeWaypoints(cls: ThreatClass, route: Point[] | undefined, m: Match): Point[] {
+  if (!route || cls === 'rocket' || cls === 'ballistic' || cls === 'hypersonic') return [];
+  const jitter = () => (rnd(m) - 0.5) * 0.6;
+  const pts = cls === 'cruise' ? chaikin(resample(route, 3), 3) : resample(route, 0.6);
+  const j = { x: jitter(), z: jitter() };
+  return pts.map(p => ({ x: round(p.x + j.x), z: round(p.z + j.z) }));
+}
+/** Start far out, beyond the route's first point. */
+function routeStart(route: Point[], wantDist: number): Point {
+  const p0 = route[0], p1 = route[1];
+  let dx = p0.x - p1.x, dz = p0.z - p1.z; const L = Math.hypot(dx, dz) || 1; dx /= L; dz /= L;
+  const extra = Math.max(0, wantDist - Math.hypot(p0.x, p0.z));
+  return { x: round(p0.x + dx * extra), z: round(p0.z + dz * extra) };
+}
+
 const SPAWN_DIST: Record<string, number> = { kargu: 30, grad: 40, himars: 80, trg300: 100 };
 const PEAK: Record<ThreatClass, number> = { drone: 0.3, decoy: 0.3, uav: 5, rocket: 12, cruise: 0.05, ballistic: 80, hypersonic: 25 };
 
 function spawnStrike(m: Match, bt: Battle, att: PlayerState, def: PlayerState, weapon: string, target: number | undefined, delay: number) {
   const w = attack(weapon);
   const up = att.offUp[weapon] ?? {};
-  const start = spawnPoint(m, MISSILE_CLASSES.includes(w.cls) ? Math.min(SPAWN_DIST[weapon] ?? MISSILE_START, MISSILE_START) : SPAWN_DIST[weapon] ?? SPAWN_DISTANCE);
+  const want = MISSILE_CLASSES.includes(w.cls) ? Math.min(SPAWN_DIST[weapon] ?? MISSILE_START, MISSILE_START) : SPAWN_DIST[weapon] ?? SPAWN_DISTANCE;
+  const via = routeWaypoints(w.cls, bt.route, m);
+  const start = via.length ? routeStart(bt.route!, want) : spawnPoint(m, want);
   const t = baseThreat(m);
   t.weapon = weapon; t.cls = w.cls; t.looksLike = w.imitates ?? w.cls; t.delay = delay;
   t.precise = w.precise; t.low = !!w.low; t.stealth = (up.stealth ?? 0) * 5;
@@ -432,9 +508,10 @@ function spawnStrike(m: Match, bt: Battle, att: PlayerState, def: PlayerState, w
   t.landsInCity = w.cls !== 'decoy' && Math.hypot(aim.x, aim.z) <= CITY_RADIUS;
   if (w.cls === 'uav') {
     t.munitions = w.munitions ?? 0;
-    t.path = [start, tb ? { x: tb.x, z: tb.z } : randomCityPoint(m, true), start];
+    t.path = [start, ...via, tb ? { x: tb.x, z: tb.z } : randomCityPoint(m, true), start];
+    t.dropLeg = t.path.length - 2;
     t.targetBuilding = tb?.uid;
-  } else t.path = [start, aim];
+  } else t.path = [start, ...via, aim];
   t.x = start.x; t.z = start.z;
   setSpeeds(t, start, w.flight);
   if (MISSILE_CLASSES.includes(w.cls)) t.peakAlt = Math.min(t.peakAlt, Math.hypot(start.x, start.z) * 0.3); // arc height fits the flight
@@ -453,7 +530,7 @@ function spawnScout(m: Match, bt: Battle, id: string, path: Point[]) {
   t.weapon = id; t.cls = 'uav'; t.looksLike = 'uav'; t.isScout = true; t.delay = rnd(m) * 3;
   t.peakAlt = s.altitude === 'medium' ? 5 : s.altitude === 'high' ? 9 : 18;
   t.revealRadius = s.reveal;
-  t.path = [start, ...path.map(p => ({ x: round(p.x), z: round(p.z) })), start];
+  t.path = [start, ...resample(path.map(p => ({ x: round(p.x), z: round(p.z) })), 0.6), start];
   t.x = start.x; t.z = start.z;
   setSpeeds(t, start, s.flight);
   t.total = dist(start, t.path[1]);
@@ -624,7 +701,7 @@ function moveThreat(m: Match, bt: Battle, att: PlayerState, def: PlayerState, t:
     for (const bb of def.batteries) if (!bb.revealed && dist(def.pads[bb.pad], t) <= rr) bb.revealed = true;
   }
   // Armed UAVs drop munitions while over the target area.
-  if (!t.isScout && t.cls === 'uav' && t.leg === 1 && !t.returning && t.munitions > 0) {
+  if (!t.isScout && t.cls === 'uav' && t.leg === t.dropLeg && !t.returning && t.munitions > 0) {
     t.dropCooldown -= dt;
     if (t.dropCooldown <= 0 && t.traveled < 0.5) {
       t.dropCooldown = 2;
@@ -634,7 +711,7 @@ function moveThreat(m: Match, bt: Battle, att: PlayerState, def: PlayerState, t:
       const tb = t.targetBuilding != null ? def.buildings.find(x => x.uid === t.targetBuilding) : undefined;
       const pt = tb && rnd(m) > 0.1 ? { x: tb.x, z: tb.z } : randomCityPoint(m, true);
       impact(m, bt, def, pt, round(w.damage * (1 + 0.15 * (up.warhead ?? 0))), tb && pt.x === tb.x && pt.z === tb.z ? tb.uid : undefined);
-      if (t.munitions === 0) { t.leg = 1; t.traveled = 0; }
+      if (t.munitions === 0) { t.leg = t.dropLeg; t.traveled = 0; }
     }
     if (t.munitions > 0) t.traveled = Math.min(t.traveled, 0.4); // loiter over the target until empty
   }

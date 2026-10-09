@@ -58,6 +58,9 @@ sun.position.copy(SUN).multiplyScalar(300);sun.castShadow=true;sun.shadow.mapSiz
 sun.shadow.bias=-0.0006;sun.shadow.normalBias=0.4;scene.add(sun);scene.add(sun.target);
 const flashes=[0,1,2,3].map(()=>{const l=new THREE.PointLight(0xffa04a,0,140,1.5);scene.add(l);return l;});
 let flashIdx=0;
+const HILLS=[];
+// Ground height under (x,z): hills are cones (apex h−3, base radius w). Low flyers lift over them.
+function terrainH(x,z){let y=0;for(const c of HILLS){const d=Math.hypot(x-c.x,z-c.z);if(d<c.w){const hh=c.h*(1-d/c.w)-3;if(hh>y)y=hh;}}return y;}
 
 function canvasTex(w,h,draw,rep){const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;if(rep)t.repeat.set(rep[0],rep[1]);t.anisotropy=4;return t;}
 function noise(x,w,h,base,vars,n){x.fillStyle=base;x.fillRect(0,0,w,h);for(let i=0;i<n;i++){x.fillStyle=vars[(rand()*vars.length)|0];x.globalAlpha=.25+rand()*.35;const s=1+rand()*4;x.fillRect(rand()*w,rand()*h,s,s);}x.globalAlpha=1;}
@@ -70,7 +73,7 @@ const runwayTex=canvasTex(32,128,(x,w,h)=>{noise(x,w,h,'#3c4046',['#35393f','#44
  for(let i=0;i<26;i++){const s=new THREE.Sprite(new THREE.SpriteMaterial({map:ct,transparent:true,opacity:.85,fog:false,depthWrite:false}));const a=rand()*TAU,r=350+rand()*900;s.position.set(Math.cos(a)*r,240+rand()*160,Math.sin(a)*r);const k=180+rand()*220;s.scale.set(k,k*.45,1);scene.add(s);}}
 {const g=new THREE.Mesh(new THREE.PlaneGeometry(4000,4000).rotateX(-Math.PI/2),new THREE.MeshLambertMaterial({map:grassTex}));g.receiveShadow=true;scene.add(g);
  const hill=new THREE.MeshLambertMaterial({color:0x7a8a58}),hill2=new THREE.MeshLambertMaterial({color:0x8d8a70});
- for(let i=0;i<40;i++){const a=rand()*TAU,r=200+rand()*230,h=20+rand()*70,w=50+rand()*80;const m=new THREE.Mesh(new THREE.ConeGeometry(w,h,8),rand()<.5?hill:hill2);m.position.set(Math.cos(a)*r,h/2-3,Math.sin(a)*r);m.rotation.y=rand()*TAU;scene.add(m);}
+ for(let i=0;i<40;i++){const a=rand()*TAU,r=200+rand()*230,h=20+rand()*70,w=50+rand()*80;const m=new THREE.Mesh(new THREE.ConeGeometry(w,h,8),rand()<.5?hill:hill2);m.position.set(Math.cos(a)*r,h/2-3,Math.sin(a)*r);m.rotation.y=rand()*TAU;scene.add(m);HILLS.push({x:m.position.x,z:m.position.z,h,w});}
  const inst=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(2.2,0),new THREE.MeshLambertMaterial({color:0x4f6b34}),500);const d=new THREE.Object3D();
  for(let i=0;i<500;i++){const a=rand()*TAU,r=112+rand()*80;d.position.set(Math.cos(a)*r,2,Math.sin(a)*r);d.scale.setScalar(.7+rand()*.8);d.rotation.y=rand()*3;d.updateMatrix();inst.setMatrixAt(i,d.matrix);}
  inst.castShadow=true;scene.add(inst);}
@@ -406,8 +409,8 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 /* ======================= GAME STATE ======================= */
 let view=null,running=false,T=0;
 let viewSide=0,choice=0,tab=null,placing=null,selected=null,plan=newPlan(),upSeg='def';
-function newPlan(){return {counts:{},target:null,scouts:{},scoutPath:{},bearing:null,dirLine:null};}
-let drawMode=null,drawStart=null,drawEnd=null,showAllDef=false,showAllAtk=false;
+function newPlan(){return {counts:{},target:null,scouts:{},scoutPath:{},scoutPathU:{},bearing:null,route:null,routeU:null};}
+let drawMode=null,showAllDef=false,showAllAtk=false;
 let lastTurnKey='',sheetSig='',sheetT=0,useShadows=true;
 const TV=new Map(),IV=new Map();   // threat and interceptor visuals by uid
 
@@ -478,7 +481,7 @@ function syncBattle(){
       tv={mesh:m,tag:el,span:el.lastChild,key:'',pos:new V(),trail:meshFor==='drone'?'dro':meshFor==='uav'?'uav':meshFor==='rocket'?'roc':meshFor==='cruise'?'cru':meshFor==='hypersonic'?'hyp':'bal',fresh:true};
       TV.set(t.uid,tv);
     }
-    _prev.copy(tv.pos);toScene(t.x,t.z,t.alt,tv.pos);
+    _prev.copy(tv.pos);toScene(t.x,t.z,t.alt,tv.pos);if(Math.hypot(tv.pos.x,tv.pos.z)>150){const g=terrainH(tv.pos.x,tv.pos.z)+5;if(tv.pos.y<g)tv.pos.y=g;}
     if(tv.fresh){tv.fresh=false;_prev.copy(tv.pos);}
     else{trail(_prev,tv.pos,tv.trail);_b.copy(tv.pos).sub(_prev);if(_b.lengthSq()>1e-6){_b.add(tv.pos);tv.mesh.lookAt(_b);}}
     tv.mesh.position.copy(tv.pos);tv.data=t;
@@ -488,7 +491,7 @@ function syncBattle(){
   for(const i of b.interceptors){
     seenI.add(i.uid);let iv=IV.get(i.uid);
     if(!iv){iv={mesh:makeMissile(.75,intMat),pos:new V(),col:hexRGB(SYS_COL[i.sys]||0xffffff),fresh:true};IV.set(i.uid,iv);}
-    _prev.copy(iv.pos);toScene(i.x,i.z,i.alt,iv.pos);
+    _prev.copy(iv.pos);toScene(i.x,i.z,i.alt,iv.pos);if(Math.hypot(iv.pos.x,iv.pos.z)>150){const g=terrainH(iv.pos.x,iv.pos.z)+5;if(iv.pos.y<g)iv.pos.y=g;}
     if(iv.fresh){iv.fresh=false;_prev.copy(iv.pos);}else{trail(_prev,iv.pos,'int',iv.col);_b.copy(iv.pos).sub(_prev);if(_b.lengthSq()>1e-6){_b.add(iv.pos);iv.mesh.lookAt(_b);}}
     iv.mesh.position.copy(iv.pos);
   }
@@ -521,7 +524,7 @@ function handleEvents(list){
 function onPhase(){
   const v=view,key=v.phase+'|'+v.turnNo+'|'+v.active;
   if(key===lastTurnKey)return;lastTurnKey=key;
-  closeInfo();if(drawMode)setDraw(null);rebuildPlanGfx();
+  closeInfo();if(drawMode)setDraw(null);if(v.phase!=='battle')rebuildPlanGfx();
   if(v.phase==='turn'){
     if(v.myTurn){plan=newPlan();choice=0;tab='attack';const r=v.me.lastRestock;
       banner('YOUR TURN','Turn '+v.turnNo+' · +'+fmt(v.me.income)+' income'+(r&&r.n?' · restocked '+r.n+' missiles ('+fmt(r.cost)+')':''),2.6);
@@ -586,39 +589,48 @@ $('gmShadows').onclick=()=>{useShadows=!useShadows;renderer.shadowMap.enabled=us
 const planGfx=new THREE.Group();scene.add(planGfx);
 const ray=new THREE.Raycaster(),groundPlane=new THREE.Plane(new V(0,1,0),0),_ndc=new THREE.Vector2();
 function groundAt(x,y){_ndc.set(x/innerWidth*2-1,-(y/innerHeight)*2+1);ray.setFromCamera(_ndc,camera);const p=new V();return ray.ray.intersectPlane(groundPlane,p)?p:null;}
-function lineMesh(a,b,col,arrow){const g=new THREE.Group();const d=new V().subVectors(b,a),L=d.length();if(L<1)return g;
+// Scene units → km around the city (inverse of RAD).
+function toKm(p){const r=Math.hypot(p.x,p.z),kr=r<=106?r/U:6+6*(Math.exp((r-106)/70)-1),k=r>1e-6?kr/r:1/U;return {x:Math.round(p.x*k*1000)/1000,z:Math.round(p.z*k*1000)/1000};}
+function polyMesh(pts,col,arrow){const g=new THREE.Group();if(pts.length<2)return g;
   const mat=new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.9,depthTest:false});
-  const bar=new THREE.Mesh(new THREE.BoxGeometry(2.2,.6,L),mat);bar.position.copy(a).add(b).multiplyScalar(.5);bar.position.y=3;bar.lookAt(b.x,3,b.z);bar.renderOrder=9;g.add(bar);
-  if(arrow){const c=new THREE.Mesh(new THREE.ConeGeometry(5,12,12).rotateX(Math.PI/2),mat);c.position.set(b.x,3,b.z);c.lookAt(b.x+d.x,3,b.z+d.z);c.renderOrder=9;g.add(c);}
-  else{const s=new THREE.Mesh(new THREE.SphereGeometry(3,12,8),mat);s.position.set(a.x,3,a.z);s.renderOrder=9;g.add(s);}
+  for(let i=1;i<pts.length;i++){const a=pts[i-1],b=pts[i],L=Math.hypot(b.x-a.x,b.z-a.z);if(L<.2)continue;
+    const bar=new THREE.Mesh(new THREE.BoxGeometry(2.2,.6,L+1),mat);bar.position.set((a.x+b.x)/2,3,(a.z+b.z)/2);bar.lookAt(b.x,3,b.z);bar.renderOrder=9;g.add(bar);}
+  const e=pts[pts.length-1],p=pts[Math.max(0,pts.length-3)];
+  if(arrow){const c=new THREE.Mesh(new THREE.ConeGeometry(5,12,12).rotateX(Math.PI/2),mat);c.position.set(e.x,3,e.z);c.lookAt(e.x+(e.x-p.x),3,e.z+(e.z-p.z));c.renderOrder=9;g.add(c);}
+  const s0=new THREE.Mesh(new THREE.SphereGeometry(3.2,12,8),mat);s0.position.set(pts[0].x,3,pts[0].z);s0.renderOrder=9;g.add(s0);
   return g;}
+let drawPts=null;
 function rebuildPlanGfx(){while(planGfx.children.length)planGfx.remove(planGfx.children[0]);
-  if(plan.dirLine){const [a,b]=plan.dirLine;planGfx.add(lineMesh(new V(a.x,0,a.z),new V(b.x,0,b.z),0xff5a4e,true));}
-  for(const k in plan.scoutPath){const p=plan.scoutPath[k];if(!p)continue;planGfx.add(lineMesh(new V(p[0].x*U,0,p[0].z*U),new V(p[1].x*U,0,p[1].z*U),0xc48bff,false));}
-  if(drawStart&&drawEnd)planGfx.add(lineMesh(drawStart,drawEnd,drawMode==='dir'?0xff5a4e:0xc48bff,drawMode==='dir'));}
-function setDraw(mode){drawMode=mode;drawStart=drawEnd=null;setPlacing(null);closeInfo();
-  if(mode){choice=1;cam.phi=.45;cam.r=260;cam.tx=0;cam.tz=0;$('placing').hidden=false;$('placing').style.borderColor=mode==='dir'?'#ff5a4e':'#c48bff';
-    $('placeText').innerHTML=mode==='dir'?'Drag from <b>where the strike comes from</b> toward the enemy city':'Drag the <b>'+esc(SCT[mode].name)+'</b> flight line across the enemy city';}
+  if(plan.routeU)planGfx.add(polyMesh(plan.routeU,0xff5a4e,true));
+  for(const k in plan.scoutPathU){const p=plan.scoutPathU[k];if(p&&plan.scoutPath[k])planGfx.add(polyMesh(p,0xc48bff,false));}
+  if(drawPts&&drawPts.length>1)planGfx.add(polyMesh(drawPts,drawMode==='route'?0xff5a4e:0xc48bff,drawMode==='route'));}
+function setDraw(mode){drawMode=mode;drawPts=null;setPlacing(null);closeInfo();
+  if(mode){choice=1;cam.phi=.45;cam.r=270;cam.tx=0;cam.tz=0;$('placing').hidden=false;$('placing').style.borderColor=mode==='route'?'#ff5a4e':'#c48bff';
+    $('placeText').innerHTML=mode==='route'?'Draw the strike route with your finger: <b>start far out</b>, go around as you like, <b>end at the city</b>':'Draw the <b>'+esc(SCT[mode].name)+'</b> flight path with your finger across the enemy city';}
   else $('placing').hidden=true;
   sheetSig='';refreshUI();}
+function drawAdd(x,y){const p=groundAt(x,y);if(!p)return;const r=Math.hypot(p.x,p.z);if(r>420){p.x*=420/r;p.z*=420/r;}
+  if(!drawPts)drawPts=[p];else{const l=drawPts[drawPts.length-1];if(Math.hypot(p.x-l.x,p.z-l.z)>=4)drawPts.push(p);}}
 function finishDraw(){
-  const a=drawStart,b=drawEnd,mode=drawMode;drawStart=drawEnd=null;
-  if(!a||!b||a.distanceTo(b)<12){msg('Drag a longer line','warn');rebuildPlanGfx();return;}
-  if(mode==='dir'){plan.bearing=Math.atan2(a.z-b.z,a.x-b.x);plan.dirLine=[{x:a.x,z:a.z},{x:b.x,z:b.z}];msg('Strike will come from the '+compass(plan.bearing),'good');}
-  else{plan.scoutPath[mode]=[{x:a.x/U,z:a.z/U},{x:b.x/U,z:b.z/U}];msg(SCT[mode].name+' will fly this line','good');}
+  const pts=drawPts,mode=drawMode;drawPts=null;
+  let L=0;if(pts)for(let i=1;i<pts.length;i++)L+=Math.hypot(pts[i].x-pts[i-1].x,pts[i].z-pts[i-1].z);
+  if(!pts||pts.length<2||L<20){msg('Draw a longer path','warn');rebuildPlanGfx();return;}
+  const u=pts.map(p=>({x:p.x,z:p.z})),km=u.map(toKm);
+  if(mode==='route'){plan.route=km;plan.routeU=u;plan.bearing=Math.atan2(km[0].z,km[0].x);msg('Route set · strike comes from the '+compass(plan.bearing),'good');}
+  else{plan.scoutPath[mode]=km;plan.scoutPathU[mode]=u;msg(SCT[mode].name+' will fly this path','good');}
   drawMode=null;$('placing').hidden=true;tab='attack';sheetSig='';rebuildPlanGfx();refreshUI();}
 const REC_DEF=[['vs drones',['korkut','sungur']],['vs missiles',['hisara','irondome']],['vs ballistic',['davidsling','patriot']]];
 const REC_ATK=['shahed','trg300','som','tayfun','tb2s'];
 const TARGET_ORDER=['factory','command','power','radar','finance','depot','airbase'];
 function quickStrike(){
   const v=view,m=v.me;if(!myTurn())return;
-  plan={counts:{},target:null,scouts:{},scoutPath:{},bearing:plan.bearing,dirLine:plan.dirLine};
+  plan={...newPlan(),bearing:plan.bearing,route:plan.route,routeU:plan.routeU};
   const tg=v.enemy.buildings.filter(b=>b.down===0).sort((a,b)=>TARGET_ORDER.indexOf(a.kind)-TARGET_ORDER.indexOf(b.kind))[0];
   if(tg)plan.target=tg.uid;
   const parts=[];
   for(const w of CAT.attacks){const st=m.stock[w.id]||0;if(!st)continue;const n=w.reusable?st:Math.min(st,m.caps[w.id]||0);if(n>0){plan.counts[w.id]=n;parts.push(n+' '+w.name);}}
   if(v.enemy.buildings.length<7){const sc=CAT.scouts.find(s=>(m.scouts[s.id]||0)>0);
-    if(sc){const b=plan.bearing!=null?plan.bearing:-Math.PI/2+(v.turnNo%3-1)*0.8;plan.scoutPath[sc.id]=[{x:Math.cos(b)*5,z:Math.sin(b)*5},{x:-Math.cos(b)*5,z:-Math.sin(b)*5}];parts.push('scout '+sc.name);}}
+    if(sc){const b=plan.bearing!=null?plan.bearing:-Math.PI/2+(v.turnNo%3-1)*0.8;const p=[{x:Math.cos(b)*5,z:Math.sin(b)*5},{x:-Math.cos(b)*5,z:-Math.sin(b)*5}];plan.scoutPath[sc.id]=p;plan.scoutPathU[sc.id]=p.map(q=>({x:q.x*U,z:q.z*U}));parts.push('scout '+sc.name);}}
   if(!parts.length){msg('Nothing in stock: buy weapons in Attack, or press Wait','warn');tab='attack';refreshUI();return;}
   msg('Planned: '+parts.join(', ')+(tg?' → '+BLD[tg.kind].name:'')+' · press GO','good');tab='attack';sheetSig='';rebuildPlanGfx();refreshUI();
 }
@@ -629,8 +641,8 @@ function launch(){
     const tgt=plan.target;if(ATK[k].precise&&tgt!=null&&view.enemy.buildings.some(b=>b.uid===tgt))strikes.push({weapon:k,n,target:tgt});else strikes.push({weapon:k,n});}
   const scouts=[];for(const k in plan.scoutPath){const p=plan.scoutPath[k];if(p&&(view.me.scouts[k]||0)>0)scouts.push({scout:k,path:p});}
   if(!strikes.length&&!scouts.length){quickStrike();if(!planEmpty())setTimeout(()=>msg('Nothing was chosen, so Quick strike filled it in · check it and press GO again','warn'),2900);return;}
-  const go={c:'go',strikes,scouts};if(plan.bearing!=null)go.bearing=plan.bearing;
-  if(cmd(go)){plan=newPlan();rebuildPlanGfx();}
+  const go={c:'go',strikes,scouts};if(plan.route)go.route=plan.route;else if(plan.bearing!=null)go.bearing=plan.bearing;
+  if(cmd(go)){plan=newPlan();}
 }
 
 function vsChips(hit,col){return '<div class="vs">'+CLS_ORDER.filter(k=>hit[k]).map(k=>'<i class="y" style="--c:'+CLS_CSS[k]+'">'+CLS_LABEL[k]+' '+Math.round(hit[k])+'%</i>').join('')+'</div>';}
@@ -685,7 +697,8 @@ function sheetHTML(){
       h+='</div>';
     }else h+='<div class="note">You have no weapons yet. Pick some below.</div>';
     if(mine){
-      h+='<div class="strikebar"><span>Comes from</span><b>'+(plan.bearing!=null?compass(plan.bearing):'north (default)')+'</b><button class="mini" data-act="drawdir">Draw on map</button></div>';
+      h+='<div class="strikebar"><span>Route</span><b>'+(plan.route?'from the '+compass(plan.bearing):'straight from the north')+'</b>'+(plan.route?'<button class="mini" data-act="drawroute">Redraw</button><button class="mini" data-act="clearroute">Clear</button>':'<button class="mini" data-act="drawroute">Draw route</button>')+
+        '<span class="small">Drones & UAVs follow it exactly · cruise missiles follow it smoothly · rockets & ballistic missiles only take its direction</span></div>';
       h+='<div class="strikebar"><span>Target for precise weapons</span><select class="mini" data-act="target"><option value="">Whole city</option>'+targets.map(b=>'<option value="'+b.uid+'"'+(plan.target===b.uid?' selected':'')+'>'+esc(BLD[b.kind].name)+(b.down>0?' (down)':'')+'</option>').join('')+'</select>'+
         (targets.length?'':'<span class="small" style="color:var(--threat)">No buildings found yet · fly a UAV first</span>')+'</div>';
     }
@@ -748,9 +761,10 @@ $('sheet').addEventListener('click',e=>{
     case 'sinc':plan.counts[k]=(plan.counts[k]||0)+1;break;
     case 'sdec':plan.counts[k]=Math.max(0,(plan.counts[k]||0)-1);break;
     case 'sall':{const w=ATK[k],st=view.me.stock[k]||0;plan.counts[k]=w.reusable?st:Math.min(st,view.me.caps[k]||0);}break;
-    case 'drawdir':setDraw('dir');return;
+    case 'drawroute':setDraw('route');return;
+    case 'clearroute':plan.route=plan.routeU=null;plan.bearing=null;rebuildPlanGfx();break;
     case 'drawscout':setDraw(k);return;
-    case 'clearscout':delete plan.scoutPath[k];rebuildPlanGfx();break;
+    case 'clearscout':delete plan.scoutPath[k];delete plan.scoutPathU[k];rebuildPlanGfx();break;
     case 'showall':if(k==='def')showAllDef=!showAllDef;else showAllAtk=!showAllAtk;break;
   }
   sheetSig='';refreshUI();
@@ -787,6 +801,16 @@ $('info').addEventListener('click',e=>{const b=e.target.closest('[data-i]');if(!
   openInfo(uid);});
 function closeInfo(){selected=null;$('info').hidden=true;}
 
+function ammoHTML(){
+  const v=view,m=v.me,g={};
+  for(const b of m.batteries){const s=DEF[b.sys];if(!s.load)continue;const e=g[b.sys]||(g[b.sys]={n:0,ammo:0,load:0});e.n++;e.ammo+=b.ammo;e.load+=b.load;}
+  const keys=Object.keys(g);
+  let h='<div class="lbl">Missiles · loaded / spare</div>';
+  if(!keys.length)h+='<div class="small">No missile defences yet</div>';
+  for(const k of keys){const e=g[k],sp=m.interceptors[k]||0,cls=e.ammo===0&&sp===0?'empty':e.ammo<e.load||sp<(m.restock[k]||0)?'low':'';
+    h+='<div class="arow '+cls+'"><span style="color:'+css(SYS_COL[k])+'">'+esc(DEF[k].name)+(e.n>1?' ×'+e.n:'')+'</span><b>'+e.ammo+'/'+e.load+'</b><b class="sp">+'+sp+'</b></div>';}
+  if(keys.length&&canShop()){const c=m.topUpCost||0;h+='<button class="btn primary topup" data-act="topup" type="button"'+(c<=0||m.budget<Math.min(c,0.01)?' disabled':'')+'>'+(c>0?'Top up all · '+fmt(c):'All full')+'</button>';}
+  return h;}
 function hintHTML(){
   const v=view,m=v.me;if(!v)return '';
   const empty=m.batteries.filter(b=>b.load&&b.ammo+(m.interceptors[b.sys]||0)===0);
@@ -795,7 +819,7 @@ function hintHTML(){
   const hasAtk=Object.values(m.stock).some(n=>n>0),hasScout=Object.values(m.scouts).some(n=>n>0);
   const ballistic=m.batteries.some(b=>DEF[b.sys].hit.ballistic);
   if(placing)return '<b>NEXT</b> Tap a glowing <b>+</b> in your city';
-  if(drawMode)return '<b>NEXT</b> Drag a line on the enemy city';
+  if(drawMode)return '<b>NEXT</b> Draw with your finger on the enemy city';
   if(v.phase==='setup'){
     if(!m.batteries.length)return '<b>NEXT</b> Tap <b>Defence</b> and place your first defence';
     if(!Object.values(m.launchers).some(n=>n>0)&&!hasAtk)return '<b>NEXT</b> Tap <b>Attack</b> and buy a launcher, e.g. Shahed-136 drones';
@@ -805,7 +829,7 @@ function hintHTML(){
   }
   if(v.phase==='turn'&&v.myTurn){
     if(ammoWarn)return ammoWarn;
-    if(planEmpty())return v.enemy.buildings.length===0&&hasScout?'<b>NEXT</b> Tap <b>Quick strike</b>, or Attack → draw your scout\'s path':'<b>NEXT</b> Tap <b>Quick strike</b> or set weapons in Attack, then <b>GO</b>';
+    if(planEmpty())return v.enemy.buildings.length===0&&hasScout?'<b>NEXT</b> Tap <b>Quick strike</b>, or Attack → draw your scout\'s path and your route':'<b>NEXT</b> Tap <b>Quick strike</b> or set weapons in Attack, then <b>GO</b>';
     return '<b>READY</b> Press <b>GO</b> to launch'+(plan.bearing!=null?' from the '+compass(plan.bearing):'');
   }
   if(v.phase==='turn')return v.enemy.name+' is planning a strike'+(ammoWarn?' · '+ammoWarn:'');
@@ -830,6 +854,9 @@ function refreshUI(){
   $('intel').hidden=true;
   const hint=v&&v.phase!=='over'&&v.phase!=='report'?hintHTML():'';$('hint').hidden=!hint;if(hint&&$('hint').innerHTML!==hint)$('hint').innerHTML=hint;
   $('quickBtn').hidden=!myTurn();
+  const showAmmo=v&&v.phase!=='over'&&v.me.batteries.some(b=>DEF[b.sys].load);$('ammoBox').hidden=!showAmmo;
+  if(showAmmo){const a=ammoHTML();if($('ammoBox').dataset.h!==a){$('ammoBox').dataset.h=a;$('ammoBox').innerHTML=a;}
+    const tl=document.querySelector('.tl').getBoundingClientRect();$('ammoBox').style.top=(tl.bottom+6)+'px';}
   $('tabs').hidden=!plan_;$('actions').hidden=!plan_;
   $('waitBtn').hidden=!myTurn();
   if(v&&v.phase==='setup'){$('endBtn').textContent=v.me.ready?'Waiting…':'Ready';$('endBtn').disabled=v.me.ready;$('endBtn').className='btn primary';}
@@ -853,14 +880,14 @@ function pan(dx,dy){ // finger right → map follows right; finger down → map 
 const ptrs=new Map();let downX=0,downY=0,dragged=false,pinch=0,pressT=null;
 const pinchDist=()=>{const p=[...ptrs.values()];return Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y)||1;};
 cv.addEventListener('pointerdown',e=>{initAudio();try{cv.setPointerCapture(e.pointerId);}catch(_){}ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
-  if(drawMode&&ptrs.size===1){drawStart=groundAt(e.clientX,e.clientY);drawEnd=null;dragged=true;return;}
+  if(drawMode&&ptrs.size===1){drawPts=null;drawAdd(e.clientX,e.clientY);dragged=true;return;}
   if(ptrs.size===1){downX=e.clientX;downY=e.clientY;dragged=false;clearTimeout(pressT);pressT=setTimeout(()=>{if(!dragged&&ptrs.size===1){dragged=true;longPress(downX,downY);}},520);}
   if(ptrs.size===2){pinch=pinchDist();pmid=midPt();dragged=true;clearTimeout(pressT);}});
 cv.addEventListener('pointermove',e=>{const p=ptrs.get(e.pointerId);if(!p)return;const dx=e.clientX-p.x,dy=e.clientY-p.y;p.x=e.clientX;p.y=e.clientY;
-  if(drawMode&&drawStart&&ptrs.size===1){drawEnd=groundAt(e.clientX,e.clientY);rebuildPlanGfx();return;}
+  if(drawMode&&drawPts&&ptrs.size===1){drawAdd(e.clientX,e.clientY);rebuildPlanGfx();return;}
   if(ptrs.size===1){if(Math.hypot(e.clientX-downX,e.clientY-downY)>8){dragged=true;clearTimeout(pressT);}if(dragged){if(e.shiftKey||(e.buttons&2))pan(dx,dy);else{cam.theta-=dx*0.006;cam.phi=Math.min(1.42,Math.max(0.42,cam.phi-dy*0.005));}}}
   else if(ptrs.size===2){const d=pinchDist();cam.r=Math.min(380,Math.max(40,cam.r*pinch/d));pinch=d;const mp=midPt();if(pmid)pan(mp.x-pmid.x,mp.y-pmid.y);pmid=mp;}});
-function up(e){clearTimeout(pressT);pmid=null;if(drawMode&&drawStart&&ptrs.size===1&&e.type==='pointerup'){ptrs.delete(e.pointerId);finishDraw();return;}if(ptrs.has(e.pointerId)&&ptrs.size===1&&!dragged&&e.type==='pointerup')tap(e.clientX,e.clientY);ptrs.delete(e.pointerId);}
+function up(e){clearTimeout(pressT);pmid=null;if(drawMode&&drawPts&&ptrs.size===1&&e.type==='pointerup'){ptrs.delete(e.pointerId);finishDraw();return;}if(ptrs.has(e.pointerId)&&ptrs.size===1&&!dragged&&e.type==='pointerup')tap(e.clientX,e.clientY);ptrs.delete(e.pointerId);}
 cv.addEventListener('contextmenu',e=>e.preventDefault());cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
 cv.addEventListener('wheel',e=>{e.preventDefault();cam.r=Math.min(380,Math.max(40,cam.r*(1+e.deltaY*0.001)));},{passive:false});
 function project(p){_c.copy(p).project(camera);return _c.z<1&&_c.z>-1?{x:(_c.x*.5+.5)*innerWidth,y:(-_c.y*.5+.5)*innerHeight}:null;}
@@ -959,6 +986,7 @@ function updHud(){
   if(v.phase==='battle'){const b=v.battle;let ld=0;for(const bb of m.batteries)if(bb.load)ld+=bb.ammo;
     $('status').innerHTML='<span>Contacts</span> '+b.threats.length+' <span>Stopped</span> '+b.stats.stopped+' <span>Hits</span> '+b.stats.hits+(b.iDefend?' <span>Loaded</span> '+ld+' <span>Reloads</span> '+m.reloadsLeft+' <span>Budget</span> '+fmt(m.budget)+' <button class="chip '+(m.autoFire?'on':'bad')+'" id="autoBtn" type="button">Auto-fire '+(m.autoFire?'on':'off')+'</button>':' <span>Damage</span> '+Math.round(b.stats.damage));}
 }
+$('ammoBox').addEventListener('click',e=>{if(e.target.closest('[data-act=topup]')&&view){const c=view.me.topUpCost;if(cmd({c:'topUp'}))msg('Topped up · '+fmt(c),'money');refreshUI();}});
 $('status').addEventListener('click',e=>{if(e.target.id==='autoBtn'&&view)cmd({c:'setAutoFire',on:!view.me.autoFire});});
 
 /* ======================= LOOP ======================= */
@@ -997,7 +1025,7 @@ function step(real,draw){
     const sel=selected===+id&&viewSide===0;if(b.showT>0)b.showT-=dt;b.ring.visible=sel||b.showT>0;}
   if(placing&&viewSide===0&&S.padRings){const k=1+Math.sin(T*6)*.18;for(const id in S.padRings)S.padRings[id].children[0].scale.setScalar(k);padBeamMat.opacity=.16+Math.sin(T*6)*.08;}
   if(S.crit)for(const id in S.crit){const c=S.crit[id];if(c.spin&&!c.down)c.spin.rotation.y+=dt*1.6;if(c.stack&&!c.down&&rand()<.35)for(const p of c.stack){const q=_a.copy(p).add(c.g.position);emit(SMOKE,q.x,q.y,q.z,(rand()-.5)+.8,2+rand(),(rand()-.5),4+rand()*2,2,9,.92,.92,.94,.35,.1,-.2);}}
-  planGfx.visible=viewSide===1&&!!view&&(myTurn()||!!drawMode);
+  planGfx.visible=viewSide===1&&!!view&&(myTurn()||!!drawMode||(view.phase==='battle'&&!view.battle.iDefend));
   if(S.cars){const cm=S.carMesh;S.cars.forEach((c,i)=>{c.s+=c.v*dt;if(c.s>c.len/2)c.s=-c.len/2;if(c.s<-c.len/2)c.s=c.len/2;
     const x=c.ax?c.s:c.off,z=c.ax?c.off:c.s;dummy.position.set(x,.45,z);dummy.rotation.set(0,c.ax?Math.PI/2:0,0);dummy.scale.setScalar(wdist(x,z)<9?0:1);dummy.updateMatrix();cm.setMatrixAt(i,dummy.matrix);});cm.instanceMatrix.needsUpdate=true;}
   for(const L of flashes)L.intensity*=Math.exp(-dt*7);
