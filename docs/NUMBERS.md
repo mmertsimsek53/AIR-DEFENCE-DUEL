@@ -68,6 +68,8 @@ Unit = one weapon in stock. Launcher = bought once; it sets how many can fly per
 
 UAVs (TB2, Akıncı) take off from your **airbase**.
 
+Flight (decided 9 Oct): rockets, cruise, ballistic and hypersonic missiles fly at one steady speed and are launched about 40 km out (flight times as above). Drones, decoys and UAVs come from 300 km and spend half their flight time in the last 20 km (slow final approach).
+
 ## 4. Surveillance UAVs
 
 | UAV | Price $M (reusable) | Altitude | Reveals | Shot-down risk |

@@ -579,8 +579,13 @@
     };
   }
   var TERMINAL = 20;
+  var MISSILE_START = 2 * TERMINAL;
   function setSpeeds(t, from, flight) {
     const d2 = Math.hypot(from.x, from.z);
+    if (MISSILE_CLASSES.includes(t.cls)) {
+      t.speed = t.speedIn = d2 / flight;
+      return;
+    }
     const inner = Math.min(TERMINAL, d2), outer = d2 - inner;
     if (outer > 0) {
       t.speed = outer / (flight / 2);
@@ -595,7 +600,7 @@
   function spawnStrike(m, bt, att, def, weapon, target, delay) {
     const w = attack(weapon);
     const up = att.offUp[weapon] ?? {};
-    const start = spawnPoint(m, SPAWN_DIST[weapon] ?? SPAWN_DISTANCE);
+    const start = spawnPoint(m, MISSILE_CLASSES.includes(w.cls) ? Math.min(SPAWN_DIST[weapon] ?? MISSILE_START, MISSILE_START) : SPAWN_DIST[weapon] ?? SPAWN_DISTANCE);
     const t = baseThreat(m);
     t.weapon = weapon;
     t.cls = w.cls;
@@ -633,6 +638,7 @@
     t.x = start.x;
     t.z = start.z;
     setSpeeds(t, start, w.flight);
+    if (MISSILE_CLASSES.includes(w.cls)) t.peakAlt = Math.min(t.peakAlt, Math.hypot(start.x, start.z) * 0.3);
     t.total = dist(t.path[0], t.path[1]);
     bt.threats.push(t);
   }

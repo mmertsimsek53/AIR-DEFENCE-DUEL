@@ -367,8 +367,11 @@ function baseThreat(m: Match): Threat {
 
 const TERMINAL = 20; // km: the last 20 km take half the flight time
 
+const MISSILE_START = 2 * TERMINAL; // missiles fly at one steady speed, launched 40 km out
+
 function setSpeeds(t: Threat, from: Point, flight: number) {
   const d = Math.hypot(from.x, from.z);
+  if (MISSILE_CLASSES.includes(t.cls)) { t.speed = t.speedIn = d / flight; return; }
   const inner = Math.min(TERMINAL, d), outer = d - inner;
   if (outer > 0) { t.speed = outer / (flight / 2); t.speedIn = inner / (flight / 2); }
   else { t.speed = t.speedIn = d / flight; }
@@ -381,7 +384,7 @@ const PEAK: Record<ThreatClass, number> = { drone: 0.3, decoy: 0.3, uav: 5, rock
 function spawnStrike(m: Match, bt: Battle, att: PlayerState, def: PlayerState, weapon: string, target: number | undefined, delay: number) {
   const w = attack(weapon);
   const up = att.offUp[weapon] ?? {};
-  const start = spawnPoint(m, SPAWN_DIST[weapon] ?? SPAWN_DISTANCE);
+  const start = spawnPoint(m, MISSILE_CLASSES.includes(w.cls) ? Math.min(SPAWN_DIST[weapon] ?? MISSILE_START, MISSILE_START) : SPAWN_DIST[weapon] ?? SPAWN_DISTANCE);
   const t = baseThreat(m);
   t.weapon = weapon; t.cls = w.cls; t.looksLike = w.imitates ?? w.cls; t.delay = delay;
   t.precise = w.precise; t.low = !!w.low; t.stealth = (up.stealth ?? 0) * 5;
@@ -408,6 +411,7 @@ function spawnStrike(m: Match, bt: Battle, att: PlayerState, def: PlayerState, w
   } else t.path = [start, aim];
   t.x = start.x; t.z = start.z;
   setSpeeds(t, start, w.flight);
+  if (MISSILE_CLASSES.includes(w.cls)) t.peakAlt = Math.min(t.peakAlt, Math.hypot(start.x, start.z) * 0.3); // arc height fits the flight
   t.total = dist(t.path[0], t.path[1]);
   bt.threats.push(t);
 }
