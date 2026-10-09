@@ -562,7 +562,9 @@ $('endBtn').onclick=()=>{
   if(myTurn())launch();
 };
 $('waitBtn').onclick=()=>{if(myTurn()&&cmd({c:'wait'}))msg('You hold fire and save money','money');};
-$('cityBtn').onclick=()=>{if(!view)return;if(view.phase==='battle'||view.phase==='report'){msg('The view follows the strike','');return;}choice=choice?0:1;refreshUI();};
+function toggleCity(){if(!view)return;if(view.phase==='battle'||view.phase==='report'){msg('The view follows the strike','');return;}choice=choice?0:1;setPlacing(null);closeInfo();
+  msg(choice?'Viewing '+view.enemy.name+"'s city · revealed buildings are labelled":'Back to your city','good');refreshUI();}
+$('cityBtn').onclick=toggleCity;$('cityTab').onclick=toggleCity;
 $('menuBtn').onclick=()=>{if(view)$('gameMenu').hidden=false;};
 $('gmBack').onclick=()=>{$('gameMenu').hidden=true;};
 $('gmConcede').onclick=()=>{$('gameMenu').hidden=true;if(view&&view.phase!=='over')cmd({c:'concede'});};
@@ -585,13 +587,15 @@ function vsChips(hit,col){return '<div class="vs">'+CLS_ORDER.filter(k=>hit[k]).
 function sig(){const v=view,m=v.me;return [v.phase,v.myTurn,tab,upSeg,m.budget,JSON.stringify(m.stock),JSON.stringify(m.launchers),JSON.stringify(m.scouts),JSON.stringify(m.interceptors),JSON.stringify(m.econ),JSON.stringify(m.radar),JSON.stringify(m.offUp),
   m.batteries.map(b=>b.uid+':'+b.level+':'+b.ammo).join(','),m.buildings.map(b=>b.down).join(','),v.enemy.buildings.map(b=>b.uid+':'+b.down).join(','),JSON.stringify(plan),placing].join('|');}
 
+function hideSheet(){$('sheet').hidden=true;document.body.classList.remove('sheet-open');}
 function renderSheet(){
   const sh=$('sheet');
-  if(!tab||!canShop()&&tab!=='city'||!view||(view.phase!=='setup'&&view.phase!=='turn')){sh.hidden=true;return;}
-  if(tab==='strike'&&!myTurn()){sh.hidden=true;return;}
+  if(placing){sh.hidden=true;document.body.classList.remove('sheet-open');return;}
+  if(!tab||!canShop()&&tab!=='city'||!view||(view.phase!=='setup'&&view.phase!=='turn')){hideSheet();return;}
+  if(tab==='strike'&&!myTurn()){hideSheet();return;}
   const s=sig();if(s===sheetSig&&!sh.hidden)return;sheetSig=s;
   const keep=sh.scrollTop,cards=sh.querySelector('.cards'),keepX=cards?cards.scrollLeft:0;
-  sh.hidden=false;sh.innerHTML=sheetHTML();
+  sh.hidden=false;document.body.classList.add('sheet-open');sh.innerHTML=sheetHTML();
   sh.scrollTop=keep;const nc=sh.querySelector('.cards');if(nc)nc.scrollLeft=keepX;
 }
 function sheetHTML(){
@@ -679,7 +683,7 @@ $('sheet').addEventListener('click',e=>{
 });
 $('sheet').addEventListener('change',e=>{const s=e.target.closest('select[data-act="target"]');if(!s)return;plan.targets[s.dataset.k]=s.value===''?null:+s.value;sheetSig='';});
 
-function setPlacing(k){placing=k;$('placing').hidden=!k;if(k){$('placeName').textContent=DEF[k].name;$('placing').style.borderColor=css(SYS_COL[k]);closeInfo();padMat.color.set(SYS_COL[k]);padMat.opacity=.9;}else{padMat.color.set(0x0b7fa3);padMat.opacity=.6;}sheetSig='';}
+function setPlacing(k){placing=k;$('placing').hidden=!k;if(k&&choice!==0){choice=0;}if(k){$('placeName').textContent=DEF[k].name;$('placing').style.borderColor=css(SYS_COL[k]);closeInfo();padMat.color.set(SYS_COL[k]);padMat.opacity=.9;}else{padMat.color.set(0x0b7fa3);padMat.opacity=.6;}sheetSig='';}
 $('cancelPlace').onclick=()=>setPlacing(null);
 
 function openInfo(uid){
@@ -727,7 +731,7 @@ function refreshUI(){
   for(const t of document.querySelectorAll('.tab'))t.classList.toggle('on',t.dataset.tab===tab);
   $('status').hidden=!(v&&v.phase==='battle');
   const S=SIDES[0];if(S.padRings&&v){const taken=new Set(v.me.batteries.map(b=>b.pad));for(const id in S.padRings)S.padRings[id].visible=!!placing&&!taken.has(+id)&&viewSide===0;}
-  $('cityBtn').textContent=choice?'My city':'Enemy city';
+  $('cityBtn').textContent=choice?'My city':'Enemy city';$('cityTab').textContent=choice?'My city':'Enemy city';$('cityTab').classList.toggle('primary',!!choice);
   renderSheet();updHud();
 }
 
@@ -750,7 +754,7 @@ function tap(x,y){
   if(!view)return;
   if(placing&&canShop()&&viewSide===0){const taken=new Set(view.me.batteries.map(b=>b.pad));let best=null,bd=46;
     for(const p of PADS){if(taken.has(p.id))continue;const s=project(_b.set(p.x,1,p.z));if(!s)continue;const d=Math.hypot(s.x-x,s.y-y);if(d<bd){bd=d;best=p;}}
-    if(!best){msg('Tap one of the glowing pads','');return;}
+    if(!best){msg('Tap one of the glowing rings in your city','');return;}
     const k=placing;if(cmd({c:'buyBattery',sys:k,pad:best.id})){msg(DEF[k].name+' deployed · −'+fmt(DEF[k].price),'money');setPlacing(null);refreshUI();}return;}
   if(view.phase==='battle'&&view.battle.iDefend){const uid=nearestThreat(x,y);if(uid!=null){const t=view.battle.threats.find(q=>q.uid===uid);if(cmd({c:'priority',uid}))msg(t&&t.priority?'Priority cleared':'Priority target · batteries engage it first','good');return;}}
   if(viewSide===0){let best=null,bd=44;for(const id in SIDES[0].bats){const b=SIDES[0].bats[id];const s=project(_b.copy(b.pos).setY(2));if(!s)continue;const d=Math.hypot(s.x-x,s.y-y);if(d<bd){bd=d;best=+id;}}
@@ -843,6 +847,7 @@ function step(real,draw){
   if(S.bats)for(const id in S.bats){const b=S.bats[id];if(b.pulse){b.pT+=dt;const k=(b.pT%2)/2;b.pulse.scale.setScalar(.5+k*RAD(DEF[b.sys].range)*.35);b.pulse.material.opacity=(1-k)*.35;}
     if(b.sys==='koral'&&b.tur)b.tur.rotation.y+=dt*2;if(b.beam&&b.beamT>0){b.beamT-=dt;if(b.beamT<=0)b.beam.visible=false;}
     const sel=selected===+id&&viewSide===0;if(b.showT>0)b.showT-=dt;b.ring.visible=sel||b.showT>0;}
+  if(placing&&viewSide===0&&S.padRings){const k=1.35+Math.sin(T*6)*.25;for(const id in S.padRings)S.padRings[id].scale.setScalar(k);}
   if(S.crit)for(const id in S.crit){const c=S.crit[id];if(c.spin&&!c.down)c.spin.rotation.y+=dt*1.6;if(c.stack&&!c.down&&rand()<.35)for(const p of c.stack){const q=_a.copy(p).add(c.g.position);emit(SMOKE,q.x,q.y,q.z,(rand()-.5)+.8,2+rand(),(rand()-.5),4+rand()*2,2,9,.92,.92,.94,.35,.1,-.2);}}
   if(S.cars){const cm=S.carMesh;S.cars.forEach((c,i)=>{c.s+=c.v*dt;if(c.s>c.len/2)c.s=-c.len/2;if(c.s<-c.len/2)c.s=c.len/2;
     const x=c.ax?c.s:c.off,z=c.ax?c.off:c.s;dummy.position.set(x,.45,z);dummy.rotation.set(0,c.ax?Math.PI/2:0,0);dummy.scale.setScalar(wdist(x,z)<9?0:1);dummy.updateMatrix();cm.setMatrixAt(i,dummy.matrix);});cm.instanceMatrix.needsUpdate=true;}
@@ -863,6 +868,7 @@ function step(real,draw){
   updTags();drawRadar();
 }
 // Test hook: advance the game by `sec` seconds in 50 ms steps, drawing only the last step.
+window.__padXY=id=>{const p=PADS.find(q=>q.id===id);return p&&project(_b.set(p.x,1,p.z));};
 window.__advance=sec=>{const n=Math.max(1,Math.round(sec/0.05));for(let i=0;i<n;i++)step(0.05,i===n-1);return view&&{phase:view.phase,turn:view.turnNo,me:view.me.health,foe:view.enemy.health};};
 requestAnimationFrame(frame);
 if(/[?&]demo=1/.test(location.search)){$('nameIn').value='Demo';startGame(true);}
