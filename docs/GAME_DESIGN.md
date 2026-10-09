@@ -6,6 +6,15 @@ Status: first outline from Mert, 9 Oct 2026. Everything below "Open questions" i
 1. iOS first; work on it until finalised.
 2. Then Android, same game.
 
+## Tech stack (decided 9 Oct — same as AirlineRoom)
+- iOS app: native Swift. Android later: native Kotlin on the same server.
+- Sign-in: Firebase Auth (email/password + Sign in with Apple) — identity only.
+- Server: TypeScript on Node.js, on Render (Frankfurt, Starter), auto-deploys on push. Authoritative: timers, money, matchmaking, hit results.
+- Live updates: WebSockets.
+- Database: Neon Postgres, separate live and dev branches.
+- Code: private GitHub repo, pushed after every change.
+- Server-down alerts: UptimeRobot.
+
 ## Core idea
 - A duel: two cities, each with defence and attack systems.
 - Each player has a **budget** to spend on:
