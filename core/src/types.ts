@@ -117,6 +117,8 @@ export interface Battle {
   defender: PlayerIndex;
   bearing: number;         // radians: the side the strike comes from
   route?: Point[];         // drawn strike route (km), first point = where it comes from
+  live?: boolean;          // the attacker launches weapons one by one during the battle
+  open?: boolean;          // live attack still accepting launches
   time: number;
   threats: Threat[];
   interceptors: Interceptor[];
@@ -170,7 +172,9 @@ export type Command =
   | { c: 'upgradeRadar'; track: 'range' | 'identify' | 'decoy' }
   | { c: 'buyRadarSite' }
   | { c: 'repairNow'; uid: number }
-  | { c: 'go'; strikes: { weapon: string; n: number; target?: number }[]; scouts: { scout: string; path: Point[] }[]; bearing?: number; route?: Point[] } // bearing: radians, direction the strike comes FROM (x = cos, z = sin); default north
+  | { c: 'go'; strikes: { weapon: string; n: number; target?: number }[]; scouts: { scout: string; path: Point[] }[]; bearing?: number; route?: Point[]; live?: boolean }
+  | { c: 'fire'; weapon?: string; scout?: string; from: Point; to: Point } // live attack: one launch from a start point to an aim point
+  | { c: 'endAttack' } // bearing: radians, direction the strike comes FROM (x = cos, z = sin); default north
   | { c: 'wait' }
   | { c: 'concede' }
   | { c: 'setAutoFire'; on: boolean }

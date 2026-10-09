@@ -79,7 +79,12 @@ Status: first outline from Mert, 9 Oct 2026. Everything below "Open questions" i
 ## Defence missile restock (decided 9 Oct)
 - Each missile defence has a standing order "keep N spare" (default: one full reload). At the start of each of your own turns the game buys missiles back up to that level automatically, as far as money allows (not while the factory is down). Change it any time.
 
-## Strike direction & scout paths (decided 9 Oct)
+## Live attack (decided 9 Oct)
+- On your turn you buy/upgrade, then tap START ATTACK. The battle starts on the enemy city and you send weapons one at a time: pick a weapon, tap where it starts (outside the city), tap where it should hit. It launches at once. Per-turn launch capacity still applies. End attack when done; the battle plays out. (Online: the live window closes after the turn length.)
+- Start distance: missiles 12–40 km, drones/UAVs up to their normal range. Precise weapons hit the tapped point (or a revealed building within 0.6 km); unguided ones land around it (drone ~0.5 km, Grad salvo ~1.5 km).
+- Auto attack sends everything ready at the best known target in one go. The AI attacks in one go.
+
+## Strike direction & scout paths (decided 9 Oct; drawn routes now unused in the live attack)
 - The attacker draws freehand on the enemy city map. Strike route: start far out, go around as wanted, end at the city. Drones, decoys and UAVs follow it exactly; cruise missiles follow a smoothed version (no sharp turns); rockets, ballistic and hypersonic missiles only take its direction. Each scout UAV gets its own freehand path. Default without a route: straight from the north (±20°).
 - Low flyers lift over the hills outside the city (visual).
 - "Top up all" fills every magazine and every spare stock to its standing order in one tap; magazines also refill from the depot at the start of your own turn.

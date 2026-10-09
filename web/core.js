@@ -300,6 +300,16 @@
       }
       return ok;
     }
+    if (cmd.c === "fire" || cmd.c === "endAttack") {
+      const bt = m.battle;
+      if (m.phase !== "battle" || !bt || bt.attacker !== pi) return fail("You can launch only during your own attack.");
+      if (!bt.open) return fail("The attack is over.");
+      if (cmd.c === "endAttack") {
+        bt.open = false;
+        return ok;
+      }
+      return fireOne(m, bt, cmd);
+    }
     if (cmd.c === "continue") {
       if (m.phase === "report") {
         startTurn(m, other(m.lastReport.attacker));
@@ -321,7 +331,7 @@
     }
     if (cmd.c === "go") {
       if (m.phase !== "turn" || m.active !== pi) return fail("Not your turn.");
-      return launch(m, pi, cmd.strikes, cmd.scouts, cmd.bearing, cmd.route);
+      return launch(m, pi, cmd.strikes, cmd.scouts, cmd.bearing, cmd.route, cmd.live);
     }
     if (cmd.c === "topUp") {
       if (!canShop(m, pi)) return fail("You can buy only during setup or your own turn.");
@@ -518,7 +528,7 @@
     const out = pts.slice(0, 300).filter((p) => p && Number.isFinite(p.x) && Number.isFinite(p.z)).map((p) => ({ x: round(Math.max(-300, Math.min(300, p.x))), z: round(Math.max(-300, Math.min(300, p.z))) }));
     return out.length >= 2 ? out : void 0;
   }
-  function launch(m, pi, strikes, scouts, bearing, rawRoute) {
+  function launch(m, pi, strikes, scouts, bearing, rawRoute, live) {
     const route = cleanPath(rawRoute);
     if (route) bearing = Math.atan2(route[0].z, route[0].x);
     const att = m.players[pi], def = m.players[other(pi)];
@@ -545,7 +555,7 @@
       if ((att.scouts[s.scout] ?? 0) < wantScouts[s.scout]) return fail(`No ${scout(s.scout).name} available.`);
       if (!Array.isArray(s.path) || s.path.length < 1) return fail("Draw a path for the UAV.");
     }
-    if (Object.keys(want).length === 0 && scouts.length === 0) return fail("Nothing to launch.");
+    if (!live && Object.keys(want).length === 0 && scouts.length === 0) return fail("Nothing to launch.");
     let munitionCost = 0;
     for (const id in want) {
       const w = attack(id);
@@ -556,6 +566,8 @@
       attacker: pi,
       defender: other(pi),
       route,
+      live: !!live,
+      open: !!live,
       bearing: Number.isFinite(bearing) ? bearing : NORTH,
       time: 0,
       threats: [],
@@ -593,6 +605,37 @@
     }
     bt.stats.launched = bt.threats.length;
     log(m, `${att.name} launches ${bt.threats.length} contacts at ${def.name}.`);
+    return ok;
+  }
+  function fireOne(m, bt, cmd) {
+    const att = m.players[bt.attacker], def = m.players[bt.defender];
+    const ok_ = (p) => p && Number.isFinite(p.x) && Number.isFinite(p.z);
+    if (!ok_(cmd.from) || !ok_(cmd.to)) return fail("Pick a start and an aim point.");
+    if (Math.hypot(cmd.from.x, cmd.from.z) < CITY_RADIUS + 0.5) return fail("Start outside the city.");
+    const airbase = working(att, "airbase");
+    if (cmd.scout) {
+      if (!SCOUTS.some((s) => s.id === cmd.scout)) return fail("Unknown UAV.");
+      if ((att.scouts[cmd.scout] ?? 0) <= 0) return fail(`No ${scout(cmd.scout).name} available.`);
+      if (!airbase) return fail("Airbase is knocked out: UAVs cannot take off.");
+      att.scouts[cmd.scout]--;
+      spawnScout(m, bt, cmd.scout, [cmd.from, cmd.to]);
+      bt.stats.launched++;
+      return ok;
+    }
+    const w = ATTACKS.find((x) => x.id === cmd.weapon);
+    if (!w) return fail("Unknown weapon.");
+    if ((att.stock[w.id] ?? 0) <= 0) return fail(`No ${w.name} in stock.`);
+    if (w.cls === "uav" && !airbase) return fail("Airbase is knocked out: UAVs cannot take off.");
+    if (!w.reusable && (att.launched[w.id] ?? 0) >= launchCap(att, w.id)) return fail(`${w.name}: all launchers have fired this turn.`);
+    const munitions = w.munitionCost ? w.munitionCost * (w.munitions ?? 0) : 0;
+    if (!spend(att, munitions)) return fail("Not enough budget for the UAV munitions.");
+    att.stock[w.id]--;
+    att.launched[w.id] = (att.launched[w.id] ?? 0) + 1;
+    const before = bt.threats.length;
+    if (w.salvo) for (let r = 0; r < w.salvo; r++) spawnStrike(m, bt, att, def, w.id, void 0, rnd(m) * 2, cmd.from, cmd.to);
+    else spawnStrike(m, bt, att, def, w.id, void 0, 0, cmd.from, cmd.to);
+    bt.stats.launched += bt.threats.length - before;
+    bt.stats.attackSpent = round(bt.stats.attackSpent + munitions + (w.reusable ? 0 : w.unit));
     return ok;
   }
   function topUp(p, b) {
@@ -719,12 +762,16 @@
   }
   var SPAWN_DIST = { kargu: 30, grad: 40, himars: 80, trg300: 100 };
   var PEAK = { drone: 0.3, decoy: 0.3, uav: 5, rocket: 12, cruise: 0.05, ballistic: 80, hypersonic: 25 };
-  function spawnStrike(m, bt, att, def, weapon, target, delay) {
+  function spawnStrike(m, bt, att, def, weapon, target, delay, from, to) {
     const w = attack(weapon);
     const up = att.offUp[weapon] ?? {};
     const want = MISSILE_CLASSES.includes(w.cls) ? Math.min(SPAWN_DIST[weapon] ?? MISSILE_START, MISSILE_START) : SPAWN_DIST[weapon] ?? SPAWN_DISTANCE;
-    const via = routeWaypoints(w.cls, bt.route, m);
-    const start = via.length ? routeStart(bt.route, want) : spawnPoint(m, want);
+    const via = from ? [] : routeWaypoints(w.cls, bt.route, m);
+    let start;
+    if (from) {
+      const r = Math.hypot(from.x, from.z) || 1, d2 = Math.max(12, Math.min(want, r));
+      start = { x: round(from.x / r * d2), z: round(from.z / r * d2) };
+    } else start = via.length ? routeStart(bt.route, want) : spawnPoint(m, want);
     const t = baseThreat(m);
     t.weapon = weapon;
     t.cls = w.cls;
@@ -736,11 +783,26 @@
     t.damage = round(w.damage * (1 + 0.15 * (up.warhead ?? 0)));
     t.peakAlt = PEAK[w.cls];
     let aim;
-    const tb = target != null ? def.buildings.find((b) => b.uid === target) : void 0;
+    const near = to ? def.buildings.filter((b) => b.revealed && dist(b, to) <= 0.6).sort((a2, b) => dist(a2, to) - dist(b, to))[0] : void 0;
+    const tb = near ?? (target != null ? def.buildings.find((b) => b.uid === target) : void 0);
+    const around = (p, r) => {
+      const a2 = rnd(m) * Math.PI * 2, d2 = Math.sqrt(rnd(m)) * r;
+      return { x: round(p.x + Math.cos(a2) * d2), z: round(p.z + Math.sin(a2) * d2) };
+    };
     if (w.cls === "decoy") {
-      aim = randomCityPoint(m, true);
+      aim = to ? around(to, 1) : randomCityPoint(m, true);
       t.landsInCity = false;
-    } else if (w.precise) {
+    } else if (to && w.precise) {
+      const miss = Math.max(0, 0.1 - 0.1 * (up.guidance ?? 0)) + (w.cls === "cruise" && def.batteries.some((b) => b.sys === "koral") && powerOn(def) ? 0.2 : 0);
+      if (rnd(m) < miss) {
+        const a2 = rnd(m) * Math.PI * 2, d2 = 1 + rnd(m) * 1.5;
+        aim = { x: round(to.x + Math.cos(a2) * d2), z: round(to.z + Math.sin(a2) * d2) };
+      } else if (tb) {
+        aim = { x: tb.x, z: tb.z };
+        t.targetBuilding = tb.uid;
+      } else aim = { x: round(to.x), z: round(to.z) };
+    } else if (to) aim = around(to, Math.max(0.15, (w.salvo ? 1.5 : 0.5) - 0.1 * (up.guidance ?? 0)));
+    else if (w.precise) {
       let miss = Math.max(0, 0.1 - 0.1 * (up.guidance ?? 0));
       if (w.cls === "cruise" && def.batteries.some((b) => b.sys === "koral") && powerOn(def)) miss += 0.2;
       if (rnd(m) < miss) {
@@ -756,13 +818,13 @@
     t.landsInCity = w.cls !== "decoy" && Math.hypot(aim.x, aim.z) <= CITY_RADIUS;
     if (w.cls === "uav") {
       t.munitions = w.munitions ?? 0;
-      t.path = [start, ...via, tb ? { x: tb.x, z: tb.z } : randomCityPoint(m, true), start];
+      t.path = [start, ...via, tb ? { x: tb.x, z: tb.z } : to ? { x: round(to.x), z: round(to.z) } : randomCityPoint(m, true), start];
       t.dropLeg = t.path.length - 2;
       t.targetBuilding = tb?.uid;
     } else t.path = [start, ...via, aim];
     t.x = start.x;
     t.z = start.z;
-    setSpeeds(t, start, w.flight);
+    setSpeeds(t, { x: from ? want : Math.hypot(start.x, start.z), z: 0 }, w.flight);
     if (MISSILE_CLASSES.includes(w.cls)) t.peakAlt = Math.min(t.peakAlt, Math.hypot(start.x, start.z) * 0.3);
     t.total = dist(t.path[0], t.path[1]);
     bt.threats.push(t);
@@ -943,7 +1005,8 @@
       finish(m, bt.attacker, "destroyed");
       return;
     }
-    if (bt.threats.every((t) => !t.alive) && bt.interceptors.length === 0) endBattle(m, bt);
+    if (bt.open && m.timed !== false && bt.time >= RULES.turnSeconds) bt.open = false;
+    if (!bt.open && bt.threats.every((t) => !t.alive) && bt.interceptors.length === 0) endBattle(m, bt);
   }
   function turnBack(t) {
     const home = t.path[0];
@@ -1341,6 +1404,8 @@
         time: bt.time,
         bearing: bt.bearing,
         route: iDefend ? void 0 : bt.route,
+        live: !!bt.live,
+        open: !!bt.open,
         threats: bt.threats.filter((t) => t.alive && t.delay <= 0 && (!iDefend || t.detected)).map((t) => {
           const isDecoy = t.cls === "decoy" || t.weapon === "decoy";
           const shownCls = !iDefend ? t.cls : !t.identified ? null : isDecoy && !t.decoyMarked ? t.looksLike : t.cls;

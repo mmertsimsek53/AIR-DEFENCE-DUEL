@@ -409,6 +409,8 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 /* ======================= GAME STATE ======================= */
 let view=null,running=false,T=0;
 let viewSide=0,choice=0,tab=null,placing=null,selected=null,plan=newPlan(),upSeg='def';
+let liveSel=null,liveFrom=null; // live attack: chosen weapon/scout and start point
+const liveGfx=new THREE.Group();scene.add(liveGfx);
 function newPlan(){return {counts:{},target:null,scouts:{},scoutPath:{},scoutPathU:{},bearing:null,route:null,routeU:null};}
 let drawMode=null,showAllDef=false,showAllAtk=false;
 let lastTurnKey='',sheetSig='',sheetT=0,useShadows=true;
@@ -534,6 +536,7 @@ function onPhase(){
     setPlacing(null);tab=null;cam.phi=1.0;cam.r=Math.max(170,Math.min(cam.r,230));cam.tx=0;cam.tz=0;
     if(v.battle.iDefend){banner('INCOMING STRIKE','From the '+compass(v.battle.bearing)+' · tap a contact to fire at it first',2.8);
       const empty=v.me.batteries.filter(b=>b.load&&b.ammo===0);if(empty.length)setTimeout(()=>msg(empty.map(b=>DEF[b.sys].name).join(', ')+': no missiles loaded!','bad'),2900);}
+    else if(v.battle.open){cam.r=330;cam.phi=.75;banner('ATTACK','Pick a weapon, tap its start, then its target',2.2);}
     else banner('STRIKE LAUNCHED','Watching '+v.enemy.name+"'s city",2.2);
   }else if(v.phase==='report'){showReport();}
   else if(v.phase==='over'){showOver();}
@@ -573,7 +576,7 @@ function setTab(t){tab=t;if(t!=='build')setPlacing(null);sheetSig='';refreshUI()
 $('endBtn').onclick=()=>{
   if(!view)return;
   if(view.phase==='setup'){cmd({c:'endSetup'});return;}
-  if(myTurn())launch();
+  if(myTurn()&&cmd({c:'go',strikes:[],scouts:[],live:true})){liveSel=null;liveFrom=null;}
 };
 $('quickBtn').onclick=quickStrike;
 $('waitBtn').onclick=()=>{if(myTurn()&&cmd({c:'wait'}))msg('Turn over · no attack, money saved','money');};
@@ -622,17 +625,16 @@ function finishDraw(){
 const REC_DEF=[['vs drones',['korkut','sungur']],['vs missiles',['hisara','irondome']],['vs ballistic',['davidsling','patriot']]];
 const REC_ATK=['shahed','trg300','som','tayfun','tb2s'];
 const TARGET_ORDER=['factory','command','power','radar','finance','depot','airbase'];
+// Auto attack: send everything ready to fire at the best known target, in one go.
 function quickStrike(){
   const v=view,m=v.me;if(!myTurn())return;
-  plan={...newPlan(),bearing:plan.bearing,route:plan.route,routeU:plan.routeU};
   const tg=v.enemy.buildings.filter(b=>b.down===0).sort((a,b)=>TARGET_ORDER.indexOf(a.kind)-TARGET_ORDER.indexOf(b.kind))[0];
-  if(tg)plan.target=tg.uid;
-  const parts=[];
-  for(const w of CAT.attacks){const st=m.stock[w.id]||0;if(!st)continue;const n=w.reusable?st:Math.min(st,m.caps[w.id]||0);if(n>0){plan.counts[w.id]=n;parts.push(n+' '+w.name);}}
+  const strikes=[],scouts=[],parts=[];
+  for(const w of CAT.attacks){const st=m.stock[w.id]||0;if(!st)continue;const n=w.reusable?st:Math.min(st,m.caps[w.id]||0);if(n>0){strikes.push(w.precise&&tg?{weapon:w.id,n,target:tg.uid}:{weapon:w.id,n});parts.push(n+' '+w.name);}}
   if(v.enemy.buildings.length<7){const sc=CAT.scouts.find(s=>(m.scouts[s.id]||0)>0);
-    if(sc){const b=plan.bearing!=null?plan.bearing:-Math.PI/2+(v.turnNo%3-1)*0.8;const p=[{x:Math.cos(b)*5,z:Math.sin(b)*5},{x:-Math.cos(b)*5,z:-Math.sin(b)*5}];plan.scoutPath[sc.id]=p;plan.scoutPathU[sc.id]=p.map(q=>({x:q.x*U,z:q.z*U}));parts.push('scout '+sc.name);}}
-  if(!parts.length){msg('Nothing in stock: buy weapons in Attack, or press Wait','warn');tab='attack';refreshUI();return;}
-  msg('Planned: '+parts.join(', ')+(tg?' → '+BLD[tg.kind].name:'')+' · press GO','good');tab='attack';sheetSig='';rebuildPlanGfx();refreshUI();
+    if(sc){const b=-Math.PI/2+(v.turnNo%3-1)*0.8;scouts.push({scout:sc.id,path:[{x:Math.cos(b)*5,z:Math.sin(b)*5},{x:-Math.cos(b)*5,z:-Math.sin(b)*5}]});parts.push('scout');}}
+  if(!parts.length){msg('Nothing in stock: buy weapons in Attack, or tap Done, no attack','warn');tab='attack';refreshUI();return;}
+  if(cmd({c:'go',strikes,scouts}))msg('Auto attack: '+parts.join(', ')+(tg?' → '+BLD[tg.kind].name:''),'good');
 }
 function planEmpty(){for(const k in plan.counts)if(plan.counts[k]>0)return false;for(const k in plan.scoutPath)if(plan.scoutPath[k])return false;return true;}
 function launch(){
@@ -685,30 +687,24 @@ function sheetHTML(){
     const owned=CAT.attacks.filter(w=>(m.launchers[w.id]||0)>0||(m.stock[w.id]||0)>0);
     const ownedS=CAT.scouts.filter(s=>(m.scouts[s.id]||0)>0);
     if(owned.length||ownedS.length){
-      h+='<h3>'+(mine?'Choose what to launch':'Your weapons')+'</h3><div class="items">';
+      h+='<h3>Your weapons'+(mine?' <span class="small">· tap START ATTACK, then send them one by one on the map</span>':'')+'</h3><div class="items">';
       for(const w of owned){const st=m.stock[w.id]||0,cap=w.reusable?st:(m.caps[w.id]||0),fire=Math.min(st,cap),buyN=w.reusable?1:Math.max(1,cap-st),q=Math.min(plan.counts[w.id]||0,fire);plan.counts[w.id]=q;
         h+='<div class="item" style="--c:'+CLS_CSS[w.cls]+'"><div class="nm"><b>'+esc(w.name)+'</b><span>'+(w.reusable?'reusable UAV':(m.launchers[w.id]||0)+' launcher · fires '+cap+'/turn')+' · '+(w.precise?'precise':'unguided')+'</span></div>'+
           '<div class="cnt"><b class="big'+(st===0?' bad':'')+'">'+st+'</b><span> in stock</span></div><div class="acts">'+
           '<button class="mini" data-act="units" data-k="'+w.id+'" data-n="'+buyN+'"'+(B<w.unit*buyN?' disabled':'')+'>Buy '+buyN+' · '+fmt(w.unit*buyN)+'</button>'+
-          '</div>'+(mine?'<div class="launch'+(q>0?' on':'')+'"><span>LAUNCH</span><button class="step" data-act="sdec" data-k="'+w.id+'"'+(q<=0?' disabled':'')+'>−</button><output>'+q+'<small> of '+fire+'</small></output><button class="step" data-act="sinc" data-k="'+w.id+'"'+(q>=fire?' disabled':'')+'>+</button><button class="mini" data-act="sall" data-k="'+w.id+'"'+(fire===0||q===fire?' disabled':'')+'>All</button></div>':'')+'</div>';}
+          '</div></div>';}
       for(const s of ownedS){const n=m.scouts[s.id]||0;
         h+='<div class="item" style="--c:'+CLS_CSS.uav+'"><div class="nm"><b>'+esc(s.name)+'</b><span>scout · reveals '+s.reveal+' km either side</span></div><div class="cnt"><b class="big">'+n+'</b><span> ready</span></div><div class="acts">'+
-          (mine?(plan.scoutPath[s.id]?'<span class="small" style="color:var(--money)">Path drawn ✓</span><button class="mini" data-act="drawscout" data-k="'+s.id+'">Redraw</button><button class="mini" data-act="clearscout" data-k="'+s.id+'">Stay home</button>':'<button class="mini" data-act="drawscout" data-k="'+s.id+'">Draw flight path</button>'):'<button class="mini" data-act="scout" data-k="'+s.id+'"'+(B<s.price?' disabled':'')+'>Buy '+fmt(s.price)+'</button>')+'</div></div>';}
+          '<button class="mini" data-act="scout" data-k="'+s.id+'"'+(B<s.price?' disabled':'')+'>Buy '+fmt(s.price)+'</button></div></div>';}
       h+='</div>';
     }else h+='<div class="note">You have no weapons yet. Pick some below.</div>';
-    if(mine){
-      h+='<div class="strikebar"><span>Route</span><b>'+(plan.route?'from the '+compass(plan.bearing):'straight from the north')+'</b>'+(plan.route?'<button class="mini" data-act="drawroute">Redraw</button><button class="mini" data-act="clearroute">Clear</button>':'<button class="mini" data-act="drawroute">Draw route</button>')+
-        '<span class="small">Drones & UAVs follow it exactly · cruise missiles follow it smoothly · rockets & ballistic missiles only take its direction</span></div>';
-      h+='<div class="strikebar"><span>Target for precise weapons</span><select class="mini" data-act="target"><option value="">Whole city</option>'+targets.map(b=>'<option value="'+b.uid+'"'+(plan.target===b.uid?' selected':'')+'>'+esc(BLD[b.kind].name)+(b.down>0?' (down)':'')+'</option>').join('')+'</select>'+
-        (targets.length?'':'<span class="small" style="color:var(--threat)">No buildings found yet · fly a UAV first</span>')+'</div>';
-    }
     const rest=CAT.attacks.filter(w=>!owned.includes(w)&&(showAllAtk||REC_ATK.includes(w.id))),restS=CAT.scouts.filter(s=>!ownedS.includes(s)&&(showAllAtk||REC_ATK.includes(s.id)));
     const wt=(id,name,col,meta,act,price,n)=>'<button class="tile" type="button" data-act="'+act+'" data-k="'+id+'"'+(n?' data-n="'+n+'"':'')+' style="--c:'+col+'"'+(B<price?' disabled':'')+'><b class="tn">'+esc(name)+'</b><span class="meta">'+meta+'</span><span class="meta"><b>'+fmt(price)+'</b></span></button>';
     h+='<h3>Add a weapon <span class="small">· tap to buy its launcher (or the UAV)</span></h3><div class="tiles">'+
       rest.map(w=>w.reusable?wt(w.id,w.name,CLS_CSS[w.cls],'armed UAV · reusable','units',w.unit,1):wt(w.id,w.name,CLS_CSS[w.cls],threatLabel(w.cls)+' · '+fmt(w.unit)+' each · '+w.perTurn+'/turn','launcher',w.launcher)).join('')+
       restS.map(sc=>wt(sc.id,sc.name,CLS_CSS.uav,'scout UAV · sees '+sc.reveal+' km','scout',sc.price)).join('')+'</div>';
     h+='<button class="mini" data-act="showall" data-k="atk">'+(showAllAtk?'Show recommended only':'Show all weapons')+'</button>';
-    h+='<div class="note">'+(mine?'Set how many to launch, then press GO. Nothing launches if the clock runs out.':'A launcher is bought once and sets how many can fly each turn. You launch strikes on your turn.')+'</div>';
+    h+='<div class="note">A launcher is bought once and sets how many can fly each turn. '+(mine?'Press <b>START ATTACK</b>: pick a weapon, tap where it starts (outside the city), then tap where it should hit.':'You attack on your turn.')+'</div>';
     return h;
   }
   if(tab==='upgrades'){
@@ -811,6 +807,16 @@ function ammoHTML(){
     h+='<div class="arow '+cls+'"><span style="color:'+css(SYS_COL[k])+'">'+esc(DEF[k].name)+(e.n>1?' ×'+e.n:'')+'</span><b>'+e.ammo+'/'+e.load+'</b><b class="sp">+'+sp+'</b></div>';}
   if(keys.length&&canShop()){const c=m.topUpCost||0;h+='<button class="btn primary topup" data-act="topup" type="button"'+(c<=0||m.budget<Math.min(c,0.01)?' disabled':'')+'>'+(c>0?'Top up all · '+fmt(c):'All full')+'</button>';}
   return h;}
+function liveRemaining(){const m=view.me,out=[];
+  for(const w of CAT.attacks){const st=m.stock[w.id]||0;if(!st)continue;const left=w.reusable?st:Math.min(st,(m.caps[w.id]||0)-(m.launched[w.id]||0));if(left>0)out.push({k:'w:'+w.id,name:w.name,n:left,col:CLS_CSS[w.cls]});}
+  for(const s of CAT.scouts){const n=m.scouts[s.id]||0;if(n>0)out.push({k:'s:'+s.id,name:s.name.replace(' (scout)',''),n,col:CLS_CSS.uav,scout:true});}
+  return out;}
+function liveHTML(){const list=liveRemaining();
+  if(liveSel&&!list.some(x=>x.k===liveSel)){liveSel=null;liveFrom=null;}
+  let h='<div class="chips2">'+list.map(x=>'<button class="wchip'+(liveSel===x.k?' on':'')+'" data-live="'+x.k+'" style="--c:'+x.col+'"><b>'+esc(x.name)+'</b><span>'+(x.scout?'scout · ':'')+x.n+' left</span></button>').join('')+'</div>';
+  if(!list.length)h='<div class="small">Everything for this turn has been launched.</div>';
+  h+='<div class="liverow"><span class="step-txt">'+(!liveSel?(list.length?'1. Pick a weapon':''):!liveFrom?'2. Tap on the map <b>where it starts</b> (outside the city)':'3. Tap <b>where it should hit</b>')+'</span><button class="btn" data-live="end" type="button">End attack</button></div>';
+  return h;}
 function hintHTML(){
   const v=view,m=v.me;if(!v)return '';
   const empty=m.batteries.filter(b=>b.load&&b.ammo+(m.interceptors[b.sys]||0)===0);
@@ -829,10 +835,10 @@ function hintHTML(){
   }
   if(v.phase==='turn'&&v.myTurn){
     if(ammoWarn)return ammoWarn;
-    if(planEmpty())return v.enemy.buildings.length===0&&hasScout?'<b>NEXT</b> Tap <b>Quick strike</b>, or Attack → draw your scout\'s path and your route':'<b>NEXT</b> Tap <b>Quick strike</b> or set weapons in Attack, then <b>GO</b>';
-    return '<b>READY</b> Press <b>GO</b> to launch'+(plan.bearing!=null?' from the '+compass(plan.bearing):'');
+    return hasAtk||hasScout?'<b>NEXT</b> Tap <b>START ATTACK</b> and send weapons one by one · or <b>Auto attack</b>':'<b>NEXT</b> Buy weapons in <b>Attack</b>, or tap <b>Done, no attack</b>';
   }
   if(v.phase==='turn')return v.enemy.name+' is planning a strike'+(ammoWarn?' · '+ammoWarn:'');
+  if(v.phase==='battle'&&!v.battle.iDefend&&v.battle.open)return '<b>ATTACK</b> '+(!liveSel?'Pick a weapon below':!liveFrom?'Tap where it starts, outside the city':'Tap where it should hit');
   if(v.phase==='battle')return v.battle.iDefend?'<b>DEFEND</b> Tap a contact to fire at it first · long-press to ignore it':'Watching your strike on '+esc(v.enemy.name);
   return '';
 }
@@ -854,6 +860,9 @@ function refreshUI(){
   $('intel').hidden=true;
   const hint=v&&v.phase!=='over'&&v.phase!=='report'?hintHTML():'';$('hint').hidden=!hint;if(hint&&$('hint').innerHTML!==hint)$('hint').innerHTML=hint;
   $('quickBtn').hidden=!myTurn();
+  const liveOn=v&&v.phase==='battle'&&v.battle&&!v.battle.iDefend&&v.battle.open;$('liveBar').hidden=!liveOn;
+  if(liveOn){const lh=liveHTML();if($('liveBar').dataset.h!==lh){$('liveBar').dataset.h=lh;$('liveBar').innerHTML=lh;}}
+  rebuildLiveGfx();
   const showAmmo=v&&v.phase!=='over'&&v.me.batteries.some(b=>DEF[b.sys].load);$('ammoBox').hidden=!showAmmo;
   if(showAmmo){const a=ammoHTML();if($('ammoBox').dataset.h!==a){$('ammoBox').dataset.h=a;$('ammoBox').innerHTML=a;}
     const tl=document.querySelector('.tl').getBoundingClientRect();$('ammoBox').style.top=(tl.bottom+6)+'px';}
@@ -861,7 +870,7 @@ function refreshUI(){
   $('waitBtn').hidden=!myTurn();
   $('waitBtn').textContent=v&&!v.timed?'Done, no attack':'Wait';
   if(v&&v.phase==='setup'){$('endBtn').textContent=v.me.ready?'Waiting…':(v.timed?'Ready':"I'm done");$('endBtn').disabled=v.me.ready;$('endBtn').className='btn primary';}
-  else{$('endBtn').textContent='GO';$('endBtn').disabled=false;$('endBtn').className='btn go';}
+  else{$('endBtn').textContent='START ATTACK';$('endBtn').disabled=false;$('endBtn').className='btn go';}
   for(const t of document.querySelectorAll('.tab'))t.classList.toggle('on',t.dataset.tab===tab);
   $('status').hidden=!(v&&v.phase==='battle');
   const S=SIDES[0];if(S.padRings&&v){const taken=new Set(v.me.batteries.map(b=>b.pad));for(const id in S.padRings)S.padRings[id].visible=!!placing&&!taken.has(+id)&&viewSide===0;}
@@ -901,6 +910,11 @@ function tap(x,y){
     if(!best){msg('Tap one of the glowing + rings in your city','');return;}
     placeAt(best.id);return;}
   if(drawMode)return;
+  if(view.phase==='battle'&&!view.battle.iDefend&&view.battle.open&&liveSel){const g=groundAt(x,y);if(!g)return;const km=toKm(g);
+    if(!liveFrom){if(Math.hypot(km.x,km.z)<6.8){msg('Start outside the city · tap further out','warn');return;}liveFrom=km;refreshUI();return;}
+    const [kind,id]=liveSel.split(':');const c={c:'fire',from:liveFrom,to:km};if(kind==='s')c.scout=id;else c.weapon=id;
+    if(cmd(c)){const nm=kind==='s'?SCT[id].name:ATK[id].name;msg(nm+' launched','good');sfx('launch');}
+    liveFrom=null;refreshUI();return;}
   if(view.phase==='battle'&&view.battle.iDefend){const uid=nearestThreat(x,y);if(uid!=null){const t=view.battle.threats.find(q=>q.uid===uid);if(cmd({c:'priority',uid}))msg(t&&t.priority?'Priority cleared':'Priority target · batteries engage it first','good');return;}}
   if(viewSide===0){let best=null,bd=44;for(const id in SIDES[0].bats){const b=SIDES[0].bats[id];const s=project(_b.copy(b.pos).setY(2));if(!s)continue;const d=Math.hypot(s.x-x,s.y-y);if(d<bd){bd=d;best=+id;}}
     if(best!=null){openInfo(best);return;}}
@@ -988,6 +1002,13 @@ function updHud(){
   if(v.phase==='battle'){const b=v.battle;let ld=0;for(const bb of m.batteries)if(bb.load)ld+=bb.ammo;
     $('status').innerHTML='<span>Contacts</span> '+b.threats.length+' <span>Stopped</span> '+b.stats.stopped+' <span>Hits</span> '+b.stats.hits+(b.iDefend?' <span>Loaded</span> '+ld+' <span>Reloads</span> '+m.reloadsLeft+' <span>Budget</span> '+fmt(m.budget)+' <button class="chip '+(m.autoFire?'on':'bad')+'" id="autoBtn" type="button">Auto-fire '+(m.autoFire?'on':'off')+'</button>':' <span>Damage</span> '+Math.round(b.stats.damage));}
 }
+$('liveBar').addEventListener('click',e=>{const b=e.target.closest('[data-live]');if(!b||!view)return;const k=b.dataset.live;
+  if(k==='end'){if(cmd({c:'endAttack'})){liveSel=null;liveFrom=null;msg('Attack ended · watching the results','good');}}
+  else{liveSel=liveSel===k?null:k;liveFrom=null;}
+  refreshUI();});
+function rebuildLiveGfx(){while(liveGfx.children.length)liveGfx.remove(liveGfx.children[0]);
+  if(!liveFrom||!view||view.phase!=='battle')return;const k=RAD(Math.hypot(liveFrom.x,liveFrom.z))/Math.max(1e-6,Math.hypot(liveFrom.x,liveFrom.z));
+  const m=new THREE.Mesh(new THREE.SphereGeometry(4,14,10),new THREE.MeshBasicMaterial({color:0xff5a4e,depthTest:false}));m.position.set(liveFrom.x*k,4,liveFrom.z*k);m.renderOrder=9;liveGfx.add(m);}
 $('ammoBox').addEventListener('click',e=>{if(e.target.closest('[data-act=topup]')&&view){const c=view.me.topUpCost;if(cmd({c:'topUp'}))msg('Topped up · '+fmt(c),'money');refreshUI();}});
 $('status').addEventListener('click',e=>{if(e.target.id==='autoBtn'&&view)cmd({c:'setAutoFire',on:!view.me.autoFire});});
 
@@ -1047,6 +1068,7 @@ function step(real,draw){
   updTags();drawRadar();
 }
 // Test hook: advance the game by `sec` seconds in 50 ms steps, drawing only the last step.
+window.__scr=(x,z)=>project(new V(x,0,z));
 window.__padXY=id=>{const p=PADS.find(q=>q.id===id);return p&&project(_b.set(p.x,1,p.z));};
 window.__advance=sec=>{const n=Math.max(1,Math.round(sec/0.05));for(let i=0;i<n;i++)step(0.05,i===n-1);return view&&{phase:view.phase,turn:view.turnNo,me:view.me.health,foe:view.enemy.health};};
 requestAnimationFrame(frame);

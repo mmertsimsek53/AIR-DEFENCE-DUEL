@@ -178,3 +178,25 @@ describe('untimed sandbox', () => {
     expect(m.active).toBe(0);
   });
 });
+
+describe('live attack', () => {
+  it('launches one by one from a chosen start to a chosen aim point, then ends', () => {
+    const m = createMatch(61, ['A', 'B'], [false, false], { timed: false });
+    command(m, 0, { c: 'buyLauncher', weapon: 'tomahawk' }); command(m, 0, { c: 'buyUnits', weapon: 'tomahawk', n: 3 });
+    command(m, 0, { c: 'endSetup' }); command(m, 1, { c: 'endSetup' });
+    expect(command(m, 0, { c: 'go', strikes: [], scouts: [], live: true }).ok).toBe(true);
+    expect(command(m, 0, { c: 'fire', weapon: 'tomahawk', from: { x: 1, z: 1 }, to: { x: 0, z: 0 } }).ok).toBe(false); // start inside the city
+    expect(command(m, 0, { c: 'fire', weapon: 'tomahawk', from: { x: 30, z: 0 }, to: { x: 2, z: 1 } }).ok).toBe(true);
+    expect(command(m, 0, { c: 'fire', weapon: 'tomahawk', from: { x: 0, z: 30 }, to: { x: -2, z: 1 } }).ok).toBe(true);
+    expect(command(m, 0, { c: 'fire', weapon: 'tomahawk', from: { x: 0, z: 30 }, to: { x: -2, z: 1 } }).ok).toBe(false); // 2 per turn
+    const ts = m.battle!.threats;
+    expect(ts).toHaveLength(2);
+    expect(ts[0].path[0].x).toBeGreaterThan(20);           // started on the east side
+    expect(ts[1].path[0].z).toBeGreaterThan(20);           // started on the south side
+    tick(m, 120);
+    expect(m.phase).toBe('battle');                        // still open until the attacker ends it
+    command(m, 0, { c: 'endAttack' });
+    tick(m, 1);
+    expect(m.phase).toBe('report');
+  });
+});
