@@ -1,0 +1,18 @@
+{
+  "name": "@add/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Air Defence Duel rules engine. Pure TypeScript, deterministic, no Node APIs: runs on the server and inside the apps (JavaScriptCore / QuickJS).",
+  "main": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "bundle": "esbuild src/bundle.ts --bundle --format=iife --target=es2020 --outfile=../ios/AirDefenceDuel/Resources/core.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  }
+}
