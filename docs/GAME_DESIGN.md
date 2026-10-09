@@ -86,7 +86,7 @@ Status: first outline from Mert, 9 Oct 2026. Everything below "Open questions" i
 
 ## Practice (decided 9 Oct)
 - No AI stand-in for matchmaking: you wait for a real online opponent.
-- Separate **Sandbox training** against an AI opponent.
+- Separate **Sandbox training** against an AI opponent. No clock in training (decided 9 Oct): setup ends with "I'm done", a turn ends with GO or "Done, no attack". Online duels keep the clock.
 
 ## Progression (decided 9 Oct)
 - Every duel starts from zero (budget, systems, research).

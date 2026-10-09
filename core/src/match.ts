@@ -49,10 +49,10 @@ function newPlayer(index: PlayerIndex, name: string, isAI: boolean): PlayerState
   };
 }
 
-export function createMatch(seed: number, names: [string, string], ai: [boolean, boolean] = [false, false]): Match {
+export function createMatch(seed: number, names: [string, string], ai: [boolean, boolean] = [false, false], opts: { timed?: boolean } = {}): Match {
   const m: Match = {
     version: 1, rng: seed | 0, time: 0, phase: 'setup', phaseEndsAt: RULES.setupSeconds, active: 0, turnNo: 0,
-    weatherBad: false, players: [newPlayer(0, names[0], ai[0]), newPlayer(1, names[1], ai[1])], nextUid: 1, log: [],
+    weatherBad: false, players: [newPlayer(0, names[0], ai[0]), newPlayer(1, names[1], ai[1])], nextUid: 1, log: [], timed: opts.timed !== false,
   };
   for (const p of m.players) for (const b of BUILDINGS) addBuilding(m, p, b.kind);
   return m;
@@ -552,8 +552,9 @@ export function tick(m: Match, dt: number) {
 
 function step(m: Match, dt: number) {
   m.time = round(m.time + dt);
-  if (m.phase === 'setup' && m.time >= m.phaseEndsAt) startTurn(m, 0);
-  else if (m.phase === 'turn' && m.time >= m.phaseEndsAt) { log(m, `${m.players[m.active].name} ran out of time.`); startTurn(m, other(m.active)); }
+  const clock = m.timed !== false;
+  if (m.phase === 'setup' && clock && m.time >= m.phaseEndsAt) startTurn(m, 0);
+  else if (m.phase === 'turn' && clock && m.time >= m.phaseEndsAt) { log(m, `${m.players[m.active].name} ran out of time.`); startTurn(m, other(m.active)); }
   else if (m.phase === 'report' && m.time >= m.phaseEndsAt) startTurn(m, other(m.lastReport!.attacker));
   else if (m.phase === 'battle' && m.battle) battleStep(m, m.battle, dt);
 }

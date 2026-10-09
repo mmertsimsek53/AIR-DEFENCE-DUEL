@@ -576,7 +576,7 @@ $('endBtn').onclick=()=>{
   if(myTurn())launch();
 };
 $('quickBtn').onclick=quickStrike;
-$('waitBtn').onclick=()=>{if(myTurn()&&cmd({c:'wait'}))msg('You hold fire and save money','money');};
+$('waitBtn').onclick=()=>{if(myTurn()&&cmd({c:'wait'}))msg('Turn over · no attack, money saved','money');};
 function toggleCity(){if(!view)return;if(view.phase==='battle'||view.phase==='report'){msg('The view follows the strike','');return;}choice=choice?0:1;setPlacing(null);closeInfo();
   msg(choice?'Viewing '+view.enemy.name+"'s city · revealed buildings are labelled":'Back to your city','good');refreshUI();}
 $('cityBtn').onclick=toggleCity;$('cityTab').onclick=toggleCity;
@@ -824,8 +824,8 @@ function hintHTML(){
     if(!m.batteries.length)return '<b>NEXT</b> Tap <b>Defence</b> and place your first defence';
     if(!Object.values(m.launchers).some(n=>n>0)&&!hasAtk)return '<b>NEXT</b> Tap <b>Attack</b> and buy a launcher, e.g. Shahed-136 drones';
     if(!hasScout)return '<b>NEXT</b> Buy a <b>scout UAV</b> in Attack: it finds their buildings';
-    if(!ballistic)return '<b>TIP</b> Nothing in your city can stop ballistic missiles · then press <b>Ready</b>';
-    return ammoWarn||'<b>NEXT</b> Press <b>Ready</b> when you are done';
+    if(!ballistic)return '<b>TIP</b> Nothing in your city can stop ballistic missiles · then press <b>'+(v.timed?'Ready':"I'm done")+'</b>';
+    return ammoWarn||'<b>NEXT</b> Press <b>'+(v.timed?'Ready':"I'm done")+'</b> when you are finished';
   }
   if(v.phase==='turn'&&v.myTurn){
     if(ammoWarn)return ammoWarn;
@@ -840,7 +840,7 @@ const threatLabel=c=>({drone:'drone',decoy:'decoy',uav:'UAV',rocket:'rocket',cru
 function compass(b){const deg=(Math.atan2(Math.cos(b),-Math.sin(b))*180/Math.PI+360)%360;return ['north','north-east','east','south-east','south','south-west','west','north-west'][Math.round(deg/45)%8];}
 function intelHTML(){
   const v=view,m=v.me,w=[];
-  if(v.phase==='setup')return '<b>SETUP</b> · Buy and place defences, buy launchers and weapons, a surveillance UAV helps you find their buildings. Press <b>Ready</b> when done.';
+  if(v.phase==='setup')return '<b>SETUP</b> · Buy and place defences, buy launchers and weapons, a surveillance UAV helps you find their buildings.';
   for(const b of m.batteries){const s=DEF[b.sys];if(s.load&&b.ammo+(m.interceptors[b.sys]||0)===0)w.push(s.name+' has no missiles left.');}
   if(m.buildings.some(b=>b.kind==='factory'&&b.down>0))w.push('Factory down: no new missiles this turn.');
   if(m.buildings.some(b=>b.kind==='power'&&b.down>0))w.push('Power down: lasers and Koral are off.');
@@ -859,7 +859,8 @@ function refreshUI(){
     const tl=document.querySelector('.tl').getBoundingClientRect();$('ammoBox').style.top=(tl.bottom+6)+'px';}
   $('tabs').hidden=!plan_;$('actions').hidden=!plan_;
   $('waitBtn').hidden=!myTurn();
-  if(v&&v.phase==='setup'){$('endBtn').textContent=v.me.ready?'Waiting…':'Ready';$('endBtn').disabled=v.me.ready;$('endBtn').className='btn primary';}
+  $('waitBtn').textContent=v&&!v.timed?'Done, no attack':'Wait';
+  if(v&&v.phase==='setup'){$('endBtn').textContent=v.me.ready?'Waiting…':(v.timed?'Ready':"I'm done");$('endBtn').disabled=v.me.ready;$('endBtn').className='btn primary';}
   else{$('endBtn').textContent='GO';$('endBtn').disabled=false;$('endBtn').className='btn go';}
   for(const t of document.querySelectorAll('.tab'))t.classList.toggle('on',t.dataset.tab===tab);
   $('status').hidden=!(v&&v.phase==='battle');
@@ -979,7 +980,7 @@ function updHud(){
   $('arsDef').textContent=intc;$('arsAtk').textContent=atk;
   $('hp').textContent=Math.round(m.health);const hb=$('hpBar');hb.style.width=Math.max(0,m.health/10)+'%';hb.classList.toggle('low',m.health<400);
   $('oppName').textContent=v.enemy.name;$('ohp').textContent=Math.round(v.enemy.health);$('ohpBar').style.width=Math.max(0,v.enemy.health/10)+'%';
-  const showClock=v.phase==='setup'||v.phase==='turn'||v.phase==='report';
+  const showClock=(v.phase==='setup'||v.phase==='turn'||v.phase==='report')&&v.timed;
   $('phaseName').textContent=v.phase==='setup'?'SETUP':v.phase==='turn'?(v.myTurn?'YOUR TURN':'ENEMY TURN'):v.phase==='battle'?(v.battle.iDefend?'DEFEND':'STRIKE'):v.phase==='report'?'NEXT TURN':'OVER';
   $('clock').textContent=showClock?v.secondsLeft:(v.battle?Math.round(v.battle.time)+'s':'');$('clock').classList.toggle('low',showClock&&v.secondsLeft<=10&&v.phase!=='report');
   $('phaseName2').textContent=$('phaseName').textContent;$('clock2').textContent=$('clock').textContent;document.querySelector('.tclock').classList.toggle('low',showClock&&v.secondsLeft<=10&&v.phase!=='report');

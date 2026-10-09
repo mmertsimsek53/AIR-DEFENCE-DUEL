@@ -204,7 +204,7 @@
       restock: {}
     };
   }
-  function createMatch(seed, names, ai = [false, false]) {
+  function createMatch(seed, names, ai = [false, false], opts = {}) {
     const m = {
       version: 1,
       rng: seed | 0,
@@ -216,7 +216,8 @@
       weatherBad: false,
       players: [newPlayer(0, names[0], ai[0]), newPlayer(1, names[1], ai[1])],
       nextUid: 1,
-      log: []
+      log: [],
+      timed: opts.timed !== false
     };
     for (const p of m.players) for (const b of BUILDINGS) addBuilding(m, p, b.kind);
     return m;
@@ -806,8 +807,9 @@
   }
   function step(m, dt) {
     m.time = round(m.time + dt);
-    if (m.phase === "setup" && m.time >= m.phaseEndsAt) startTurn(m, 0);
-    else if (m.phase === "turn" && m.time >= m.phaseEndsAt) {
+    const clock = m.timed !== false;
+    if (m.phase === "setup" && clock && m.time >= m.phaseEndsAt) startTurn(m, 0);
+    else if (m.phase === "turn" && clock && m.time >= m.phaseEndsAt) {
       log(m, `${m.players[m.active].name} ran out of time.`);
       startTurn(m, other(m.active));
     } else if (m.phase === "report" && m.time >= m.phaseEndsAt) startTurn(m, other(m.lastReport.attacker));
@@ -1289,6 +1291,7 @@
       phase: m.phase,
       time: m.time,
       secondsLeft: Math.max(0, Math.ceil(m.phaseEndsAt - m.time)),
+      timed: m.timed !== false || m.phase === "report",
       myTurn: m.phase === "turn" && m.active === pi,
       active: m.active,
       turnNo: m.turnNo,
@@ -1380,7 +1383,7 @@
   var HUMAN = 0;
   var api = {
     newSandbox(seed, name, demo) {
-      match = createMatch(seed, [name || "You", "Training AI"], [!!demo, true]);
+      match = createMatch(seed, [name || "You", "Training AI"], [!!demo, true], { timed: false });
     },
     cmd(json) {
       if (!match) return JSON.stringify({ ok: false, error: "No match." });

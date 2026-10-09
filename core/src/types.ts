@@ -133,6 +133,7 @@ export interface Match {
   time: number;
   phase: Phase;
   phaseEndsAt: number;
+  timed?: boolean;          // false = no setup/turn clock (sandbox); missing = timed
   active: PlayerIndex;       // whose turn (the attacker in a battle)
   turnNo: number;
   weatherBad: boolean;

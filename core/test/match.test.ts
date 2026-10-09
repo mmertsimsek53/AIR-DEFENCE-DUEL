@@ -166,3 +166,15 @@ describe('drawn routes and top-up', () => {
     expect(command(m, 0, { c: 'topUp' }).ok).toBe(false); // already full
   });
 });
+
+describe('untimed sandbox', () => {
+  it('setup and turns wait for the player when the clock is off', () => {
+    const m = createMatch(51, ['A', 'B'], [false, false], { timed: false });
+    tick(m, 500);
+    expect(m.phase).toBe('setup');
+    command(m, 0, { c: 'endSetup' }); command(m, 1, { c: 'endSetup' });
+    tick(m, 500);
+    expect(m.phase).toBe('turn');
+    expect(m.active).toBe(0);
+  });
+});

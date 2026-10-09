@@ -13,6 +13,7 @@ export function viewFor(m: Match, pi: PlayerIndex) {
     phase: m.phase,
     time: m.time,
     secondsLeft: Math.max(0, Math.ceil(m.phaseEndsAt - m.time)),
+    timed: m.timed !== false || m.phase === 'report',
     myTurn: m.phase === 'turn' && m.active === pi,
     active: m.active,
     turnNo: m.turnNo,
