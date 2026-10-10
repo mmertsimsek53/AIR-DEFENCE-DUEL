@@ -235,10 +235,10 @@ def watchtower(x, y):
     box(0.36, 0.36, 0.035, x, y, Z0 + 0.93, "hq_red", 0.008)
     sphere(0.025, x + 0.15, y + 0.15, Z0 + 0.9, mat("glass_lit", 0.3, 0, 3.0))
 
-def gate(gx=1.62, gy=1.12, x0=0.7):
+def gate(gx=1.62, gy=1.12, x0=0.7, edge=1.96):
     """Road from x0 to the +x edge with a guard booth, boom barrier and concrete blocks."""
-    box(1.96 - x0, 0.24, 0.012, (x0 + 1.96) / 2, gy, Z0, "asphalt", 0.003)
-    for i in range(int((1.9 - x0) / 0.25)): box(0.12, 0.025, 0.004, x0 + 0.2 + i * 0.25, gy, Z0 + 0.012, "yellow_band", 0)
+    box(edge - x0, 0.24, 0.012, (x0 + edge) / 2, gy, Z0, "asphalt", 0.003)
+    for i in range(int((edge - 0.06 - x0) / 0.25)): box(0.12, 0.025, 0.004, x0 + 0.2 + i * 0.25, gy, Z0 + 0.012, "yellow_band", 0)
     box(0.26, 0.26, 0.3, gx, gy + 0.3, Z0, "hq_wall", 0.02); box(0.32, 0.32, 0.04, gx, gy + 0.3, Z0 + 0.3, "hq_red", 0.01)
     box(0.18, 0.02, 0.1, gx, gy + 0.175, Z0 + 0.15, "glass_lit", 0)
     cyl(0.025, 0.18, gx - 0.08, gy + 0.15, Z0, "black", 8, 0)
@@ -609,6 +609,157 @@ def builder_1(rnd):
     for i in range(2):
         for k in range(4): box(0.0625, 0.012, 0.025, 0.15 + i * 0.25 + 0.031 + k * 0.0625, 0.88, z0 + 0.08, "yellow_band" if k % 2 == 0 else "black", 0)
 
+# ---------------------------------------------------------------- shared helpers for the other buildings
+def plot(n, cover):
+    """n×n tile plot: slab plus a ground layer; its top is at Z0 like the HQ."""
+    box(n - 0.08, n - 0.08, 0.1, m="concrete_dk", bevel=0.04)
+    box(n - 0.3, n - 0.3, 0.015, 0, 0, 0.1, cover, 0.005)
+
+def grouped(name, loc, fn, rz=0.0):
+    """Run fn() (which builds in local space around the origin) and parent what it made to an empty
+    called `name` at loc. Named empties are the moving parts the game will animate later."""
+    bpy.ops.object.empty_add(location=loc); g = bpy.context.object; g.name = name
+    before = set(bpy.context.scene.objects); fn()
+    for o in set(bpy.context.scene.objects) - before:
+        if o.parent is None and o is not g: o.parent = g
+    g.rotation_euler = (0, 0, rz)
+    return g
+
+def wheel(x, y, r=0.07, w=0.05):
+    cyl(r, w, x, y - w / 2, r, "black", 14, 0.005, rx=math.pi / 2)
+    cyl(r * 0.5, w + 0.006, x, y - w / 2 - 0.003, r, "gunmetal", 10, 0, rx=math.pi / 2)
+
+# ---------------------------------------------------------------- Radar Station (3×3, 4 levels)
+def radar_1(rnd):
+    """Field radar. Reference: P-18 'Spoon Rest' VHF radar: cabin on a two-axle trailer with a rotating
+    frame of eight Yagi aerials on a mast above it; generator and sandbags beside it."""
+    plot(3, "sand")
+    for (x, y, sx, sy) in [(-1.0, 1.0, 0.5, 0.35), (1.05, -0.95, 0.4, 0.4)]: box(sx, sy, 0.008, x, y, Z0, "grass", 0.004)
+    tx, ty = 0.1, -0.15                                                                                  # trailer
+    box(1.05, 0.46, 0.05, tx, ty, Z0 + 0.11, "gunmetal", 0.008)
+    for wx in (-0.3, -0.12): 
+        for sy in (-1, 1): wheel(tx + wx, ty + sy * 0.26)
+    for (jx, jy) in ((0.45, -0.2), (0.45, 0.2), (-0.45, -0.2), (-0.45, 0.2)): cyl(0.015, 0.12, tx + jx, ty + jy, Z0, "steel", 6, 0)   # levelling jacks
+    box(0.3, 0.04, 0.03, tx + 0.65, ty, Z0 + 0.11, "gunmetal", 0.005)                                     # tow bar
+    box(0.95, 0.46, 0.36, tx, ty, Z0 + 0.16, "olive", 0.02)                                                # equipment cabin
+    box(0.97, 0.48, 0.03, tx, ty, Z0 + 0.52, "olive_dk", 0.006)
+    box(0.16, 0.02, 0.28, tx + 0.3, ty + 0.235, Z0 + 0.17, "olive_dk", 0.004)                              # door
+    for wx in (-0.25, 0.0): box(0.12, 0.02, 0.08, tx + wx, ty + 0.235, Z0 + 0.36, "glass_lit" if wx == 0 else "glass", 0.003)
+    box(0.1, 0.06, 0.08, tx - 0.38, ty + 0.25, Z0 + 0.38, "white", 0.008)                                 # air conditioner
+    for k in range(4): box(0.08, 0.03, 0.012, tx + 0.3, ty + 0.27, Z0 + 0.03 + k * 0.045, "steel", 0)     # step ladder
+    cyl(0.035, 0.24, tx, ty, Z0 + 0.55, "steel", 10, 0.005)                                                # mast
+    def yagis():
+        box(0.05, 0.05, 0.05, 0, 0, 0, "gunmetal", 0.008)
+        box(0.04, 0.96, 0.03, -0.05, 0, 0.08, "steel", 0.004)                                             # frame
+        box(0.04, 0.96, 0.03, -0.05, 0, 0.32, "steel", 0.004)
+        for sy in (-1, 1): box(0.03, 0.03, 0.27, -0.05, sy * 0.47, 0.07, "steel", 0.003)
+        box(0.03, 0.03, 0.27, -0.05, 0, 0.07, "steel", 0.003)
+        for row in range(2):
+            for col in range(4):
+                y, z = -0.36 + col * 0.24, 0.12 + row * 0.2
+                box(0.55, 0.014, 0.014, 0.2, y, z, "steel", 0)                                            # boom
+                for k in range(6): box(0.01, 0.17 - k * 0.012, 0.01, -0.02 + k * 0.09, y, z + 0.002, "white", 0)   # elements
+    grouped("radar_rotor", (tx, ty, Z0 + 0.79), yagis, math.radians(25))
+    generator(-0.9, -0.75); drums(-1.0, 0.35); crates(0.95, 0.7)
+    sandbags(tx, ty, 1.08, 0.72, Z0, n=26, gap_at=0)                                                     # opening where the tow bar points
+
+def planar_array(w=0.85, h=0.62, tilt=15):
+    """Flat phased-array antenna face tilted back, on a short yoke (built facing +x)."""
+    cyl(0.17, 0.08, 0, 0, 0, "gunmetal", 24, 0.01)                                                        # turntable
+    box(0.22, 0.3, 0.12, 0, 0, 0.08, "olive_dk", 0.01)
+    bpy.ops.object.empty_add(location=(0.02, 0, 0.2)); piv = bpy.context.object
+    kids = [box(0.07, w, h, 0, 0, 0, "khaki", 0.01), box(0.02, w + 0.03, h + 0.03, -0.045, 0, -0.015, "olive_dk", 0.005)]
+    for k in range(1, 6): kids.append(box(0.075, w - 0.04, 0.006, 0.002, 0, k * h / 6, "olive", 0))       # face grid
+    for k in range(1, 8): kids.append(box(0.075, 0.006, h - 0.04, 0.002, -w / 2 + k * w / 8, 0.02, "olive", 0))
+    for o in kids: o.parent = piv
+    piv.rotation_euler = (0, math.radians(-tilt), 0)
+    for sy in (-1, 1): box(0.03, 0.03, 0.4, -0.12, sy * 0.25, 0.14, "steel", 0.004).rotation_euler = (0, math.radians(-30), 0)  # back braces
+
+def radar_2(rnd):
+    """Mobile surveillance radar site. Reference: Lockheed Martin TPS-77 / AN/TPS-59 class: a flat phased-array
+    face on a turntable, an operations shelter, generators, fenced compound."""
+    plot(3, "sand")
+    box(0.9, 0.24, 0.01, 0.95, 0.85, Z0, "khaki", 0.003)                                                   # gravel track in
+    box(0.8, 0.7, 0.06, 0.35, -0.35, Z0, "concrete", 0.01)                                                 # antenna pad
+    grouped("radar_rotor", (0.35, -0.35, Z0 + 0.06), planar_array, math.radians(20))
+    container(-0.5, 0.45, 1.0, "khaki")                                                                    # operations shelter
+    box(0.18, 0.03, 0.32, -0.15, 0.705, Z0 + 0.04, "gunmetal", 0.004)
+    for x in (-0.75, -0.5): box(0.16, 0.03, 0.12, x, 0.705, Z0 + 0.26, "glass_lit" if x == -0.5 else "glass", 0.003)
+    box(0.14, 0.08, 0.1, -0.88, 0.73, Z0 + 0.3, "white", 0.01)
+    for k in range(2): box(0.24 - k * 0.05, 0.08, 0.03, -0.15, 0.75 + k * 0.07, Z0 + (1 - k) * 0.03, "steel", 0.004)
+    for k in range(5): box(0.1, 0.06, 0.02, -0.05 + k * 0.1, 0.1 - k * 0.1, Z0, "black", 0.005)          # cable tray to the antenna
+    generator(-0.9, -0.55); generator(-0.9, -0.9)
+    cyl(0.1, 0.5, -0.35, -0.95, Z0 + 0.1, "olive_dk", 16, 0.01, ry=math.pi / 2)                             # fuel bowser tank
+    for sx in (-1, 1): box(0.04, 0.16, 0.1, -0.35 + sx * 0.18, -0.95, Z0, "gunmetal", 0.004)
+    lattice_mast(1.05, -1.0, Z0, 0.9)
+    fence(gap=(0.72, 0.98), e=1.36)
+    box(0.02, 0.26, 0.02, 1.36, 0.85, Z0 + 0.2, "yellow_band", 0.003)
+
+def curved_reflector(w=1.0, h=0.55, depth=0.12, rows=13):
+    """P-37 style reflector: horizontal slats on a vertical parabola, open toward +x."""
+    for k in range(rows):
+        t = k / (rows - 1) - 0.5
+        box(0.02, w * (1 - 0.3 * abs(t)), 0.035, depth * (1 - 4 * t * t) * -1, 0, (t + 0.5) * h, "steel", 0.003)
+    for sy in (-1, 0, 1): box(0.03, 0.03, h + 0.05, -0.16, sy * w * 0.35, 0, "gunmetal", 0.004)
+
+def radar_3(rnd):
+    """Fixed early-warning radar. Reference: P-37 'Bar Lock' / ARSR-type sites: a large curved reflector with its
+    feed horn turning on an equipment cabin over a concrete plinth; operations block, generator house."""
+    plot(3, "grass")
+    box(1.0, 1.0, 0.03, 0.3, -0.3, Z0, "concrete", 0.006)
+    box(1.0, 0.24, 0.012, 0.95, 0.85, Z0, "asphalt", 0.003)                               # access road
+    box(0.24, 0.7, 0.012, 0.3, 0.45, Z0, "asphalt", 0.003)
+    box(0.5, 0.5, 0.32, 0.3, -0.3, Z0 + 0.03, "concrete", 0.02)                                            # plinth
+    box(0.12, 0.02, 0.2, 0.3, -0.04, Z0 + 0.03, "gunmetal", 0.004)
+    def rotor():
+        cyl(0.2, 0.05, 0, 0, 0, "gunmetal", 24, 0.01)
+        box(0.42, 0.34, 0.24, 0.05, 0, 0.05, "olive", 0.02)                                                # equipment cabin
+        box(0.02, 0.2, 0.08, 0.265, 0, 0.17, "glass", 0.002)
+        bpy.ops.object.empty_add(location=(-0.12, 0, 0.29)); piv = bpy.context.object
+        before = set(bpy.context.scene.objects); curved_reflector()
+        for o in set(bpy.context.scene.objects) - before:
+            if o.parent is None and o is not piv: o.parent = piv
+        piv.rotation_euler = (0, math.radians(-12), 0)
+        box(0.5, 0.025, 0.025, 0.2, 0, 0.42, "steel", 0.003).rotation_euler = (0, math.radians(-8), 0)    # feed arm
+        box(0.07, 0.12, 0.08, 0.44, 0, 0.42, "gunmetal", 0.006)                                           # feed horn
+    grouped("radar_rotor", (0.3, -0.3, Z0 + 0.35), rotor, math.radians(30))
+    zr, front, side = hq_block(-0.55, 0.6, 1.1, 0.6, 1, rnd, door_x=-0.3)                                  # operations block
+    dish(-0.85, 0.6, zr, 0.1, 0.5)
+    hq_block(-0.85, -0.75, 0.6, 0.5, 1, rnd)                                                                # generator house
+    for k in range(2): cyl(0.03, 0.2, -0.95 + k * 0.2, -0.82, Z0 + 0.5, "black", 8, 0)
+    lattice_mast(1.0, -0.95, Z0, 1.1)
+    fence(gap=(0.72, 0.98), e=1.36)
+    lamps([(0.55, 0.3), (-1.0, 0.1)])
+    trees([(1.05, 0.25, 0.75), (-1.15, 1.15, 0.7)])
+
+def radar_4(rnd):
+    """Long-range radar station. Reference: NATO air-defence sites with an AN/FPS-117 inside a white radome on a
+    concrete tower, a two-storey operations building with a rotating IFF/secondary array on its roof, security wall."""
+    plot(3, "grass")
+    box(1.0, 0.24, 0.012, 0.95, 0.85, Z0, "asphalt", 0.003)
+    box(0.24, 0.55, 0.012, 0.45, 0.55, Z0, "asphalt", 0.003)
+    tx, ty = 0.4, -0.4                                                                                       # radome tower
+    cyl(0.4, 0.06, tx, ty, Z0, "concrete_dk", 32, 0.01)
+    cyl(0.34, 0.5, tx, ty, Z0 + 0.06, "concrete", 32, 0.01)
+    for k in range(2): cyl(0.345, 0.025, tx, ty, Z0 + 0.22 + k * 0.2, "concrete_dk", 32, 0)
+    box(0.14, 0.03, 0.22, tx + 0.22, ty + 0.235, Z0 + 0.06, "gunmetal", 0.004, rz=math.radians(45))      # door
+    box(0.06, 0.03, 0.1, tx + 0.22, ty + 0.235, Z0 + 0.36, "glass", 0.002, rz=math.radians(45))
+    cyl(0.4, 0.05, tx, ty, Z0 + 0.56, "concrete_dk", 32, 0.01)                                               # gallery
+    for k in range(16):
+        a = k / 16 * math.tau; cyl(0.006, 0.08, tx + math.cos(a) * 0.39, ty + math.sin(a) * 0.39, Z0 + 0.61, "steel", 4, 0)
+    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=0.5, location=(tx, ty, Z0 + 0.96))         # geodesic radome (flat panels)
+    _finish(bpy.context.object, mat("white", 0.5), 0)
+    sphere(0.03, tx, ty, Z0 + 1.47, mat("red_light", 0.4, 0, 4.0))
+    zr, front, side = hq_block(-0.55, 0.5, 1.15, 0.75, 2, rnd, door_x=-0.3)                                 # operations building
+    grouped("radar_rotor_iff", (-0.75, 0.5, zr), lambda: planar_array(0.5, 0.3, 10), math.radians(-30))
+    for i in range(2): box(0.18, 0.18, 0.08, -0.25 + i * 0.22, 0.4, zr, "steel", 0.01); cyl(0.06, 0.01, -0.25 + i * 0.22, 0.4, zr + 0.08, "black", 16, 0)
+    hq_block(-0.85, -0.8, 0.6, 0.45, 1, rnd)                                                                  # generator house
+    cyl(0.1, 0.55, -0.85, -1.15, Z0 + 0.1, "concrete", 16, 0.01, ry=math.pi / 2)                               # fuel tank
+    lattice_mast(-0.2, -1.05, Z0, 1.3)
+    perimeter_wall(gap=(0.72, 0.98), e=1.38)
+    lamps([(0.75, 0.25), (-1.1, 1.1)])
+    trees([(1.0, 0.2, 0.7)])
+
 def treasury():
     box(2.9, 2.9, 0.12, m="stone_dk", bevel=0.04)
     # stepped base
@@ -665,7 +816,8 @@ def sam_site():
     box(0.18, 0.14, 0.1, 0.6, -0.6, 0.08, "olive_dk", 0.015); box(0.18, 0.14, 0.1, 0.6, -0.44, 0.08, "olive_dk", 0.015)
     box(0.18, 0.14, 0.1, 0.6, -0.52, 0.18, "olive", 0.015)
 
-BUILDERS = {**{f"hq_{n}": (lambda n=n: hq_level(n)) for n in range(1, 11)}, "builder_1": lambda: builder_1(__import__("random").Random(7)), "treasury": treasury, "def_hisara": sam_site}
+BUILDERS = {**{f"hq_{n}": (lambda n=n: hq_level(n)) for n in range(1, 11)}, "builder_1": lambda: builder_1(__import__("random").Random(7)),
+            **{f"radar_{n}": (lambda n=n: globals()[f"radar_{n}"](__import__("random").Random(7))) for n in range(1, 5)}, "treasury": treasury, "def_hisara": sam_site}
 
 # ---------------------------------------------------------------- scene, export, preview
 def reset():
@@ -706,6 +858,6 @@ def export(name):
 if __name__ == "__main__":
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     ids = argv or list(BUILDERS)
-    sizes = {**{f"hq_{n}": 4 for n in range(1, 11)}, "builder_1": 2, "treasury": 3, "def_hisara": 2}
+    sizes = {**{f"hq_{n}": 4 for n in range(1, 11)}, "builder_1": 2, **{f"radar_{n}": 3 for n in range(1, 5)}, "treasury": 3, "def_hisara": 2}
     for i in ids:
         reset(); BUILDERS[i](); export(i); preview(i, sizes.get(i, 3)); print("built", i)
