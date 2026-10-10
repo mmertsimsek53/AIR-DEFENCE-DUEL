@@ -530,10 +530,10 @@ def builder_1(rnd):
     box(1.95, 1.95, 0.08, m="concrete_dk", bevel=0.03)
     box(1.82, 1.82, 0.01, 0, 0, 0.07, "sand", 0.004)                                                  # gravel yard
     # ---- Quonset hut workshop, door end facing +x
-    hx, hy, L, r = -0.28, -0.42, 1.05, 0.36
+    hx, hy, L, r = -0.43, -0.45, 0.9, 0.36
     box(L + 0.06, 2 * r + 0.06, 0.03, hx, hy, z0, "concrete", 0.008)                                  # slab
     half_cyl(r, L, hx, hy, z0 + 0.03, "steel")
-    for i in range(12): half_cyl(r + 0.008, 0.018, hx - L / 2 + 0.04 + i * (L - 0.08) / 11, hy, z0 + 0.03, "gunmetal", 20)   # corrugation ribs
+    for i in range(10): half_cyl(r + 0.008, 0.018, hx - L / 2 + 0.04 + i * (L - 0.08) / 9, hy, z0 + 0.03, "gunmetal", 20)   # corrugation ribs
     half_cyl(r - 0.01, 0.03, hx + L / 2, hy, z0 + 0.03, "hq_wall")                                    # end wall
     box(0.03, 0.3, 0.26, hx + L / 2 + 0.02, hy, z0 + 0.03, "gunmetal", 0.004)                          # roller door
     for k in range(5): box(0.034, 0.3, 0.008, hx + L / 2 + 0.022, hy, z0 + 0.07 + k * 0.05, "steel", 0)
@@ -543,7 +543,7 @@ def builder_1(rnd):
         cyl(0.03, 0.06, hx - 0.25 + k * 0.5, hy, z0 + 0.03 + r - 0.01, "gunmetal", 10, 0.005)
     # ---- crawler crane: tracks, slewing upper with cab and counterweight, lattice boom over the yard, load on the hook
     cz = z0
-    bpy.ops.object.empty_add(location=(0.55, -0.45, 0)); crane = bpy.context.object
+    bpy.ops.object.empty_add(location=(0.6, -0.5, 0)); crane = bpy.context.object
     parts = []
     for sy in (-1, 1):                                                                                   # crawler tracks
         parts.append(box(0.46, 0.1, 0.09, 0, sy * 0.15, cz + 0.005, "black", 0.02))
