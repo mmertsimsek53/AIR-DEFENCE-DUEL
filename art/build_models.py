@@ -525,7 +525,7 @@ def half_cyl(r, L, x, y, z, m, seg=24):
 
 def builder_1(rnd):
     """Builder Yard. Reference: Seabee / army engineer construction yard: a Quonset hut workshop
-    (half-round corrugated steel), a tower crane on a ballast base, stacked materials, cement mixer."""
+    (half-round corrugated steel), a crawler crane with a lattice boom, stacked materials, cement mixer."""
     z0 = 0.08
     box(1.95, 1.95, 0.08, m="concrete_dk", bevel=0.03)
     box(1.82, 1.82, 0.01, 0, 0, 0.07, "sand", 0.004)                                                  # gravel yard
@@ -541,32 +541,51 @@ def builder_1(rnd):
     box(0.036, 0.2, 0.05, hx + L / 2 + 0.025, hy, z0 + 0.3, "yellow_band", 0.003)                     # sign over the door
     for k in range(2):                                                                                   # roof vents
         cyl(0.03, 0.06, hx - 0.25 + k * 0.5, hy, z0 + 0.03 + r - 0.01, "gunmetal", 10, 0.005)
-    # ---- tower crane: ballast base, lattice mast, cab, jib toward the front-left with a hanging load
-    cx, cy, H = 0.58, -0.55, 1.55
-    box(0.32, 0.32, 0.07, cx, cy, z0, "concrete", 0.01)
-    for sx in (-1, 1):
-        for sy in (-1, 1): cyl(0.012, H, cx + sx * 0.06, cy + sy * 0.06, z0 + 0.07, "gold", 6, 0)
-    for k in range(int(H / 0.12)):
-        box(0.14, 0.14, 0.01, cx, cy, z0 + 0.12 + k * 0.12, "gold", 0)
-        for sx in (-1, 1): box(0.008, 0.012, 0.16, cx + sx * 0.06, cy, z0 + 0.13 + k * 0.12, "gold", 0, rz=0).rotation_euler = (math.radians(40 * sx), 0, 0)
-    zt = z0 + 0.07 + H
-    bpy.ops.object.empty_add(location=(cx, cy, zt)); slew = bpy.context.object
-    parts = [box(0.16, 0.16, 0.06, 0, 0, 0, "gold", 0.005),                                          # slewing ring
-             box(0.13, 0.12, 0.11, 0.0, 0.11, 0.06, "hq_wall", 0.01), box(0.02, 0.1, 0.07, 0.065, 0.11, 0.09, "glass", 0.002),   # cab
-             box(1.05, 0.07, 0.07, -0.6, 0, 0.08, "gold", 0.004), box(1.05, 0.02, 0.02, -0.6, 0, 0.16, "gold", 0),              # jib
-             box(0.42, 0.08, 0.05, 0.28, 0, 0.08, "gold", 0.004),                                     # counter-jib
-             box(0.12, 0.12, 0.12, 0.42, 0, -0.03, "concrete", 0.01), box(0.12, 0.12, 0.12, 0.3, 0, -0.03, "concrete", 0.01),  # counterweights
-             cyl(0.01, 0.26, 0, 0, 0.06, "gold", 6, 0)]                                               # A-frame top
-    for i in range(9): parts.append(box(0.008, 0.07, 0.008, -0.12 - i * 0.12, 0, 0.12, "gold", 0))
-    hook = -0.85
-    parts.append(box(0.06, 0.04, 0.03, hook, 0, 0.05, "gunmetal", 0.003))                              # trolley
-    parts.append(cyl(0.004, 0.75, hook, 0, -0.7, "black", 4, 0))                                         # hoist cable
-    parts.append(box(0.04, 0.03, 0.04, hook, 0, -0.74, "yellow_band", 0.003))                           # hook block
-    for i in range(3):                                                                                     # load: pallet of blocks
-        parts.append(box(0.06, 0.2, 0.06, hook - 0.07 + i * 0.07, 0, -0.84, "concrete", 0.006))
-    parts.append(box(0.24, 0.22, 0.015, hook, 0, -0.855, "wood", 0.002))
-    for o in parts: o.parent = slew
-    slew.rotation_euler = (0, 0, math.radians(-40))
+    # ---- crawler crane: tracks, slewing upper with cab and counterweight, lattice boom over the yard, load on the hook
+    cz = z0
+    bpy.ops.object.empty_add(location=(0.55, -0.45, 0)); crane = bpy.context.object
+    parts = []
+    for sy in (-1, 1):                                                                                   # crawler tracks
+        parts.append(box(0.46, 0.1, 0.09, 0, sy * 0.15, cz + 0.005, "black", 0.02))
+        for k in range(5): parts.append(box(0.012, 0.104, 0.092, -0.2 + k * 0.1, sy * 0.15, cz + 0.004, "gunmetal", 0))
+        for ex in (-0.22, 0.22): parts.append(box(0.06, 0.09, 0.06, ex, sy * 0.15, cz + 0.02, "gunmetal", 0.02))
+    parts.append(box(0.26, 0.22, 0.05, 0, 0, cz + 0.08, "gunmetal", 0.01))                              # carbody
+    parts.append(box(0.4, 0.28, 0.17, -0.06, 0, cz + 0.13, "olive", 0.02))                              # upper works / engine house
+    parts.append(box(0.36, 0.24, 0.02, -0.08, 0, cz + 0.3, "olive_dk", 0.005))
+    for k in range(4): parts.append(box(0.012, 0.004, 0.08, -0.2 + k * 0.04, -0.142, cz + 0.17, "black", 0))   # engine louvres
+    parts.append(box(0.1, 0.3, 0.15, -0.3, 0, cz + 0.13, "olive_dk", 0.02))                             # counterweight
+    parts.append(box(0.13, 0.1, 0.15, 0.12, 0.15, cz + 0.13, "olive", 0.015))                            # cab
+    parts.append(box(0.012, 0.08, 0.09, 0.185, 0.15, cz + 0.18, "glass", 0.002))
+    parts.append(box(0.09, 0.012, 0.08, 0.12, 0.2, cz + 0.18, "glass", 0.002))
+    for sy in (-1, 1): parts.append(box(0.025, 0.025, 0.28, -0.14, sy * 0.08, cz + 0.3, "gold", 0.004))   # gantry (A-frame)
+    parts.append(box(0.04, 0.2, 0.03, -0.14, 0, cz + 0.58, "gold", 0.004))
+    # boom: pivot at its foot, pitched 55° up, built along local +x
+    foot, BL, el = (0.12, 0, cz + 0.27), 1.05, math.radians(55)
+    bpy.ops.object.empty_add(location=foot); boom = bpy.context.object
+    bparts = []
+    for (dy, dz) in ((-0.045, 0), (0.045, 0), (-0.045, 0.07), (0.045, 0.07)):
+        bparts.append(box(BL, 0.014, 0.014, BL / 2, dy, dz - 0.035, "gold", 0))
+    n = 10
+    for k in range(n + 1):
+        x = 0.05 + k * (BL - 0.1) / n
+        bparts.append(box(0.01, 0.09, 0.01, x, 0, -0.035, "gold", 0)); bparts.append(box(0.01, 0.09, 0.01, x, 0, 0.035, "gold", 0))
+        for dy in (-0.045, 0.045): bparts.append(box(0.01, 0.01, 0.07, x, dy, -0.035, "gold", 0))
+    bparts.append(cyl(0.035, 0.1, BL, -0.05, -0.035, "gunmetal", 12, 0, rx=math.pi / 2))                 # tip sheave
+    for o in bparts: o.parent = boom
+    boom.rotation_euler = (0, -el, 0); boom.parent = crane
+    tip = (foot[0] + BL * math.cos(el), 0, foot[2] + BL * math.sin(el))
+    gtop = (-0.14, 0, cz + 0.6)
+    dx, dz = tip[0] - gtop[0], tip[2] - gtop[2]; d = math.hypot(dx, dz)
+    for sy in (-0.03, 0.03):                                                                               # pendant lines gantry → boom tip
+        ln = box(d, 0.005, 0.005, (gtop[0] + tip[0]) / 2, sy, (gtop[2] + tip[2]) / 2 - 0.0025, "black", 0)
+        ln.rotation_euler = (0, -math.atan2(dz, dx), 0); parts.append(ln)
+    loadz = cz + 0.42
+    parts.append(box(0.005, 0.005, tip[2] - loadz - 0.06, tip[0], 0, loadz + 0.06, "black", 0))           # hoist line
+    parts.append(box(0.05, 0.04, 0.05, tip[0], 0, loadz + 0.02, "yellow_band", 0.004))                    # hook block
+    parts.append(box(0.22, 0.2, 0.012, tip[0], 0, loadz - 0.07, "wood", 0.002))                           # load: pallet of blocks
+    for i in range(3): parts.append(box(0.065, 0.18, 0.055, tip[0] - 0.07 + i * 0.07, 0, loadz - 0.058, "concrete", 0.005))
+    for o in parts: o.parent = crane
+    crane.rotation_euler = (0, 0, math.radians(135))
     # ---- materials: concrete blocks, timber, rebar, steel beams, sand pile, cement mixer
     for i in range(2):                                                                                      # pallets of concrete blocks
         bx, by = 0.2 + i * 0.3, 0.55
@@ -586,9 +605,9 @@ def builder_1(rnd):
     # ---- tool chests, safety barrier
     box(0.16, 0.1, 0.09, 0.3, -0.05, z0, "olive", 0.01); box(0.16, 0.1, 0.012, 0.3, -0.05, z0 + 0.09, "black", 0.003)
     box(0.16, 0.1, 0.09, 0.3, 0.1, z0, "olive_dk", 0.01)
-    for i in range(3): cyl(0.012, 0.11, 0.86, -0.78 + i * 0.25, z0, "black", 6, 0)                    # safety barrier posts
+    for i in range(3): cyl(0.012, 0.11, 0.15 + i * 0.25, 0.88, z0, "black", 6, 0)                     # safety barrier posts
     for i in range(2):
-        for k in range(4): box(0.012, 0.0625, 0.025, 0.86, -0.78 + i * 0.25 + 0.031 + k * 0.0625, z0 + 0.08, "yellow_band" if k % 2 == 0 else "black", 0)
+        for k in range(4): box(0.0625, 0.012, 0.025, 0.15 + i * 0.25 + 0.031 + k * 0.0625, 0.88, z0 + 0.08, "yellow_band" if k % 2 == 0 else "black", 0)
 
 def treasury():
     box(2.9, 2.9, 0.12, m="stone_dk", bevel=0.04)
