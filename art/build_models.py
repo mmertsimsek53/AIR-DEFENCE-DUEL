@@ -29,7 +29,7 @@ PAL = {
     "camo1": (0.24, 0.29, 0.15), "camo2": (0.45, 0.40, 0.25), "camo3": (0.14, 0.15, 0.10),
     "grey_navy": (0.55, 0.58, 0.60), "uav_grey": (0.70, 0.72, 0.73), "missile_white": (0.85, 0.85, 0.82),
     "accent": (0.85, 0.65, 0.10), "sandbag": (0.56, 0.49, 0.33), "net": (0.22, 0.27, 0.13), "black": (0.05, 0.05, 0.05),
-    "red_light": (1.0, 0.12, 0.08), "green_light": (0.2, 1.0, 0.3), "red_band": (0.70, 0.12, 0.08), "yellow_band": (0.95, 0.75, 0.10),
+    "rust": (0.42, 0.22, 0.12), "red_light": (1.0, 0.12, 0.08), "green_light": (0.2, 1.0, 0.3), "red_band": (0.70, 0.12, 0.08), "yellow_band": (0.95, 0.75, 0.10),
 }
 _mats = {}
 def mat(name, rough=0.6, metal=0.0, emit=0.0):
@@ -512,6 +512,84 @@ def hq_level(level):
     rnd = random.Random(7)
     (HQ_LEVELS.get(level) or (lambda r: hq_modern(level, r)))(rnd)
 
+# ---------------------------------------------------------------- Builder Yard (2×2, 1 level)
+def half_cyl(r, L, x, y, z, m, seg=24):
+    """Half cylinder lying along x, flat side down (Quonset hut shell)."""
+    bpy.ops.mesh.primitive_cylinder_add(radius=r, depth=L, vertices=seg, location=(x, y, z), rotation=(0, math.pi / 2, 0))
+    o = bpy.context.object; bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
+    bm = bmesh.new(); bm.from_mesh(o.data)
+    bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=(0, 0, 0), plane_no=(0, 0, 1), clear_inner=True)
+    bmesh.ops.holes_fill(bm, edges=[e for e in bm.edges if e.is_boundary], sides=0)
+    bm.to_mesh(o.data); bm.free()
+    return _finish(o, mat(m) if isinstance(m, str) else m, 0, smooth=True)
+
+def builder_1(rnd):
+    """Builder Yard. Reference: Seabee / army engineer construction yard: a Quonset hut workshop
+    (half-round corrugated steel), a tower crane on a ballast base, stacked materials, cement mixer."""
+    z0 = 0.08
+    box(1.95, 1.95, 0.08, m="concrete_dk", bevel=0.03)
+    box(1.82, 1.82, 0.01, 0, 0, 0.07, "sand", 0.004)                                                  # gravel yard
+    # ---- Quonset hut workshop, door end facing +x
+    hx, hy, L, r = -0.28, -0.42, 1.05, 0.36
+    box(L + 0.06, 2 * r + 0.06, 0.03, hx, hy, z0, "concrete", 0.008)                                  # slab
+    half_cyl(r, L, hx, hy, z0 + 0.03, "steel")
+    for i in range(12): half_cyl(r + 0.008, 0.018, hx - L / 2 + 0.04 + i * (L - 0.08) / 11, hy, z0 + 0.03, "gunmetal", 20)   # corrugation ribs
+    half_cyl(r - 0.01, 0.03, hx + L / 2, hy, z0 + 0.03, "hq_wall")                                    # end wall
+    box(0.03, 0.3, 0.26, hx + L / 2 + 0.02, hy, z0 + 0.03, "gunmetal", 0.004)                          # roller door
+    for k in range(5): box(0.034, 0.3, 0.008, hx + L / 2 + 0.022, hy, z0 + 0.07 + k * 0.05, "steel", 0)
+    box(0.03, 0.09, 0.07, hx + L / 2 + 0.02, hy + 0.24, z0 + 0.16, "glass_lit", 0.003)
+    box(0.036, 0.2, 0.05, hx + L / 2 + 0.025, hy, z0 + 0.3, "yellow_band", 0.003)                     # sign over the door
+    for k in range(2):                                                                                   # roof vents
+        cyl(0.03, 0.06, hx - 0.25 + k * 0.5, hy, z0 + 0.03 + r - 0.01, "gunmetal", 10, 0.005)
+    # ---- tower crane: ballast base, lattice mast, cab, jib toward the front-left with a hanging load
+    cx, cy, H = 0.58, -0.55, 1.55
+    box(0.32, 0.32, 0.07, cx, cy, z0, "concrete", 0.01)
+    for sx in (-1, 1):
+        for sy in (-1, 1): cyl(0.012, H, cx + sx * 0.06, cy + sy * 0.06, z0 + 0.07, "gold", 6, 0)
+    for k in range(int(H / 0.12)):
+        box(0.14, 0.14, 0.01, cx, cy, z0 + 0.12 + k * 0.12, "gold", 0)
+        for sx in (-1, 1): box(0.008, 0.012, 0.16, cx + sx * 0.06, cy, z0 + 0.13 + k * 0.12, "gold", 0, rz=0).rotation_euler = (math.radians(40 * sx), 0, 0)
+    zt = z0 + 0.07 + H
+    bpy.ops.object.empty_add(location=(cx, cy, zt)); slew = bpy.context.object
+    parts = [box(0.16, 0.16, 0.06, 0, 0, 0, "gold", 0.005),                                          # slewing ring
+             box(0.13, 0.12, 0.11, 0.0, 0.11, 0.06, "hq_wall", 0.01), box(0.02, 0.1, 0.07, 0.065, 0.11, 0.09, "glass", 0.002),   # cab
+             box(1.05, 0.07, 0.07, -0.6, 0, 0.08, "gold", 0.004), box(1.05, 0.02, 0.02, -0.6, 0, 0.16, "gold", 0),              # jib
+             box(0.42, 0.08, 0.05, 0.28, 0, 0.08, "gold", 0.004),                                     # counter-jib
+             box(0.12, 0.12, 0.12, 0.42, 0, -0.03, "concrete", 0.01), box(0.12, 0.12, 0.12, 0.3, 0, -0.03, "concrete", 0.01),  # counterweights
+             cyl(0.01, 0.26, 0, 0, 0.06, "gold", 6, 0)]                                               # A-frame top
+    for i in range(9): parts.append(box(0.008, 0.07, 0.008, -0.12 - i * 0.12, 0, 0.12, "gold", 0))
+    hook = -0.85
+    parts.append(box(0.06, 0.04, 0.03, hook, 0, 0.05, "gunmetal", 0.003))                              # trolley
+    parts.append(cyl(0.004, 0.75, hook, 0, -0.7, "black", 4, 0))                                         # hoist cable
+    parts.append(box(0.04, 0.03, 0.04, hook, 0, -0.74, "yellow_band", 0.003))                           # hook block
+    for i in range(3):                                                                                     # load: pallet of blocks
+        parts.append(box(0.06, 0.2, 0.06, hook - 0.07 + i * 0.07, 0, -0.84, "concrete", 0.006))
+    parts.append(box(0.24, 0.22, 0.015, hook, 0, -0.855, "wood", 0.002))
+    for o in parts: o.parent = slew
+    slew.rotation_euler = (0, 0, math.radians(-40))
+    # ---- materials: concrete blocks, timber, rebar, steel beams, sand pile, cement mixer
+    for i in range(2):                                                                                      # pallets of concrete blocks
+        bx, by = 0.2 + i * 0.3, 0.55
+        box(0.24, 0.24, 0.02, bx, by, z0, "wood", 0.003)
+        for lx in range(2):
+            for lz in range(3 - i): box(0.11, 0.22, 0.06, bx - 0.055 + lx * 0.115, by, z0 + 0.02 + lz * 0.062, "concrete", 0.006)
+    for k in range(4): box(0.6, 0.06, 0.035, -0.55, 0.32 + (k % 2) * 0.07, z0 + (k // 2) * 0.037, "wood", 0.004)   # timber
+    for k in range(3): box(0.6, 0.06, 0.035, -0.55, 0.36, z0 + 0.074 + k * 0.037, "wood", 0.004)
+    for k in range(7): cyl(0.008, 0.7, -0.55, 0.6 + (k % 4) * 0.022, z0 + 0.008 + (k // 4) * 0.016, "rust", 6, 0, ry=math.pi / 2)  # rebar bundle
+    for k in range(3):                                                                                       # steel I-beams
+        y = 0.82 + k * 0.035
+        box(0.7, 0.03, 0.006, -0.5, y, z0, "gunmetal", 0); box(0.7, 0.006, 0.03, -0.5, y, z0, "gunmetal", 0); box(0.7, 0.03, 0.006, -0.5, y, z0 + 0.03, "gunmetal", 0)
+    cyl(0.2, 0.16, 0.65, 0.05, z0, "sand", 20, 0.02, r2=0.02)                                             # sand pile
+    mx, my = 0.68, 0.48                                                                                       # cement mixer on its stand
+    for sx in (-1, 1): box(0.02, 0.14, 0.12, mx + sx * 0.07, my, z0, "gunmetal", 0.003)
+    drum = cyl(0.07, 0.16, mx, my, z0 + 0.06, "olive", 16, 0.01, r2=0.035); drum.rotation_euler = (math.radians(-55), 0, 0)
+    # ---- tool chests, safety barrier
+    box(0.16, 0.1, 0.09, 0.3, -0.05, z0, "olive", 0.01); box(0.16, 0.1, 0.012, 0.3, -0.05, z0 + 0.09, "black", 0.003)
+    box(0.16, 0.1, 0.09, 0.3, 0.1, z0, "olive_dk", 0.01)
+    for i in range(3): cyl(0.012, 0.11, 0.86, -0.78 + i * 0.25, z0, "black", 6, 0)                    # safety barrier posts
+    for i in range(2):
+        for k in range(4): box(0.012, 0.0625, 0.025, 0.86, -0.78 + i * 0.25 + 0.031 + k * 0.0625, z0 + 0.08, "yellow_band" if k % 2 == 0 else "black", 0)
+
 def treasury():
     box(2.9, 2.9, 0.12, m="stone_dk", bevel=0.04)
     # stepped base
@@ -568,7 +646,7 @@ def sam_site():
     box(0.18, 0.14, 0.1, 0.6, -0.6, 0.08, "olive_dk", 0.015); box(0.18, 0.14, 0.1, 0.6, -0.44, 0.08, "olive_dk", 0.015)
     box(0.18, 0.14, 0.1, 0.6, -0.52, 0.18, "olive", 0.015)
 
-BUILDERS = {**{f"hq_{n}": (lambda n=n: hq_level(n)) for n in range(1, 11)}, "treasury": treasury, "def_hisara": sam_site}
+BUILDERS = {**{f"hq_{n}": (lambda n=n: hq_level(n)) for n in range(1, 11)}, "builder_1": lambda: builder_1(__import__("random").Random(7)), "treasury": treasury, "def_hisara": sam_site}
 
 # ---------------------------------------------------------------- scene, export, preview
 def reset():
@@ -609,6 +687,6 @@ def export(name):
 if __name__ == "__main__":
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     ids = argv or list(BUILDERS)
-    sizes = {**{f"hq_{n}": 4 for n in range(1, 11)}, "treasury": 3, "def_hisara": 2}
+    sizes = {**{f"hq_{n}": 4 for n in range(1, 11)}, "builder_1": 2, "treasury": 3, "def_hisara": 2}
     for i in ids:
         reset(); BUILDERS[i](); export(i); preview(i, sizes.get(i, 3)); print("built", i)
