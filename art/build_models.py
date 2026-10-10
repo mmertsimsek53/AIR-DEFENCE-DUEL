@@ -978,33 +978,192 @@ def power_6(rnd):
     perimeter_wall(gap=(0.72, 0.98), e=1.38)
     lamps([(0.15, 0.5)])
 
-def treasury():
-    box(2.9, 2.9, 0.12, m="stone_dk", bevel=0.04)
-    # stepped base
-    for i, s in enumerate((2.6, 2.4, 2.2)):
-        box(s, s * 0.82, 0.1, 0, -0.1, 0.12 + i * 0.1, "stone", 0.02)
-    # hall
-    box(1.9, 1.5, 1.0, 0, -0.25, 0.42, "stone", 0.04)
-    # columns across the front
-    for i in range(6):
-        x = -0.9 + i * 0.36
-        cyl(0.075, 0.95, x, 0.72, 0.42, "white", 16, 0.01)
-        box(0.2, 0.2, 0.06, x, 0.72, 0.42, "stone_dk", 0.01); box(0.2, 0.2, 0.06, x, 0.72, 1.31, "stone_dk", 0.01)
-    box(2.1, 0.5, 0.12, 0, 0.62, 1.37, "stone", 0.02)                   # architrave
-    # gold pediment & dome
-    bpy.ops.mesh.primitive_cone_add(radius1=1.0, radius2=0, depth=1, vertices=3, location=(0, 0.62, 1.49 + 0.22), rotation=(math.pi / 2, 0, 0))
-    o = bpy.context.object; o.scale = (1.15, 0.45, 0.5); bpy.ops.object.transform_apply(location=False, scale=True, rotation=True); _finish(o, mat("gold", 0.3, 0.8), 0.02)
-    cyl(0.62, 0.25, 0, -0.3, 1.42, "stone", 32, 0.02)
-    sphere(0.56, 0, -0.3, 1.67, mat("gold", 0.25, 0.9), half=True)
-    cyl(0.04, 0.35, 0, -0.3, 2.2, "gold_dk", 8, 0)
-    # door
-    box(0.4, 0.05, 0.6, 0, 0.5, 0.42, "wood", 0.01)
-    # stacked gold bars by the steps
-    for i, (x, y, z) in enumerate([(-1.05, 1.15, 0.12), (-0.85, 1.15, 0.12), (-0.95, 1.15, 0.2), (1.0, 1.1, 0.12)]):
-        box(0.2, 0.1, 0.08, x, y, z, mat("gold", 0.3, 0.8), 0.015)
-    # lamp posts
-    for x in (-1.2, 1.2):
-        cyl(0.025, 0.7, x, 1.25, 0.12, "black", 8, 0); sphere(0.06, x, 1.25, 0.86, mat("glass_lit", 0.3, 0, 2.0))
+# ---------------------------------------------------------------- Treasury (3×3, 10 levels): produces Gold
+def tri_wall(x, y0, dy, th, z):
+    """Triangular end wall in the yz-plane at x (closes a sawtooth roof)."""
+    me = bpy.data.meshes.new("tri"); me.from_pydata([(0, 0, 0), (0, dy, 0), (0, dy, th)], [], [(0, 1, 2)]); me.update()
+    o = bpy.data.objects.new("tri", me); bpy.context.collection.objects.link(o); o.location = (x, y0, z)
+    return _finish(o, mat("hq_wall"), 0)
+
+def sawtooth_hall(x, y, L, W, H, teeth, rnd, col="hq_wall"):
+    """Factory hall with a north-light sawtooth roof (glazing faces +y) and high strip windows."""
+    box(L, W, H, x, y, Z0, col, 0.02)
+    box(L + 0.03, W + 0.03, 0.06, x, y, Z0, "concrete_dk", 0.008)
+    for k in range(int(L / 0.2)): box(0.14, 0.02, 0.1, x - L / 2 + 0.12 + k * 0.2, y + W / 2 + 0.006, Z0 + H - 0.16, "glass_lit" if rnd.random() < 0.3 else "glass", 0.002)
+    for k in range(int(W / 0.2)): box(0.02, 0.14, 0.1, x + L / 2 + 0.006, y - W / 2 + 0.12 + k * 0.2, Z0 + H - 0.16, "glass", 0.002)
+    dy, th = W / teeth, 0.15
+    for i in range(teeth):
+        y0 = y - W / 2 + i * dy
+        box(L - 0.02, 0.02, th, x, y0 + dy - 0.01, Z0 + H, "glass_lit" if i % 2 else "glass", 0.002)
+        pl = box(L, math.hypot(dy, th), 0.02, x, y0 + dy / 2, Z0 + H + th / 2 - 0.01, "hq_roof", 0.003)
+        pl.rotation_euler = (math.atan2(th, dy), 0, 0)
+        for ex in (x - L / 2, x + L / 2): tri_wall(ex, y0, dy, th, Z0 + H)
+
+def portico(x, front, w, n, h):
+    """Classical entrance: steps, a row of columns, architrave and a triangular pediment with a gold emblem."""
+    for k in range(3): box(w + 0.12 - k * 0.05, 0.36 - k * 0.08, 0.025, x, front + 0.18 - k * 0.04, Z0 + k * 0.025, "white", 0.004)
+    zc = Z0 + 0.075
+    for i in range(n):
+        cx = x - w / 2 + 0.05 + i * (w - 0.1) / (n - 1)
+        box(0.08, 0.08, 0.025, cx, front + 0.22, zc, "white", 0.004)
+        cyl(0.03, h - 0.05, cx, front + 0.22, zc + 0.025, "white", 14, 0.004)
+        box(0.08, 0.08, 0.025, cx, front + 0.22, zc + h - 0.025, "white", 0.004)
+    box(w + 0.06, 0.32, 0.07, x, front + 0.13, zc + h, "white", 0.006)
+    prism(0.32, w + 0.06, 0.17, x, front + 0.13, zc + h + 0.07, "white", math.pi / 2, 0.006)
+    sphere(0.035, x, front + 0.3, zc + h + 0.14, mat("gold", 0.3, 0.8))
+    box(0.2, 0.02, 0.26, x, front + 0.005, Z0, "wood", 0.004)                                           # doors
+
+def dome(x, y, z, r=0.3):
+    cyl(r + 0.02, 0.05, x, y, z, "white", 32, 0.006)
+    cyl(r, 0.16, x, y, z + 0.05, "white", 32, 0.006)
+    for k in range(12):
+        a = k / 12 * math.tau; box(0.02, 0.012, 0.09, x + math.cos(a) * r, y + math.sin(a) * r, z + 0.08, "glass", 0, rz=a + math.pi / 2)
+    sphere(r - 0.01, x, y, z + 0.21, mat("gold_dk", 0.35, 0.85), half=True)
+    cyl(0.05, 0.12, x, y, z + 0.2 + r - 0.02, "white", 12, 0.004)
+    sphere(0.035, x, y, z + 0.34 + r - 0.02, mat("gold", 0.3, 0.8))
+
+def vault_door(x, y, cz, r=0.12, face="x"):
+    """Round steel vault door with a spoked handle, on a wall facing +x (or +y)."""
+    rot = dict(ry=math.pi / 2) if face == "x" else dict(rx=math.pi / 2)
+    d = 0.04
+    ox, oy = (x + d / 2, y) if face == "x" else (x, y + d / 2)
+    bpy.ops.mesh.primitive_cylinder_add(radius=r + 0.025, depth=d * 0.6, vertices=28, location=(ox - (0.01 if face == "x" else 0), oy - (0.01 if face == "y" else 0), cz),
+                                        rotation=(rot.get("rx", 0), rot.get("ry", 0), 0))
+    _finish(bpy.context.object, mat("concrete_dk"), 0.005, smooth=True)
+    bpy.ops.mesh.primitive_cylinder_add(radius=r, depth=d, vertices=28, location=(ox, oy, cz), rotation=(rot.get("rx", 0), rot.get("ry", 0), 0))
+    _finish(bpy.context.object, mat("steel", 0.35, 0.8), 0.008, smooth=True)
+    for k in range(3):
+        sp = box(0.01, r * 1.3, 0.012, ox + (d / 2 + 0.01 if face == "x" else 0), oy + (d / 2 + 0.01 if face == "y" else 0), cz - 0.006, "gunmetal", 0)
+        sp.rotation_euler = (k * math.pi / 3, 0, 0) if face == "x" else (0, k * math.pi / 3, math.pi / 2)
+    for k in range(8):
+        a = k / 8 * math.tau
+        px, pz = math.cos(a) * r * 0.82, math.sin(a) * r * 0.82
+        sphere(0.008, ox + (d / 2 if face == "x" else px), oy + (px if face == "x" else d / 2), cz + pz, "gunmetal")
+
+def vault_bunker(x, y, w=0.6, d=0.55, h=0.38):
+    """Strong room: massive concrete block with a round vault door on its +x face."""
+    box(w, d, h, x, y, Z0, "concrete", 0.03)
+    box(w + 0.06, d + 0.06, 0.05, x, y, Z0 + h, "concrete_dk", 0.01)
+    box(0.04, d * 0.7, h * 0.85, x + w / 2 + 0.02, y, Z0, "concrete_dk", 0.006)
+    vault_door(x + w / 2 + 0.04, y, Z0 + h * 0.45, 0.12)
+    for sy in (-1, 1): sphere(0.018, x + w / 2 + 0.05, y + sy * d * 0.38, Z0 + h * 0.85, mat("red_light", 0.4, 0, 3.0))
+
+def gold_stack(x, y, layers=3):
+    box(0.26, 0.2, 0.02, x, y, Z0, "wood", 0.003)
+    for l in range(layers):
+        for i in range(3 - l % 2):
+            box(0.07, 0.17, 0.035, x - 0.08 + i * 0.08 + (l % 2) * 0.04, y, Z0 + 0.02 + l * 0.036, mat("gold", 0.3, 0.8), 0.006)
+
+def strongbox(x, y):
+    box(0.16, 0.11, 0.1, x, y, Z0 + 0.12, "gunmetal", 0.008)
+    box(0.165, 0.115, 0.012, x, y, Z0 + 0.2, mat("gold", 0.3, 0.8), 0.002)
+
+def small_gate(gy=0.85, x0=0.5):
+    gate(1.15, gy, x0, 1.46)
+
+def treasury_level(level, rnd):
+    if level == 1:
+        # Field paymaster post: tent, awning over the pay table with a strongbox, sandbag guard post.
+        plot(3, "sand")
+        for (x, y, sx, sy) in [(-1.0, 1.0, 0.45, 0.35), (1.05, -1.0, 0.4, 0.35)]: box(sx, sy, 0.008, x, y, Z0, "grass", 0.004)
+        tent(-0.35, -0.4, 1.0, 0.65, 0, "olive")
+        for (px, py) in ((-0.1, 0.0), (0.7, 0.0), (-0.1, 0.55), (0.7, 0.55)): cyl(0.012, 0.36, px, py, Z0, "wood", 6, 0)
+        box(0.9, 0.65, 0.015, 0.3, 0.27, Z0 + 0.36, "khaki", 0.004)                                       # awning
+        box(0.5, 0.22, 0.03, 0.3, 0.25, Z0 + 0.12, "wood", 0.004)                                          # pay table
+        for (lx, ly) in ((0.08, 0.17), (0.52, 0.17), (0.08, 0.33), (0.52, 0.33)): box(0.02, 0.02, 0.12, lx, ly, Z0, "wood", 0)
+        box(0.14, 0.1, 0.07, 0.42, 0.25, Z0 + 0.15, "gunmetal", 0.006); box(0.145, 0.105, 0.01, 0.42, 0.25, Z0 + 0.22, mat("gold", 0.3, 0.8), 0.002)
+        for i in range(3): cyl(0.02, 0.012 * (i + 1), 0.2 + i * 0.05, 0.25, Z0 + 0.15, mat("gold", 0.3, 0.8), 12, 0)   # coin piles
+        sandbags(0.95, 0.75, 0.28, 0.28, Z0, n=9, gap_at=math.pi)
+        soldier(0.95, 0.75)
+        flags(-0.95, 0.5, 1, 0.9); crates(-1.0, -1.0); drums(0.95, -0.85, 2)
+        return
+    if level == 2:
+        # Finance container with a walk-in safe, fenced.
+        plot(3, "sand")
+        box(0.9, 0.24, 0.01, 0.95, 0.85, Z0, "khaki", 0.003)
+        container(-0.35, -0.3, 1.3, "khaki")
+        box(0.18, 0.03, 0.32, 0.0, -0.045, Z0 + 0.04, "gunmetal", 0.004)
+        for x in (-0.8, -0.45): box(0.16, 0.03, 0.12, x, -0.045, Z0 + 0.26, "glass_lit" if x == -0.45 else "glass", 0.003)
+        box(0.24, 0.1, 0.03, 0.0, 0.0, Z0, "steel", 0.004)
+        box(0.12, 0.012, 0.1, -0.2, -0.04, Z0 + 0.4, mat("gold", 0.3, 0.8), 0.002)                          # sign
+        box(0.4, 0.4, 0.36, 0.75, -0.45, Z0, "gunmetal", 0.02)                                             # walk-in safe
+        vault_door(0.95, -0.45, Z0 + 0.18, 0.1)
+        gold_stack(0.75, 0.15, 2)
+        sandbags(-0.9, 0.7, 0.28, 0.22, Z0, n=8, gap_at=0)
+        fence(gap=(0.72, 0.98), e=1.36); box(0.02, 0.26, 0.02, 1.36, 0.85, Z0 + 0.2, "yellow_band", 0.003)
+        flags(-0.3, 0.55, 1, 1.0)
+        return
+    if level == 3:
+        # Garrison finance office: single-storey with gable roof, strong-room annex.
+        plot(3, "grass")
+        small_gate()
+        box(0.22, 0.6, 0.012, 0.3, 0.45, Z0, "asphalt", 0.003)
+        zr, front, side = hq_block(-0.25, -0.35, 1.7, 0.85, 1, rnd, roof="gable", door_x=0.3)
+        vault_bunker(0.95, -0.45, 0.45, 0.5, 0.32)
+        flags(-0.7, 0.55, 2, 0.95)
+        fence(gap=(0.72, 0.98), e=1.36)
+        trees([(-1.05, 1.05, 0.75), (1.05, 0.3, 0.7)])
+        return
+    if level == 4:
+        # Finance office, two storeys, with a secure cash bay (roller door, dock, bollards).
+        plot(3, "grass")
+        small_gate()
+        box(0.22, 0.5, 0.012, 0.0, 0.55, Z0, "asphalt", 0.003)
+        zr, front, side = hq_block(-0.35, -0.4, 1.6, 0.85, 2, rnd, door_x=0.0)
+        box(0.7, 0.75, 0.42, 0.85, -0.45, Z0, "concrete", 0.02)                                            # cash bay
+        box(0.02, 0.36, 0.28, 1.21, -0.45, Z0 + 0.06, "gunmetal", 0.003)
+        for k in range(6): box(0.024, 0.37, 0.006, 1.215, -0.45, Z0 + 0.08 + k * 0.045, "steel", 0)
+        box(0.14, 0.5, 0.06, 1.28, -0.45, Z0, "concrete_dk", 0.006)                                        # dock
+        for sy in (-1, 1): cyl(0.025, 0.14, 1.32, -0.45 + sy * 0.32, Z0, "yellow_band", 10, 0.004)
+        flags(-0.8, 0.6, 3, 1.0)
+        fence(gap=(0.72, 0.98), e=1.36)
+        lamps([(0.45, 0.45)])
+        trees([(-1.1, 1.1, 0.75)])
+        return
+    if level == 5:
+        # Finance centre with a banknote printing annex (sawtooth roof).
+        plot(3, "grass")
+        small_gate()
+        zr, front, side = hq_block(-0.45, -0.55, 1.6, 0.75, 2, rnd, door_x=-0.45)
+        sawtooth_hall(0.75, -0.25, 0.85, 1.0, 0.4, 3, rnd)
+        box(0.22, 0.45, 0.012, -0.45, 0.4, Z0, "asphalt", 0.003)
+        gold_stack(0.75, 0.5, 2)
+        flags(-1.0, 0.55, 3, 1.0)
+        fence(gap=(0.72, 0.98), e=1.36)
+        lamps([(0.1, 0.55)])
+        trees([(-1.1, 1.1, 0.75), (-0.2, 1.1, 0.65)])
+        return
+    # ---- levels 6–10: mint works. Reference: US Mint Philadelphia / Denver and the Turkish State Mint (Darphane):
+    # a long sawtooth-roofed coining and printing hall, an office or classical front building, strong rooms, security.
+    plot(3, "grass")
+    small_gate()
+    L = 2.2 if level >= 9 else 1.8
+    sawtooth_hall(-0.15 if level >= 9 else -0.3, -0.78, L, 0.75, 0.42, 3, rnd)
+    if level == 6 or level == 7:
+        zr, front, side = hq_block(-0.55, 0.4, 1.25, 0.65, 2, rnd, door_x=-0.55)
+        flags(0.35, 0.55, 3, 1.0)
+    else:
+        zr, front, side = hq_block(-0.55, 0.35, 1.3, 0.65, 2, rnd)                                        # classical front building
+        portico(-0.55, front, 0.7, 5, 0.45)
+        if level >= 10: dome(-0.55, 0.35, zr)
+        flags(0.35, 1.05, 3, 1.0)
+    if level >= 7:
+        vault_bunker(0.85, -0.05, 0.6, 0.5, 0.36)
+        perimeter_wall(gap=(0.72, 0.98), e=1.38)
+        watchtower(1.2, -1.2)
+    else:
+        fence(gap=(0.72, 0.98), e=1.36)
+    if level >= 9:
+        watchtower(-1.2, 1.2)
+        gold_stack(0.55, -0.05, 3); gold_stack(0.55, 0.22, 2)
+    lamps([(0.15, 0.95)] + ([(1.2, -0.6)] if level >= 8 else []))
+    trees([(0.9, 0.45, 0.6)] if level < 7 else [])
+    if level >= 10:
+        for (x, y) in ((-1.25, -0.2), (1.25, 0.42), (0.25, -1.3)):
+            cyl(0.018, 1.2, x, y, Z0, "steel", 8, 0)
+            box(0.16, 0.06, 0.08, x, y, Z0 + 1.2, "gunmetal", 0.008)
+            box(0.14, 0.015, 0.06, x, y + 0.035, Z0 + 1.21, mat("glass_lit", 0.3, 0, 4.0), 0)
+        for i in range(3): soldier(-0.8 + i * 0.25, 1.25)
 
 def sam_site():
     """Hisar-A+ style low-altitude SAM site (2×2 tiles)."""
@@ -1036,7 +1195,7 @@ def sam_site():
 
 BUILDERS = {**{f"hq_{n}": (lambda n=n: hq_level(n)) for n in range(1, 11)}, "builder_1": lambda: builder_1(__import__("random").Random(7)),
             **{f"power_{n}": (lambda n=n: globals()[f"power_{n}"](__import__("random").Random(7))) for n in range(1, 7)},
-            **{f"radar_{n}": (lambda n=n: globals()[f"radar_{n}"](__import__("random").Random(7))) for n in range(1, 5)}, "treasury": treasury, "def_hisara": sam_site}
+            **{f"radar_{n}": (lambda n=n: globals()[f"radar_{n}"](__import__("random").Random(7))) for n in range(1, 5)}, **{f"treasury_{n}": (lambda n=n: treasury_level(n, __import__("random").Random(7))) for n in range(1, 11)}, "def_hisara": sam_site}
 
 # ---------------------------------------------------------------- scene, export, preview
 def reset():
@@ -1077,6 +1236,6 @@ def export(name):
 if __name__ == "__main__":
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     ids = argv or list(BUILDERS)
-    sizes = {**{f"hq_{n}": 4 for n in range(1, 11)}, "builder_1": 2, **{f"radar_{n}": 3 for n in range(1, 5)}, **{f"power_{n}": 3 for n in range(1, 7)}, "treasury": 3, "def_hisara": 2}
+    sizes = {**{f"hq_{n}": 4 for n in range(1, 11)}, "builder_1": 2, **{f"radar_{n}": 3 for n in range(1, 5)}, **{f"power_{n}": 3 for n in range(1, 7)}, **{f"treasury_{n}": 3 for n in range(1, 11)}, "def_hisara": 2}
     for i in ids:
         reset(); BUILDERS[i](); export(i); preview(i, sizes.get(i, 3)); print("built", i)
