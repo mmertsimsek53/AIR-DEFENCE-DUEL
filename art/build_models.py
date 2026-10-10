@@ -56,7 +56,7 @@ def _finish(o, m, bevel, smooth=False):
 
 def box(sx, sy, sz, x=0, y=0, z=0, m="concrete", bevel=0.03, rz=0):
     bpy.ops.mesh.primitive_cube_add(size=1, location=(x, y, z + sz / 2), rotation=(0, 0, rz))
-    o = bpy.context.object; o.scale = (sx, sy, sz); bpy.ops.object.transform_apply(scale=True)
+    o = bpy.context.object; o.scale = (sx, sy, sz); bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
     return _finish(o, mat(m) if isinstance(m, str) else m, bevel)
 
 def cyl(r, h, x=0, y=0, z=0, m="steel", seg=24, bevel=0.02, r2=None, rx=0, ry=0):
@@ -78,7 +78,7 @@ def sphere(r, x=0, y=0, z=0, m="white", half=False):
 def roof(sx, sy, h, x=0, y=0, z=0, m="hq_red"):
     """Hipped roof (4-sided pyramid stretched to the footprint)."""
     bpy.ops.mesh.primitive_cone_add(radius1=0.7071, radius2=0.0, depth=1, vertices=4, location=(x, y, z + h / 2), rotation=(0, 0, math.pi / 4))
-    o = bpy.context.object; o.scale = (sx, sy, h); bpy.ops.object.transform_apply(scale=True, rotation=True)
+    o = bpy.context.object; o.scale = (sx, sy, h); bpy.ops.object.transform_apply(location=False, scale=True, rotation=True)
     return _finish(o, mat(m), 0.02)
 
 def sandbags(cx, cy, rx, ry, z=0, n=14, gap_at=None):
@@ -95,41 +95,135 @@ def windows_row(x0, x1, y, z, h, n, m="glass", depth=0.04, face=1):
         box(w * 0.62, depth, h, x0 + w * (i + 0.5), y + face * depth / 2, z, m, 0.005)
 
 # ---------------------------------------------------------------- buildings
+def jeep(x, y, rz=0, col="olive"):
+    """Small military jeep (about 0.55 × 0.28 tiles)."""
+    bpy.ops.object.empty_add(location=(x, y, 0)); j = bpy.context.object
+    parts = [box(0.5, 0.26, 0.12, 0, 0, 0.07, col, 0.03), box(0.24, 0.24, 0.1, -0.05, 0, 0.19, col, 0.03),
+             box(0.02, 0.22, 0.08, 0.075, 0, 0.2, "glass", 0.005), box(0.08, 0.2, 0.05, 0.22, 0, 0.12, "black", 0.01)]
+    for sx in (-0.15, 0.15):
+        for sy in (-0.13, 0.13): parts.append(cyl(0.055, 0.05, sx, sy, 0.03, "black", 12, 0, rx=math.pi / 2))
+    for o in parts: o.parent = j
+    j.rotation_euler = (0, 0, rz)
+    return j
+
+def tree(x, y, s=1.0):
+    cyl(0.025 * s, 0.22 * s, x, y, 0, "wood", 8, 0)
+    sphere(0.16 * s, x, y, 0.3 * s, "grass")
+    sphere(0.11 * s, x + 0.06 * s, y - 0.04 * s, 0.4 * s, "grass")
+
+def lamp(x, y, h=0.75):
+    cyl(0.018, h, x, y, 0, "black", 8, 0)
+    box(0.12, 0.05, 0.03, x + 0.05, y, h, "black", 0.005)
+    sphere(0.03, x + 0.1, y, h - 0.02, mat("glass_lit", 0.3, 0, 3.0))
+
+def window(x, y, z, w, h, lit=False, face="y"):
+    """Window with frame, glass, mullion and sill, on a wall facing +y (face='y') or +x (face='x')."""
+    if face == "y":
+        box(w + 0.05, 0.03, h + 0.05, x, y + 0.012, z - 0.025, "white", 0.005)                   # frame
+        box(w, 0.035, h, x, y + 0.02, z, "glass_lit" if lit else "glass", 0.002)
+        box(0.018, 0.04, h, x, y + 0.03, z, "white", 0)                                            # mullion
+        box(w + 0.09, 0.07, 0.025, x, y + 0.035, z - 0.04, "concrete_dk", 0.005)                   # sill
+    else:
+        box(0.03, w + 0.05, h + 0.05, x + 0.012, y, z - 0.025, "white", 0.005)
+        box(0.035, w, h, x + 0.02, y, z, "glass_lit" if lit else "glass", 0.002)
+        box(0.04, 0.018, h, x + 0.03, y, z, "white", 0)
+        box(0.07, w + 0.09, 0.025, x + 0.035, y, z - 0.04, "concrete_dk", 0.005)
+
 def hq():
-    # plinth & forecourt
-    box(3.9, 3.9, 0.12, m="concrete_dk", bevel=0.04)
-    box(1.3, 0.9, 0.02, 0, 1.45, 0.12, "asphalt", 0.01)
-    # main block
-    box(3.0, 2.2, 1.35, 0, -0.35, 0.12, "hq_wall", 0.05)
-    box(3.06, 2.26, 0.14, 0, -0.35, 1.47, "hq_red", 0.04)            # red cornice band
-    box(2.8, 2.0, 0.04, 0, -0.35, 1.58, "hq_roof", 0.01)               # dark roof inside the parapet
-    box(3.04, 2.24, 0.12, 0, -0.35, 0.12, "hq_red_dk", 0.03)           # red skirting
-    for zz in (0.42, 0.88):
-        windows_row(-1.3, 1.3, 0.75, 0.12 + zz, 0.28, 7, "glass", 0.05)
-    # entrance tower with canopy
-    box(1.0, 0.7, 1.9, 0, 0.75, 0.12, "hq_wall", 0.05)
-    box(1.25, 0.95, 0.10, 0, 0.82, 1.15, "hq_red", 0.03)
-    box(0.5, 0.06, 0.62, 0, 1.11, 0.12, "black", 0.01)                # door
-    windows_row(-0.35, 0.35, 1.11, 1.32, 0.38, 2, "glass_lit", 0.04)
-    box(1.1, 0.8, 0.16, 0, 0.75, 2.02, "hq_red", 0.04)                # red crown
-    box(0.9, 0.6, 0.3, 0, 0.75, 2.18, "hq_wall", 0.04)
+    import random
+    rnd = random.Random(7)
+    # ---- grounds
+    box(3.92, 3.92, 0.1, m="concrete_dk", bevel=0.04)
+    box(3.7, 3.7, 0.015, 0, 0, 0.1, "concrete", 0.005)
+    box(0.9, 2.0, 0.012, 0.95, 0.9, 0.115, "asphalt", 0.003)                                        # drive to the gate
+    for i in range(6): box(0.04, 0.16, 0.004, 0.95, 0.15 + i * 0.32, 0.128, "gold", 0)            # yellow centre line
+    # ---- main block: three floors
+    W, D, H, cx, cy, z0 = 2.7, 1.9, 1.62, -0.25, -0.45, 0.115
+    box(W, D, H, cx, cy, z0, "hq_wall", 0.04)
+    box(W + 0.06, D + 0.06, 0.1, cx, cy, z0, "hq_red_dk", 0.02)                                     # plinth band
+    for k in range(1, 3): box(W + 0.03, D + 0.03, 0.035, cx, cy, z0 + k * 0.54, "concrete_dk", 0.005)  # floor lines
+    for sx in (-1, 1):                                                                               # red corner pillars
+        for sy in (-1, 1): box(0.14, 0.14, H + 0.08, cx + sx * W / 2, cy + sy * D / 2, z0, "hq_red", 0.02)
+    front, side = cy + D / 2, cx + W / 2
+    for f in range(3):
+        zf = z0 + 0.16 + f * 0.54
+        for i in range(6):
+            x = cx - W / 2 + 0.25 + i * (W - 0.5) / 5
+            if f == 0 and abs(x - 0.6) < 0.35: continue                                             # leave room for the entrance
+            window(x, front, zf, 0.24, 0.28, lit=rnd.random() < 0.25)
+        for i in range(4):
+            window(side, cy - D / 2 + 0.3 + i * (D - 0.6) / 3, zf, 0.22, 0.28, lit=rnd.random() < 0.25, face="x")
+        if f > 0:                                                                                     # wall AC units
+            box(0.13, 0.08, 0.09, cx - W / 2 + 0.55 + f * 0.6, front + 0.04, zf - 0.08, "white", 0.01)
+    # ---- roof
+    zr = z0 + H
+    box(W - 0.1, D - 0.1, 0.03, cx, cy, zr, "hq_roof", 0.005)
+    for sy in (-1, 1): box(W + 0.04, 0.07, 0.14, cx, cy + sy * (D / 2), zr, "hq_red", 0.01)        # parapet
+    for sx in (-1, 1): box(0.07, D + 0.04, 0.14, cx + sx * (W / 2), cy, zr, "hq_red", 0.01)
+    box(0.4, 0.34, 0.3, cx - 0.95, cy + 0.55, zr, "concrete", 0.02)                                 # stair hut
+    box(0.14, 0.02, 0.22, cx - 0.95, cy + 0.73, zr, "black", 0.005)
+    box(0.5, 0.5, 0.12, cx + 0.75, cy - 0.45, zr, "concrete_dk", 0.02)                              # radome plinth
+    sphere(0.3, cx + 0.75, cy - 0.45, zr + 0.12, "white", half=True)
+    cyl(0.16, 0.3, cx - 0.15, cy - 0.55, zr, "white", 20, 0.01); cyl(0.17, 0.03, cx - 0.15, cy - 0.55, zr + 0.3, "steel", 20, 0)  # water tank
+    for i in range(3):                                                                               # cooling fans
+        box(0.26, 0.26, 0.1, cx - 1.0 + i * 0.32, cy - 0.6, zr, "steel", 0.01)
+        cyl(0.09, 0.012, cx - 1.0 + i * 0.32, cy - 0.6, zr + 0.1, "black", 16, 0)
+    for i in range(4):                                                                               # solar panels on short legs
+        px = cx - 0.45 + i * 0.3
+        cyl(0.012, 0.1, px, cy + 0.2, zr, "steel", 6, 0)
+        pnl = box(0.27, 0.2, 0.02, px, cy + 0.2, zr + 0.09, "glass", 0.004); pnl.rotation_euler = (math.radians(-25), 0, 0)
+        box(0.27, 0.01, 0.022, px, cy + 0.11, zr + 0.13, "white", 0)
+    for k, (dx, dy, rz) in enumerate([(0.45, 0.45, 0.6), (0.15, 0.55, -0.4)]):                       # satellite dishes
+        cyl(0.025, 0.14, cx + dx, cy + dy, zr, "steel", 8, 0)
+        d = cyl(0.13, 0.05, cx + dx, cy + dy, zr + 0.14, "white", 20, 0.01, r2=0.02); d.rotation_euler = (math.radians(55), 0, rz)
+    # lattice comms mast with warning light
+    mx, my = cx + 1.05, cy + 0.5
     for sx in (-1, 1):
-        for sy in (-1, 1): sphere(0.045, sx * 0.4, 0.75 + sy * 0.25, 2.5, mat("red_light", 0.4, 0, 3.0))
-    # roof equipment
-    box(1.2, 0.8, 0.35, -0.6, -0.6, 1.61, "concrete", 0.04)
-    sphere(0.32, 0.85, -0.7, 1.61, "white", half=True)                 # radome
-    cyl(0.03, 1.6, 1.15, 0.1, 1.61, "steel", 8, 0)                       # antenna mast
-    sphere(0.05, 1.15, 0.1, 3.22, "red_light")
-    # flag
-    cyl(0.025, 1.9, -1.55, 1.55, 0.12, "white", 8, 0)
-    box(0.55, 0.02, 0.34, -1.27, 1.55, 1.65, "hq_red", 0.005)
-    # helipad on the side
-    cyl(0.62, 0.04, 1.35, 1.2, 0.12, "asphalt", 32, 0)
-    cyl(0.5, 0.045, 1.35, 1.2, 0.12, "white", 32, 0)
-    cyl(0.44, 0.05, 1.35, 1.2, 0.12, "asphalt", 32, 0)
-    box(0.08, 0.36, 0.01, 1.22, 1.2, 0.17, "white", 0); box(0.08, 0.36, 0.01, 1.48, 1.2, 0.17, "white", 0); box(0.26, 0.08, 0.01, 1.35, 1.2, 0.17, "white", 0)
-    # sandbag line in front
-    for i in range(6): box(0.34, 0.17, 0.14, -1.6 + i * 0.36, 1.82, 0.12, "sandbag", 0.05)
+        for sy in (-1, 1): cyl(0.012, 1.3, mx + sx * 0.06, my + sy * 0.06, zr, "steel", 6, 0)
+    for k in range(7): box(0.14, 0.14, 0.012, mx, my, zr + 0.15 + k * 0.17, "steel", 0)
+    sphere(0.04, mx, my, zr + 1.36, mat("red_light", 0.4, 0, 4.0))
+    # ---- entrance block
+    ex, ey = 0.6, front
+    box(0.95, 0.55, 1.15, ex, ey + 0.2, z0, "hq_wall", 0.03)
+    box(1.05, 0.62, 0.08, ex, ey + 0.22, z0 + 1.15, "hq_red", 0.02)
+    for sx in (-1, 1): box(0.07, 0.07, 0.62, ex + sx * 0.4, ey + 0.62, z0, "white", 0.01)          # canopy columns
+    box(1.0, 0.45, 0.05, ex, ey + 0.62, z0 + 0.62, "hq_red", 0.01)                                  # canopy
+    box(0.5, 0.03, 0.12, ex, ey + 0.86, z0 + 0.66, "white", 0.005)                                  # sign plate
+    box(0.42, 0.02, 0.05, ex, ey + 0.875, z0 + 0.695, "hq_red_dk", 0)                               # red stripe on the sign
+    sphere(0.035, ex, ey + 0.88, z0 + 0.72, mat("gold", 0.3, 0.8))                                   # gold emblem
+    box(0.42, 0.04, 0.5, ex, ey + 0.48, z0, "glass", 0.005)                                         # glass doors
+    box(0.02, 0.05, 0.5, ex, ey + 0.49, z0, "white", 0)
+    for k in range(3): box(0.6 + k * 0.08, 0.1, 0.035, ex, ey + 0.6 + k * 0.1, z0 - k * 0.035 + 0.07, "concrete", 0.005)  # steps
+    for f in range(1, 2): window(ex, ey + 0.475, z0 + 0.8, 0.5, 0.25, lit=True)
+    for sx in (-1, 1):
+        for zz in (0.8,): sphere(0.025, ex + sx * 0.38, ey + 0.48, z0 + zz + 0.3, mat("red_light", 0.4, 0, 3.0))
+    # ---- flags
+    for i, y in enumerate((0.45, 0.72, 0.99)):                                                       # three flagpoles on the left lawn
+        x = -1.75
+        cyl(0.016, 1.15 if i == 1 else 0.95, x, y, 0.115, "white", 8, 0)
+        box(0.012, 0.36, 0.22, x, y + 0.19, (1.0 if i == 1 else 0.8), "hq_red", 0.003)
+    # ---- gate: guard booth, boom barrier, road blocks
+    gx, gy = 0.95, 1.7
+    box(0.28, 0.28, 0.32, gx + 0.55, gy - 0.05, 0.115, "hq_wall", 0.02); box(0.32, 0.32, 0.04, gx + 0.55, gy - 0.05, 0.435, "hq_red", 0.01)
+    box(0.2, 0.02, 0.12, gx + 0.55, gy + 0.09, 0.27, "glass_lit", 0)
+    cyl(0.03, 0.2, gx + 0.4, gy + 0.15, 0.115, "black", 8, 0)
+    for i in range(5): box(0.16, 0.035, 0.035, gx + 0.3 - i * 0.16, gy + 0.15, 0.3, "hq_red" if i % 2 == 0 else "white", 0.004)
+    for x in (-0.25, 0.1, 2.2):
+        if x > 2: continue
+        for k in range(2): box(0.22, 0.09, 0.1, gx + x + k * 0.24 - 0.9, gy + 0.05, 0.115, "concrete", 0.02)
+    # ---- helipad with edge lights
+    hx, hy = -1.15, 1.05
+    cyl(0.62, 0.03, hx, hy, 0.115, "asphalt", 40, 0)
+    cyl(0.54, 0.032, hx, hy, 0.115, "white", 40, 0); cyl(0.49, 0.034, hx, hy, 0.115, "asphalt", 40, 0)
+    box(0.07, 0.34, 0.006, hx - 0.12, hy, 0.15, "white", 0); box(0.07, 0.34, 0.006, hx + 0.12, hy, 0.15, "white", 0); box(0.24, 0.07, 0.006, hx, hy, 0.15, "white", 0)
+    for k in range(10):
+        a = k / 10 * math.tau; sphere(0.025, hx + math.cos(a) * 0.6, hy + math.sin(a) * 0.6, 0.15, mat("gold", 0.4, 0, 2.5))
+    # ---- vehicles, planters, lamps, sandbags
+    jeep(1.55, -0.35, math.pi / 2); jeep(1.55, -0.85, math.pi / 2, "khaki")
+    for (x, y) in [(-1.75, -1.6), (1.65, -1.65), (-1.75, -0.2), (0.15, 1.55)]:
+        box(0.3, 0.3, 0.1, x, y, 0.115, "concrete", 0.02); tree(x, y + 0.0, 1.0)
+    for (x, y) in [(-0.2, 1.75), (1.75, 0.6), (-1.8, -0.8)]: lamp(x, y)
+    for i in range(5): box(0.3, 0.15, 0.13, -1.75 + 0.0, -1.2 + i * 0.27, 0.115, "sandbag", 0.04, rz=math.pi / 2)
 
 def treasury():
     box(2.9, 2.9, 0.12, m="stone_dk", bevel=0.04)
@@ -146,7 +240,7 @@ def treasury():
     box(2.1, 0.5, 0.12, 0, 0.62, 1.37, "stone", 0.02)                   # architrave
     # gold pediment & dome
     bpy.ops.mesh.primitive_cone_add(radius1=1.0, radius2=0, depth=1, vertices=3, location=(0, 0.62, 1.49 + 0.22), rotation=(math.pi / 2, 0, 0))
-    o = bpy.context.object; o.scale = (1.15, 0.45, 0.5); bpy.ops.object.transform_apply(scale=True, rotation=True); _finish(o, mat("gold", 0.3, 0.8), 0.02)
+    o = bpy.context.object; o.scale = (1.15, 0.45, 0.5); bpy.ops.object.transform_apply(location=False, scale=True, rotation=True); _finish(o, mat("gold", 0.3, 0.8), 0.02)
     cyl(0.62, 0.25, 0, -0.3, 1.42, "stone", 32, 0.02)
     sphere(0.56, 0, -0.3, 1.67, mat("gold", 0.25, 0.9), half=True)
     cyl(0.04, 0.35, 0, -0.3, 2.2, "gold_dk", 8, 0)
