@@ -1339,6 +1339,128 @@ def oilwell_level(level, rnd):
             box(0.12, 0.05, 0.06, x, y, Z0 + 0.9, "gunmetal", 0.006)
             box(0.1, 0.012, 0.045, x, y + 0.03, Z0 + 0.905, mat("glass_lit", 0.3, 0, 4.0), 0)
 
+# ---------------------------------------------------------------- TNT Plant (3×3, 10 levels): produces explosives
+def berm(x, y, w, d, h=0.3, t=0.24, m="grass"):
+    """U-shaped earth barricade around a process building, open toward +y."""
+    prism(w + t, t, h, x, y - d / 2, Z0, m, 0, 0.03)
+    for sx in (-1, 1): prism(d, t, h, x + sx * w / 2, y + 0.0, Z0, m, math.pi / 2, 0.03)
+
+def process_house(x, y, w, d, h=0.28, rnd=None):
+    """Explosives process building: light walls, blow-out roof panels, roof vent cowls, door canopy."""
+    box(w, d, h, x, y, Z0, "hq_wall", 0.015)
+    box(w + 0.02, d + 0.02, 0.04, x, y, Z0, "concrete_dk", 0.005)
+    prism(w + 0.05, d + 0.06, 0.09, x, y, Z0 + h, "white", 0, 0.006)                                      # light frangible roof
+    for k in range(2): cyl(0.025, 0.06, x - w / 4 + k * w / 2, y, Z0 + h + 0.07, "steel", 10, 0.004, r2=0.035)
+    box(0.12, 0.02, 0.18, x, y + d / 2 + 0.008, Z0, "gunmetal", 0.003)
+    box(0.18, 0.1, 0.015, x, y + d / 2 + 0.05, Z0 + 0.2, "hq_red", 0.003)
+    for sx in (-1, 1): box(0.1, 0.012, 0.08, x + sx * w * 0.3, y + d / 2 + 0.006, Z0 + 0.12, "glass", 0.002)
+    box(0.06, 0.012, 0.04, x - w * 0.3, y + d / 2 + 0.01, Z0 + h - 0.06, "red_band", 0.002)                 # danger plate
+
+def lightning_mast(x, y, h=0.95):
+    cyl(0.03, 0.04, x, y, Z0, "concrete", 10, 0.004)
+    cyl(0.01, h, x, y, Z0 + 0.04, "steel", 6, 0, r2=0.006)
+    cyl(0.004, 0.08, x, y, Z0 + 0.04 + h, "steel", 4, 0)
+
+def danger_flag(x, y, h=0.6):
+    cyl(0.01, h, x, y, Z0, "white", 6, 0)
+    box(0.008, 0.14, 0.09, x, y + 0.075, Z0 + h - 0.1, "red_band", 0.002)
+
+def tnt_crates(x, y, n=3):
+    for i in range(n):
+        cx, cz = x + (i % 2) * 0.13, Z0 + (i // 2) * 0.07
+        box(0.12, 0.09, 0.07, cx, y, cz, "olive", 0.008)
+        box(0.122, 0.092, 0.012, cx, y, cz + 0.035, "yellow_band", 0)
+
+def gallery(points, z=0.28):
+    """Covered conveyor gallery on posts, following straight segments between points."""
+    for (a, b) in zip(points, points[1:]):
+        dx, dy = b[0] - a[0], b[1] - a[1]; d = math.hypot(dx, dy); rz = math.atan2(dy, dx)
+        g = box(d + 0.08, 0.08, 0.07, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2, Z0 + z, "hq_roof", 0.006); g.rotation_euler = (0, 0, rz)
+        for k in range(int(d / 0.3) + 1):
+            t = k / max(1, int(d / 0.3))
+            cyl(0.01, z, a[0] + dx * t, a[1] + dy * t, Z0, "steel", 6, 0)
+
+def pond(x, y, w, d):
+    box(w + 0.08, d + 0.08, 0.05, x, y, Z0, "concrete", 0.008)
+    box(w, d, 0.02, x, y, Z0 + 0.035, mat("glass", 0.1, 0.2), 0)
+    for sx in (-1, 1): cyl(0.006, 0.08, x + sx * w / 2, y + d / 2 + 0.04, Z0 + 0.05, "steel", 4, 0)
+    box(w, 0.006, 0.006, x, y + d / 2 + 0.04, Z0 + 0.12, "steel", 0)
+
+def nitration_tower(x, y, w=0.34, h=0.85):
+    box(w, w, h, x, y, Z0, "concrete", 0.02)
+    for k in range(3): box(w + 0.01, 0.012, 0.06, x, y + w / 2 + 0.002, Z0 + 0.15 + k * 0.25, "glass", 0.002)
+    for k in range(3): box(0.012, w + 0.01, 0.06, x + w / 2 + 0.002, y, Z0 + 0.15 + k * 0.25, "glass", 0.002)
+    box(w + 0.04, w + 0.04, 0.04, x, y, Z0 + h, "hq_red", 0.006)
+    cyl(0.035, 0.4, x - 0.06, y - 0.06, Z0 + h + 0.04, "gunmetal", 10, 0)
+    cyl(0.05, 0.03, x - 0.06, y - 0.06, Z0 + h + 0.44, "gunmetal", 10, 0)
+
+def control_bunker(x, y):
+    box(0.42, 0.36, 0.2, x, y, Z0, "grass", 0.08)
+    box(0.3, 0.06, 0.2, x, y + 0.18, Z0, "concrete", 0.01)
+    box(0.12, 0.02, 0.15, x, y + 0.21, Z0, "gunmetal", 0.003)
+    box(0.18, 0.012, 0.04, x + 0.0, y + 0.215, Z0 + 0.16, "glass_lit", 0.002)
+    cyl(0.02, 0.12, x - 0.1, y - 0.05, Z0 + 0.18, "steel", 8, 0)
+    dish(x + 0.08, y - 0.05, Z0 + 0.2, 0.06, 0.6)
+
+def tnt_level(level, rnd):
+    plot(3, "sand" if level <= 2 else "grass")
+    if level == 1:
+        # Field explosives workshop: timber shed behind an earth berm, crates, danger flag, lightning rod.
+        for (x, y, sx, sy) in [(-1.0, 1.0, 0.45, 0.35), (1.05, -1.0, 0.4, 0.35)]: box(sx, sy, 0.008, x, y, Z0, "grass", 0.004)
+        berm(-0.2, -0.3, 0.7, 0.6, 0.26, 0.22, "khaki")
+        box(0.45, 0.35, 0.24, -0.2, -0.3, Z0, "wood", 0.012); prism(0.5, 0.42, 0.1, -0.2, -0.3, Z0 + 0.24, "olive_dk", 0, 0.006)
+        box(0.1, 0.02, 0.17, -0.2, -0.12, Z0, "olive_dk", 0.003)
+        tnt_crates(0.45, 0.35, 4); tnt_crates(-0.75, 0.55, 3)
+        danger_flag(0.6, -0.3); lightning_mast(-0.75, -0.75, 0.8)
+        return
+    if level == 2:
+        # Container laboratory in an earth berm, acid drums, fenced.
+        box(0.9, 0.24, 0.01, 0.95, 0.85, Z0, "khaki", 0.003)
+        berm(-0.3, -0.45, 1.05, 0.7, 0.3, 0.24, "khaki")
+        container(-0.3, -0.45, 0.8, "khaki")
+        box(0.16, 0.03, 0.3, -0.1, -0.195, Z0 + 0.04, "gunmetal", 0.004)
+        for i in range(4): cyl(0.05, 0.14, 0.45 + (i % 2) * 0.11, 0.25 + (i // 2) * 0.11, Z0, "uav_grey", 12, 0.006)   # acid drums
+        tnt_crates(-0.7, 0.4, 4)
+        danger_flag(0.7, -0.4); lightning_mast(-1.0, -1.0, 0.85); lightning_mast(0.45, -0.95, 0.85)
+        fence(gap=(0.72, 0.98), e=1.36); box(0.02, 0.26, 0.02, 1.36, 0.85, Z0 + 0.2, "yellow_band", 0.003)
+        return
+    # ---- 3–10: TNT works. Reference: US Army ammunition plants (Radford, Holston) and MKEK: separated process houses
+    # in earth barricades, covered conveyor galleries, nitration tower, acid tanks, settling pond, lightning masts.
+    small_gate()
+    berm(-0.5, -0.55, 0.75, 0.6)
+    process_house(-0.5, -0.6, 0.55, 0.4, rnd=rnd)
+    for (x, y) in ((-0.95, -0.95), (-0.05, -0.95)): lightning_mast(x, y)
+    if level >= 4:
+        berm(0.45, -0.55, 0.75, 0.6)
+        process_house(0.45, -0.6, 0.55, 0.4, rnd=rnd)
+        lightning_mast(0.9, -0.95)
+        gallery([(-0.5, -0.32), (-0.5, -0.05), (0.45, -0.05), (0.45, -0.32)])
+    bund(-0.78, 0.5, 0.8, 0.45)
+    vtank(-0.95, 0.5, 0.13, 0.32, "uav_grey"); vtank(-0.6, 0.5, 0.13, 0.32, "white")
+    if level >= 5:
+        nitration_tower(0.05, 0.45)
+        ypipe(0.05, -0.05, 0.28, Z0 + 0.28, 0.014)
+    if level >= 6:
+        pond(0.85, 0.22, 0.5, 0.36)
+    if level >= 8:
+        column(-1.12, -0.1, 0.06, 0.8)
+        hpipe(-1.05, -0.65, -0.1, Z0 + 0.3, 0.014)
+    if level >= 9: chimney(1.12, -1.1, 1.35)
+    tnt_crates(0.55, 0.55, 4 if level >= 9 else 3)
+    if level >= 10:
+        control_bunker(-1.1, -1.12)
+        for (x, y) in ((1.25, 0.6), (-0.3, 1.25)):
+            cyl(0.016, 1.1, x, y, Z0, "steel", 8, 0)
+            box(0.14, 0.05, 0.07, x, y, Z0 + 1.1, "gunmetal", 0.006)
+            box(0.12, 0.012, 0.05, x, y + 0.03, Z0 + 1.105, mat("glass_lit", 0.3, 0, 4.0), 0)
+    danger_flag(-0.15, 0.25) if level < 5 else danger_flag(-0.3, 0.3)
+    if level >= 7:
+        perimeter_wall(gap=(0.72, 0.98), e=1.38)
+        watchtower(-1.2, 1.2)
+    else:
+        fence(gap=(0.72, 0.98), e=1.36)
+        trees([(-1.15, 1.15, 0.7)] if level < 6 else [])
+
 def sam_site():
     """Hisar-A+ style low-altitude SAM site (2×2 tiles)."""
     box(1.95, 1.95, 0.08, m="concrete_dk", bevel=0.03)
@@ -1370,6 +1492,7 @@ def sam_site():
 BUILDERS = {**{f"hq_{n}": (lambda n=n: hq_level(n)) for n in range(1, 11)}, "builder_1": lambda: builder_1(__import__("random").Random(7)),
             **{f"power_{n}": (lambda n=n: globals()[f"power_{n}"](__import__("random").Random(7))) for n in range(1, 7)},
             **{f"oilwell_{n}": (lambda n=n: oilwell_level(n, __import__("random").Random(7))) for n in range(1, 11)},
+            **{f"tnt_{n}": (lambda n=n: tnt_level(n, __import__("random").Random(7))) for n in range(1, 11)},
             **{f"radar_{n}": (lambda n=n: globals()[f"radar_{n}"](__import__("random").Random(7))) for n in range(1, 5)}, **{f"treasury_{n}": (lambda n=n: treasury_level(n, __import__("random").Random(7))) for n in range(1, 11)}, "def_hisara": sam_site}
 
 # ---------------------------------------------------------------- scene, export, preview
@@ -1411,6 +1534,6 @@ def export(name):
 if __name__ == "__main__":
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     ids = argv or list(BUILDERS)
-    sizes = {**{f"hq_{n}": 4 for n in range(1, 11)}, "builder_1": 2, **{f"radar_{n}": 3 for n in range(1, 5)}, **{f"power_{n}": 3 for n in range(1, 7)}, **{f"oilwell_{n}": 2 for n in range(1, 11)}, **{f"treasury_{n}": 3 for n in range(1, 11)}, "def_hisara": 2}
+    sizes = {**{f"hq_{n}": 4 for n in range(1, 11)}, "builder_1": 2, **{f"radar_{n}": 3 for n in range(1, 5)}, **{f"power_{n}": 3 for n in range(1, 7)}, **{f"oilwell_{n}": 2 for n in range(1, 11)}, **{f"tnt_{n}": 3 for n in range(1, 11)}, **{f"treasury_{n}": 3 for n in range(1, 11)}, "def_hisara": 2}
     for i in ids:
         reset(); BUILDERS[i](); export(i); preview(i, sizes.get(i, 3)); print("built", i)
