@@ -629,6 +629,15 @@ def wheel(x, y, r=0.07, w=0.05):
     cyl(r, w, x, y - w / 2, r, "black", 14, 0.005, rx=math.pi / 2)
     cyl(r * 0.5, w + 0.006, x, y - w / 2 - 0.003, r, "gunmetal", 10, 0, rx=math.pi / 2)
 
+def htank(x, y, L, r, m="concrete", lift=0.06):
+    """Horizontal cylindrical tank along x on two saddles."""
+    bpy.ops.mesh.primitive_cylinder_add(radius=r, depth=L, vertices=20, location=(x, y, Z0 + lift + r), rotation=(0, math.pi / 2, 0))
+    _finish(bpy.context.object, mat(m), 0.015, smooth=True)
+    for sx in (-1, 1): box(0.05, r * 1.5, lift + r * 0.6, x + sx * L * 0.32, y, Z0, "concrete_dk", 0.005)
+    for sx in (-1, 1):
+        bpy.ops.mesh.primitive_uv_sphere_add(radius=r, segments=20, ring_count=10, location=(x + sx * L / 2, y, Z0 + lift + r))
+        o = bpy.context.object; o.scale = (0.35, 1, 1); _finish(o, mat(m), 0, smooth=True)
+
 # ---------------------------------------------------------------- Radar Station (3×3, 4 levels)
 def radar_1(rnd):
     """Field radar. Reference: P-18 'Spoon Rest' VHF radar: cabin on a two-axle trailer with a rotating
@@ -689,8 +698,7 @@ def radar_2(rnd):
     for k in range(2): box(0.24 - k * 0.05, 0.08, 0.03, -0.15, 0.75 + k * 0.07, Z0 + (1 - k) * 0.03, "steel", 0.004)
     for k in range(5): box(0.1, 0.06, 0.02, -0.05 + k * 0.1, 0.1 - k * 0.1, Z0, "black", 0.005)          # cable tray to the antenna
     generator(-0.9, -0.55); generator(-0.9, -0.9)
-    cyl(0.1, 0.5, -0.35, -0.95, Z0 + 0.1, "olive_dk", 16, 0.01, ry=math.pi / 2)                             # fuel bowser tank
-    for sx in (-1, 1): box(0.04, 0.16, 0.1, -0.35 + sx * 0.18, -0.95, Z0, "gunmetal", 0.004)
+    htank(-0.35, -0.95, 0.5, 0.1, "olive_dk")                                                               # fuel tank
     lattice_mast(1.05, -1.0, Z0, 0.9)
     fence(gap=(0.72, 0.98), e=1.36)
     box(0.02, 0.26, 0.02, 1.36, 0.85, Z0 + 0.2, "yellow_band", 0.003)
@@ -754,11 +762,221 @@ def radar_4(rnd):
     grouped("radar_rotor_iff", (-0.75, 0.5, zr), lambda: planar_array(0.5, 0.3, 10), math.radians(-30))
     for i in range(2): box(0.18, 0.18, 0.08, -0.25 + i * 0.22, 0.4, zr, "steel", 0.01); cyl(0.06, 0.01, -0.25 + i * 0.22, 0.4, zr + 0.08, "black", 16, 0)
     hq_block(-0.85, -0.8, 0.6, 0.45, 1, rnd)                                                                  # generator house
-    cyl(0.1, 0.55, -0.85, -1.15, Z0 + 0.1, "concrete", 16, 0.01, ry=math.pi / 2)                               # fuel tank
+    htank(-0.85, -1.15, 0.55, 0.1, "concrete")                                                               # fuel tank
     lattice_mast(-0.2, -1.05, Z0, 1.3)
     perimeter_wall(gap=(0.72, 0.98), e=1.38)
     lamps([(0.75, 0.25), (-1.1, 1.1)])
     trees([(1.0, 0.2, 0.7)])
+
+# ---------------------------------------------------------------- Power Plant (3×3, 6 levels)
+def genset(x, y, L=0.42, W=0.26, H=0.26, col="tan", rz=0, base=0.0):
+    """Generator set in an acoustic enclosure: louvres on the sides, exhaust stack with rain cap, optional base fuel tank."""
+    bpy.ops.object.empty_add(location=(x, y, 0)); g = bpy.context.object
+    p = []
+    if base: p.append(box(L + 0.04, W + 0.04, base, 0, 0, Z0, "gunmetal", 0.008))
+    z = Z0 + base
+    p.append(box(L, W, H, 0, 0, z, col, 0.012))
+    for sy in (-1, 1):
+        for k in range(4): p.append(box(L * 0.3, 0.012, 0.012, -L * 0.25, sy * (W / 2 + 0.004), z + 0.06 + k * (H - 0.1) / 3, "black", 0))
+        p.append(box(0.1, 0.012, H * 0.6, L * 0.22, sy * (W / 2 + 0.004), z + H * 0.2, "olive_dk", 0.002))      # access door
+    p.append(box(0.012, W * 0.7, H * 0.7, L / 2 + 0.004, 0, z + H * 0.15, "black", 0.002))                       # radiator grille
+    p.append(cyl(0.022, 0.16, -L * 0.3, 0, z + H, "black", 10, 0)); p.append(cyl(0.032, 0.02, -L * 0.3, 0, z + H + 0.16, "gunmetal", 10, 0))
+    p.append(box(0.08, 0.06, 0.03, L * 0.3, W / 2 - 0.05, z + H, "gunmetal", 0.004))
+    for o in p: o.parent = g
+    g.rotation_euler = (0, 0, rz)
+    return g
+
+def bund(x, y, sx, sy, h=0.07):
+    box(sx, sy, 0.012, x, y, Z0, "concrete", 0.003)
+    for (bx, by, w, d) in ((x, y + sy / 2, sx, 0.04), (x, y - sy / 2, sx, 0.04), (x + sx / 2, y, 0.04, sy), (x - sx / 2, y, 0.04, sy)):
+        box(w, d, h, bx, by, Z0, "concrete", 0.006)
+
+def transformer(x, y, s=1.0):
+    box(0.26 * s, 0.2 * s, 0.24 * s, x, y, Z0 + 0.03, "gunmetal", 0.01)
+    box(0.3 * s, 0.24 * s, 0.03, x, y, Z0, "concrete", 0.005)
+    for k in range(5):
+        for sy in (-1, 1): box(0.012, 0.05 * s, 0.18 * s, x - 0.1 * s + k * 0.05 * s, y + sy * 0.12 * s, Z0 + 0.06, "steel", 0)   # cooling fins
+    for k in range(3):
+        bx = x - 0.08 * s + k * 0.08 * s
+        for j in range(3): cyl(0.022 - j * 0.002, 0.03, bx, y, Z0 + 0.27 * s + j * 0.03, "white", 10, 0.004)          # bushings
+    box(0.1 * s, 0.08 * s, 0.06, x + 0.1 * s, y, Z0 + 0.27 * s, "gunmetal", 0.004)
+
+def gantry(x, y, w=0.6, h=0.6, along="y"):
+    """Substation steel gantry: two lattice legs and a crossbeam with hanging insulators."""
+    for t in (-w / 2, w / 2):
+        px, py = (x, y + t) if along == "y" else (x + t, y)
+        for a in (-0.025, 0.025):
+            for b in (-0.025, 0.025): cyl(0.007, h, px + a, py + b, Z0, "steel", 4, 0)
+        for k in range(int(h / 0.1)): box(0.06, 0.06, 0.006, px, py, Z0 + 0.05 + k * 0.1, "steel", 0)
+    box(0.04 if along == "y" else w + 0.06, w + 0.06 if along == "y" else 0.04, 0.04, x, y, Z0 + h, "steel", 0.003)
+    for k in range(3):
+        t = -w * 0.3 + k * w * 0.3
+        px, py = (x, y + t) if along == "y" else (x + t, y)
+        for j in range(3): cyl(0.016, 0.022, px, py, Z0 + h - 0.08 + j * 0.024, "white", 8, 0.003)
+
+def pole_line(points, h=0.65):
+    """Wooden power poles with cross-arms and wires between them."""
+    for (x, y) in points:
+        cyl(0.016, h, x, y, Z0, "wood", 8, 0); box(0.03, 0.22, 0.02, x, y, Z0 + h - 0.06, "wood", 0)
+        for t in (-0.09, 0, 0.09): cyl(0.008, 0.025, x, y + t, Z0 + h - 0.04, "white", 6, 0)
+    for (a, b) in zip(points, points[1:]):
+        dx, dy = b[0] - a[0], b[1] - a[1]; d = math.hypot(dx, dy)
+        for t in (-0.09, 0, 0.09):
+            w = box(d, 0.004, 0.004, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2 + t, Z0 + h - 0.02, "black", 0); w.rotation_euler = (0, 0, math.atan2(dy, dx))
+
+def power_hall(x, y, L, W, H, stacks, rnd, col="steel"):
+    """Engine hall: corrugated steel sides, low gable roof, roll-up doors, a row of exhaust stacks with silencers."""
+    box(L, W, H, x, y, Z0, col, 0.02)
+    for k in range(int(L / 0.06)):
+        for sy in (-1, 1): box(0.012, 0.01, H - 0.04, x - L / 2 + 0.04 + k * 0.06, y + sy * (W / 2 + 0.004), Z0 + 0.02, "gunmetal", 0)   # ribs
+    prism(L + 0.06, W + 0.08, 0.12, x, y, Z0 + H, "hq_roof", 0, 0.008)
+    for i in range(stacks):                                                                                   # doors on the +y side, between stacks
+        dx = x - L / 2 + (i + 0.5) * L / stacks
+        box(0.16, 0.02, 0.2, dx, y + W / 2 + 0.01, Z0, "gunmetal", 0.003)
+        for k in range(4): box(0.165, 0.024, 0.006, dx, y + W / 2 + 0.012, Z0 + 0.03 + k * 0.045, "steel", 0)
+        bpy.ops.mesh.primitive_cylinder_add(radius=0.05, depth=0.22, vertices=14, location=(dx, y - 0.05, Z0 + H + 0.2), rotation=(0, math.pi / 2, 0))
+        _finish(bpy.context.object, mat("gunmetal"), 0.01, smooth=True)                                     # silencer
+        cyl(0.03, H * 0.6 + 0.35, dx + 0.08, y - 0.05, Z0 + H, "black", 12, 0)                                # exhaust stack
+        cyl(0.04, 0.02, dx + 0.08, y - 0.05, Z0 + H * 1.6 + 0.35, "black", 12, 0)
+        for sx in (-1, 1): box(0.02, 0.02, 0.2, dx + sx * 0.08, y - 0.05, Z0 + H, "steel", 0)
+    for k in range(3): box(0.012, 0.14, 0.04, x + L / 2 + 0.006, y - 0.2 + k * 0.2, Z0 + H - 0.1, "black", 0)  # vents on the end wall
+    box(0.012, 0.16, 0.22, x + L / 2 + 0.006, y + 0.1, Z0, "olive_dk", 0.002)                                # personnel door
+
+def radiators(x, y, n=2):
+    """Remote radiator bank: fan units on a steel frame."""
+    for i in range(n):
+        box(0.3, 0.3, 0.2, x, y + i * 0.32, Z0, "steel", 0.01)
+        for j in range(2): cyl(0.065, 0.012, x - 0.07 + j * 0.14, y + i * 0.32, Z0 + 0.2, "black", 16, 0)
+        for j in range(2): cyl(0.012, 0.016, x - 0.07 + j * 0.14, y + i * 0.32, Z0 + 0.205, "gunmetal", 8, 0)
+
+def chimney(x, y, h=1.6):
+    cyl(0.16, 0.06, x, y, Z0, "concrete_dk", 20, 0.01)
+    cyl(0.12, h, x, y, Z0 + 0.06, "concrete", 20, 0.01, r2=0.085)
+    for k in range(2): cyl(0.09 - k * 0.005, 0.05, x, y, Z0 + h - 0.14 + k * 0.08, "red_band" if k == 0 else "white", 20, 0)
+    sphere(0.025, x + 0.09, y, Z0 + h + 0.02, mat("red_light", 0.4, 0, 4.0))
+
+def solar_rows(x, y, rows, n, w=0.22):
+    for r in range(rows):
+        for i in range(n):
+            px, py = x + i * (w + 0.02), y + r * 0.3
+            cyl(0.01, 0.1, px, py - 0.04, Z0, "steel", 6, 0)
+            p = box(w, 0.2, 0.015, px, py, Z0 + 0.1, "glass", 0.003); p.rotation_euler = (math.radians(-28), 0, 0)
+            box(w, 0.006, 0.016, px, py + 0.09, Z0 + 0.145, "steel", 0)
+
+def battery_container(x, y):
+    container(x, y, 0.8, "uav_grey")
+    for k in range(3): box(0.14, 0.02, 0.32, x - 0.25 + k * 0.25, y + 0.255, Z0 + 0.08, "gunmetal", 0.003)
+    box(0.12, 0.08, 0.1, x + 0.3, y, Z0 + 0.52, "white", 0.008)
+
+def power_1(rnd):
+    """Field power point. Reference: US Army AMMPS tactical generator sets: two skid-mounted gensets,
+    a fuel pillow tank (bladder) in a sandbag berm, cable reels and a power distribution box."""
+    plot(3, "sand")
+    for (x, y, sx, sy) in [(-1.0, 1.0, 0.45, 0.35), (1.05, -1.0, 0.4, 0.35)]: box(sx, sy, 0.008, x, y, Z0, "grass", 0.004)
+    for (x, y) in ((0.35, -0.35), (0.35, 0.25)):
+        box(0.5, 0.32, 0.04, x, y, Z0, "gunmetal", 0.006)                                                   # skid
+        genset(x, y, 0.44, 0.28, 0.26, "tan", base=0.04)
+    sandbags(0.35, -0.05, 0.48, 0.72, Z0, n=18, gap_at=0)
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.4, segments=24, ring_count=12, location=(-0.78, 0.35, Z0 + 0.04))  # fuel bladder
+    o = bpy.context.object; o.scale = (0.85, 0.65, 0.16); _finish(o, mat("olive_dk", 0.8), 0, smooth=True)
+    sandbags(-0.78, 0.35, 0.5, 0.4, Z0, n=14)
+    for k in range(4): box(0.1, 0.02, 0.02, -0.4 + k * 0.1, 0.3 - k * 0.04, Z0, "black", 0.004)          # fuel hose
+    box(0.18, 0.1, 0.22, 0.95, 0.65, Z0, "olive", 0.01)                                                     # distribution box
+    box(0.12, 0.012, 0.12, 0.95, 0.705, Z0 + 0.06, "yellow_band", 0.002)
+    for (x, y) in ((-0.8, -0.8), (-0.55, -0.85)):                                                          # cable reels
+        bpy.ops.mesh.primitive_cylinder_add(radius=0.09, depth=0.08, vertices=16, location=(x, y, Z0 + 0.09), rotation=(math.pi / 2, 0, 0))
+        _finish(bpy.context.object, mat("wood"), 0.006, smooth=True)
+        bpy.ops.mesh.primitive_cylinder_add(radius=0.065, depth=0.085, vertices=16, location=(x, y, Z0 + 0.09), rotation=(math.pi / 2, 0, 0))
+        _finish(bpy.context.object, mat("black"), 0, smooth=True)
+    for k in range(5): box(0.12, 0.02, 0.02, 0.65 + k * 0.0, 0.25 + k * 0.1, Z0, "black", 0.004)            # cable to the box
+    drums(-1.05, -0.3, 3); crates(1.0, -0.85)
+
+def power_2(rnd):
+    """Prime power compound. Reference: containerised / enclosed diesel gensets on base fuel tanks (e.g. Caterpillar,
+    Cummins prime power units on forward bases), a switchgear shelter and a bulk fuel tank in a concrete bund."""
+    plot(3, "sand")
+    box(0.9, 0.24, 0.01, 0.95, 0.85, Z0, "khaki", 0.003)
+    box(1.6, 0.9, 0.03, 0.15, -0.35, Z0, "concrete", 0.006)
+    for y in (-0.6, -0.1): genset(0.15, y, 1.0, 0.36, 0.36, "tan", base=0.07)
+    container(-0.75, 0.55, 0.7, "olive")                                                                     # switchgear shelter
+    box(0.16, 0.03, 0.3, -0.55, 0.805, Z0 + 0.04, "gunmetal", 0.004)
+    box(0.1, 0.03, 0.1, -0.55, 0.81, Z0 + 0.36, "yellow_band", 0.003)
+    bund(0.45, 0.55, 0.85, 0.45); htank(0.45, 0.55, 0.65, 0.13, "olive_dk")
+    for k in range(6): box(0.1, 0.06, 0.02, -0.55 + k * 0.05, 0.3 - k * 0.08, Z0, "black", 0.004)           # cable tray
+    fence(gap=(0.72, 0.98), e=1.36)
+    box(0.02, 0.26, 0.02, 1.36, 0.85, Z0 + 0.2, "yellow_band", 0.003)
+    sandbags(-1.0, -0.9, 0.25, 0.18, Z0, n=8)
+
+def power_3(rnd):
+    """Diesel power station. Reference: base power plants with an engine hall, a row of exhaust stacks and silencers
+    on the roof, remote radiator fans, horizontal fuel tanks in a bund and a step-up transformer."""
+    plot(3, "grass")
+    box(1.0, 0.24, 0.012, 0.95, 0.85, Z0, "asphalt", 0.003)
+    box(2.4, 0.5, 0.012, 0.0, 0.62, Z0, "concrete", 0.003)
+    power_hall(-0.15, -0.3, 1.5, 0.75, 0.5, 3, rnd)
+    radiators(0.95, -0.55, 2)
+    bund(-0.65, 0.75, 1.0, 0.55); htank(-0.65, 0.68, 0.8, 0.14, "concrete")
+    transformer(0.45, 0.55)
+    fence(gap=(0.72, 0.98), e=1.36)
+    lamps([(0.15, 0.95)])
+    trees([(-1.15, -1.15, 0.7)])
+
+def power_4(rnd):
+    """Power station with switchyard. As level 3 with a longer hall, two fuel tanks and an outdoor substation
+    (transformers, steel gantries, insulators) feeding a pole line."""
+    plot(3, "grass")
+    box(1.0, 0.24, 0.012, 0.95, 0.85, Z0, "asphalt", 0.003)
+    power_hall(-0.3, -0.45, 1.9, 0.75, 0.55, 4, rnd)
+    radiators(1.0, -0.75, 2)
+    bund(-0.75, 0.65, 1.15, 0.75)
+    for y in (0.48, 0.82): htank(-0.75, y, 0.9, 0.12, "concrete")
+    box(0.75, 0.75, 0.012, 0.6, 0.3, Z0, "sand", 0.003)                                                       # gravel switchyard
+    transformer(0.4, 0.15); transformer(0.78, 0.15)
+    gantry(0.6, 0.55, 0.6, 0.55, along="x")
+    pole_line([(0.6, 0.62), (0.15, 1.15), (-0.45, 1.25)])
+    fence(gap=(0.72, 0.98), e=1.36)
+    lamps([(1.15, 0.45)])
+
+def power_5(rnd):
+    """Gas-turbine / combined plant. Reference: larger base plants with a two-bay turbine hall, a tall concrete
+    exhaust chimney with aviation markings, a vertical fuel storage tank in a bund and a switchyard."""
+    plot(3, "grass")
+    box(1.0, 0.24, 0.012, 0.95, 0.85, Z0, "asphalt", 0.003)
+    power_hall(-0.25, -0.45, 1.6, 0.85, 0.7, 3, rnd, "concrete")
+    chimney(0.9, -0.85, 1.65)
+    for k in range(2): box(0.35, 0.08, 0.08, 0.68 - k * 0.0, -0.75, Z0 + 0.3 + k * 0.2, "gunmetal", 0.008)   # flue duct to the chimney
+    radiators(0.95, -0.3, 1)
+    bund(-0.8, 0.7, 0.75, 0.75)
+    cyl(0.3, 0.45, -0.8, 0.7, Z0, "concrete", 28, 0.01)                                                      # vertical storage tank
+    cyl(0.31, 0.06, -0.8, 0.7, Z0 + 0.45, "concrete_dk", 28, 0.01, r2=0.05)
+    for k in range(6): box(0.04, 0.012, 0.012, -0.5 + 0.0, 0.7, Z0 + 0.07 * k, "steel", 0)                   # ladder
+    box(0.7, 0.6, 0.012, 0.55, 0.35, Z0, "sand", 0.003)
+    transformer(0.4, 0.25); transformer(0.75, 0.25)
+    gantry(0.58, 0.58, 0.6, 0.55, along="x")
+    pole_line([(0.58, 0.64), (0.1, 1.2)])
+    fence(gap=(0.72, 0.98), e=1.36)
+    lamps([(1.15, 0.5), (-0.2, 0.95)])
+
+def power_6(rnd):
+    """Hardened plant with microgrid. Reference: earth-covered (bermed) power plant with concrete portal and stack vents,
+    plus US Army base microgrids: solar arrays and battery-storage containers, switchyard, security wall."""
+    plot(3, "grass")
+    box(1.0, 0.24, 0.012, 0.95, 0.85, Z0, "asphalt", 0.003)
+    box(1.5, 0.95, 0.4, -0.45, -0.75, Z0, "grass", 0.15)                                                      # earth-covered hall
+    box(1.55, 0.08, 0.42, -0.45, -0.26, Z0, "concrete", 0.01)                                                # concrete front wall
+    for i in range(3):
+        dx = -0.95 + i * 0.5
+        box(0.24, 0.03, 0.26, dx, -0.21, Z0, "gunmetal", 0.004)                                               # blast doors
+        for k in range(5): box(0.025, 0.035, 0.03, dx - 0.1 + k * 0.05, -0.21, Z0 + 0.28, "yellow_band" if k % 2 == 0 else "black", 0)
+        cyl(0.04, 0.3, dx, -0.8, Z0 + 0.38, "black", 12, 0); cyl(0.055, 0.025, dx, -0.8, Z0 + 0.68, "gunmetal", 12, 0)   # stack vents
+    chimney(0.95, -0.95, 1.55)
+    solar_rows(-1.15, 0.35, 3, 4)
+    battery_container(0.85, -0.2)
+    box(0.7, 0.55, 0.012, 0.75, 0.75, Z0, "sand", 0.003)
+    transformer(0.6, 0.6); transformer(0.95, 0.6, 0.8)
+    gantry(0.8, 0.95, 0.55, 0.5, along="x")
+    perimeter_wall(gap=(0.72, 0.98), e=1.38)
+    lamps([(0.15, 0.5)])
 
 def treasury():
     box(2.9, 2.9, 0.12, m="stone_dk", bevel=0.04)
@@ -817,6 +1035,7 @@ def sam_site():
     box(0.18, 0.14, 0.1, 0.6, -0.52, 0.18, "olive", 0.015)
 
 BUILDERS = {**{f"hq_{n}": (lambda n=n: hq_level(n)) for n in range(1, 11)}, "builder_1": lambda: builder_1(__import__("random").Random(7)),
+            **{f"power_{n}": (lambda n=n: globals()[f"power_{n}"](__import__("random").Random(7))) for n in range(1, 7)},
             **{f"radar_{n}": (lambda n=n: globals()[f"radar_{n}"](__import__("random").Random(7))) for n in range(1, 5)}, "treasury": treasury, "def_hisara": sam_site}
 
 # ---------------------------------------------------------------- scene, export, preview
@@ -858,6 +1077,6 @@ def export(name):
 if __name__ == "__main__":
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     ids = argv or list(BUILDERS)
-    sizes = {**{f"hq_{n}": 4 for n in range(1, 11)}, "builder_1": 2, **{f"radar_{n}": 3 for n in range(1, 5)}, "treasury": 3, "def_hisara": 2}
+    sizes = {**{f"hq_{n}": 4 for n in range(1, 11)}, "builder_1": 2, **{f"radar_{n}": 3 for n in range(1, 5)}, **{f"power_{n}": 3 for n in range(1, 7)}, "treasury": 3, "def_hisara": 2}
     for i in ids:
         reset(); BUILDERS[i](); export(i); preview(i, sizes.get(i, 3)); print("built", i)
