@@ -17,16 +17,19 @@ os.makedirs(OUT_GLB, exist_ok=True); os.makedirs(OUT_PNG, exist_ok=True)
 # ---------------------------------------------------------------- palette
 # One family of colours per building category, plus shared neutrals.
 PAL = {
-    "concrete": (0.80, 0.78, 0.73), "concrete_dk": (0.55, 0.54, 0.51), "asphalt": (0.18, 0.19, 0.21),
-    "steel": (0.42, 0.46, 0.50), "glass": (0.16, 0.48, 0.85), "glass_lit": (0.75, 0.88, 1.0),
-    "white": (0.93, 0.94, 0.95), "sand": (0.84, 0.74, 0.52), "grass": (0.36, 0.55, 0.24), "wood": (0.55, 0.36, 0.20),
-    # HQ: command red & white
-    "hq_red": (0.86, 0.10, 0.08), "hq_red_dk": (0.55, 0.05, 0.04), "hq_wall": (0.95, 0.92, 0.84), "hq_roof": (0.36, 0.38, 0.42),
-    # Resources: gold & amber
-    "gold": (1.0, 0.74, 0.12), "gold_dk": (0.78, 0.50, 0.06), "stone": (0.94, 0.90, 0.80), "stone_dk": (0.75, 0.70, 0.60),
-    # Defence: grey-green military with a bright cyan accent
-    "olive": (0.30, 0.42, 0.18), "olive_dk": (0.18, 0.26, 0.10), "khaki": (0.70, 0.62, 0.36), "accent": (0.0, 0.75, 1.0),
-    "sandbag": (0.66, 0.58, 0.40), "net": (0.30, 0.36, 0.20), "black": (0.06, 0.06, 0.07), "red_light": (1.0, 0.15, 0.1),
+    # Army palette (Mert, 10 Oct): olive drab, khaki, sand, dark green, gunmetal. Bright colours only for small lights/markings.
+    "concrete": (0.62, 0.60, 0.54), "concrete_dk": (0.42, 0.41, 0.37), "asphalt": (0.16, 0.17, 0.17),
+    "steel": (0.32, 0.34, 0.33), "gunmetal": (0.22, 0.24, 0.25), "glass": (0.18, 0.26, 0.28), "glass_lit": (0.95, 0.85, 0.55),
+    "white": (0.80, 0.78, 0.70), "sand": (0.70, 0.62, 0.44), "grass": (0.20, 0.32, 0.14), "wood": (0.40, 0.28, 0.16),
+    # buildings
+    "hq_red": (0.36, 0.40, 0.22), "hq_red_dk": (0.24, 0.27, 0.15), "hq_wall": (0.62, 0.57, 0.42), "hq_roof": (0.26, 0.29, 0.18),
+    "gold": (0.78, 0.62, 0.25), "gold_dk": (0.55, 0.42, 0.15), "stone": (0.66, 0.60, 0.45), "stone_dk": (0.48, 0.43, 0.32),
+    # vehicles & weapons
+    "olive": (0.29, 0.33, 0.18), "olive_dk": (0.18, 0.21, 0.11), "khaki": (0.58, 0.52, 0.34), "tan": (0.66, 0.56, 0.38),
+    "camo1": (0.24, 0.29, 0.15), "camo2": (0.45, 0.40, 0.25), "camo3": (0.14, 0.15, 0.10),
+    "grey_navy": (0.55, 0.58, 0.60), "uav_grey": (0.70, 0.72, 0.73), "missile_white": (0.85, 0.85, 0.82),
+    "accent": (0.85, 0.65, 0.10), "sandbag": (0.56, 0.49, 0.33), "net": (0.22, 0.27, 0.13), "black": (0.05, 0.05, 0.05),
+    "red_light": (1.0, 0.12, 0.08), "green_light": (0.2, 1.0, 0.3), "red_band": (0.70, 0.12, 0.08), "yellow_band": (0.95, 0.75, 0.10),
 }
 _mats = {}
 def mat(name, rough=0.6, metal=0.0, emit=0.0):
@@ -201,13 +204,13 @@ def hq():
     for i, y in enumerate((0.45, 0.72, 0.99)):                                                       # three flagpoles on the left lawn
         x = -1.75
         cyl(0.016, 1.15 if i == 1 else 0.95, x, y, 0.115, "white", 8, 0)
-        box(0.012, 0.36, 0.22, x, y + 0.19, (1.0 if i == 1 else 0.8), "hq_red", 0.003)
+        box(0.012, 0.36, 0.22, x, y + 0.19, (1.0 if i == 1 else 0.8), "camo2" if i == 1 else "hq_red_dk", 0.003)
     # ---- gate: guard booth, boom barrier, road blocks
     gx, gy = 0.95, 1.7
     box(0.28, 0.28, 0.32, gx + 0.55, gy - 0.05, 0.115, "hq_wall", 0.02); box(0.32, 0.32, 0.04, gx + 0.55, gy - 0.05, 0.435, "hq_red", 0.01)
     box(0.2, 0.02, 0.12, gx + 0.55, gy + 0.09, 0.27, "glass_lit", 0)
     cyl(0.03, 0.2, gx + 0.4, gy + 0.15, 0.115, "black", 8, 0)
-    for i in range(5): box(0.16, 0.035, 0.035, gx + 0.3 - i * 0.16, gy + 0.15, 0.3, "hq_red" if i % 2 == 0 else "white", 0.004)
+    for i in range(5): box(0.16, 0.035, 0.035, gx + 0.3 - i * 0.16, gy + 0.15, 0.3, "yellow_band" if i % 2 == 0 else "black", 0.004)
     for x in (-0.25, 0.1, 2.2):
         if x > 2: continue
         for k in range(2): box(0.22, 0.09, 0.1, gx + x + k * 0.24 - 0.9, gy + 0.05, 0.115, "concrete", 0.02)
