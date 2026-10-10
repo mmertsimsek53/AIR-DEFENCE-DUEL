@@ -1461,6 +1461,128 @@ def tnt_level(level, rnd):
         fence(gap=(0.72, 0.98), e=1.36)
         trees([(-1.15, 1.15, 0.7)] if level < 6 else [])
 
+# ---------------------------------------------------------------- Gold Vault (3×3, 10 levels): stores Gold
+def mesh_cage(x, y, w, d, h):
+    """Wire-mesh security cage: corner posts, top frame and mesh lines on the two visible sides."""
+    for sx in (-1, 1):
+        for sy in (-1, 1): box(0.025, 0.025, h, x + sx * w / 2, y + sy * d / 2, Z0, "gunmetal", 0.003)
+    for sy in (-1, 1): box(w, 0.012, 0.012, x, y + sy * d / 2, Z0 + h, "gunmetal", 0)
+    for sx in (-1, 1): box(0.012, d, 0.012, x + sx * w / 2, y, Z0 + h, "gunmetal", 0)
+    for k in range(1, int(w / 0.06)):
+        for sy in (-1, 1): box(0.004, 0.004, h, x - w / 2 + k * 0.06, y + sy * d / 2, Z0, "steel", 0)
+    for k in range(1, int(d / 0.06)):
+        for sx in (-1, 1): box(0.004, 0.004, h, x + sx * w / 2, y - d / 2 + k * 0.06, Z0, "steel", 0)
+    for k in range(1, 4):
+        for sy in (-1, 1): box(w, 0.004, 0.004, x, y + sy * d / 2, Z0 + k * h / 4, "steel", 0)
+        for sx in (-1, 1): box(0.004, d, 0.004, x + sx * w / 2, y, Z0 + k * h / 4, "steel", 0)
+
+def sentry_box(x, y):
+    box(0.16, 0.16, 0.26, x, y, Z0, "stone", 0.01)
+    box(0.12, 0.012, 0.06, x, y + 0.082, Z0 + 0.16, "glass_lit", 0.002)
+    box(0.012, 0.12, 0.06, x + 0.082, y, Z0 + 0.16, "glass", 0.002)
+    roof(0.22, 0.22, 0.1, x, y, Z0 + 0.26, "hq_roof")
+
+def depository(x, y, upper, rnd):
+    """Fort Knox-style bullion depository: square granite block, pilasters, central entrance with emblem;
+    with `upper`, a stepped second storey and guard boxes on the four roof corners."""
+    W, D, H = 1.3, 1.05, 0.45
+    box(W + 0.06, D + 0.06, 0.06, x, y, Z0, "stone_dk", 0.01)
+    box(W, D, H, x, y, Z0 + 0.06, "stone", 0.02)
+    for k in range(7): box(0.035, 0.02, H - 0.06, x - W / 2 + 0.08 + k * (W - 0.16) / 6, y + D / 2 + 0.006, Z0 + 0.09, "stone_dk", 0.003)  # pilasters
+    for k in range(5): box(0.02, 0.035, H - 0.06, x + W / 2 + 0.006, y - D / 2 + 0.1 + k * (D - 0.2) / 4, Z0 + 0.09, "stone_dk", 0.003)
+    box(W + 0.03, D + 0.03, 0.04, x, y, Z0 + 0.06 + H - 0.06, "stone_dk", 0.006)                          # cornice
+    zr = Z0 + 0.06 + H
+    # entrance block
+    ex, ef = x, y + D / 2
+    box(0.42, 0.14, H + 0.12, ex, ef + 0.05, Z0 + 0.06, "stone", 0.012)
+    box(0.24, 0.02, 0.26, ex, ef + 0.125, Z0 + 0.06, "gunmetal", 0.003)
+    box(0.3, 0.02, 0.05, ex, ef + 0.125, Z0 + 0.38, "white", 0.003)                                        # inscription band
+    sphere(0.04, ex, ef + 0.13, Z0 + 0.48, mat("gold", 0.3, 0.8))                                           # emblem
+    for k in range(3): box(0.5 - k * 0.06, 0.1, 0.02, ex, ef + 0.17, Z0 + k * 0.02, "stone_dk", 0.003)
+    if upper:
+        W2, D2, H2 = 0.85, 0.65, 0.3
+        box(W2, D2, H2, x, y - 0.05, zr, "stone", 0.015)
+        box(W2 + 0.03, D2 + 0.03, 0.035, x, y - 0.05, zr + H2, "stone_dk", 0.005)
+        for k in range(4): box(0.08, 0.012, 0.12, x - W2 / 2 + 0.15 + k * (W2 - 0.3) / 3, y - 0.05 + D2 / 2 + 0.004, zr + 0.1, "glass", 0.002)
+        for sx in (-1, 1):
+            for sy in (-1, 1):
+                bx, by = x + sx * (W / 2 - 0.08), y + sy * (D / 2 - 0.08)
+                box(0.13, 0.13, 0.14, bx, by, zr, "stone", 0.008)                                         # roof corner guard boxes
+                box(0.1, 0.01, 0.03, bx, by + 0.066, zr + 0.08, "black", 0)
+                box(0.01, 0.1, 0.03, bx + 0.066, by, zr + 0.08, "black", 0)
+                box(0.15, 0.15, 0.025, bx, by, zr + 0.14, "stone_dk", 0.004)
+        return zr + H2
+    return zr
+
+def vault_ramp(x, y):
+    """Ramp down to an underground vault: side walls, steel door in a portal at the low end (facing +y)."""
+    box(0.32, 0.5, 0.008, x, y, Z0, "asphalt", 0.002)
+    for sx in (-1, 1): box(0.05, 0.5, 0.12, x + sx * 0.185, y, Z0, "concrete", 0.008)
+    box(0.42, 0.12, 0.3, x, y - 0.3, Z0, "concrete", 0.012)
+    box(0.24, 0.02, 0.2, x, y - 0.235, Z0, "steel", 0.003)
+    for k in range(5): box(0.04, 0.025, 0.03, x - 0.1 + k * 0.05, y - 0.235, Z0 + 0.22, "yellow_band" if k % 2 == 0 else "black", 0)
+
+def goldvault_level(level, rnd):
+    plot(3, "sand" if level <= 2 else "grass")
+    if level == 1:
+        # Guarded cage: safe and gold pallets in a wire-mesh cage under a tarp, sandbags, one guard.
+        for (x, y, sx, sy) in [(-1.0, 1.0, 0.45, 0.35), (1.05, -1.0, 0.4, 0.35)]: box(sx, sy, 0.008, x, y, Z0, "grass", 0.004)
+        box(0.9, 0.7, 0.02, -0.2, -0.2, Z0, "concrete", 0.004)
+        mesh_cage(-0.2, -0.2, 0.8, 0.6, 0.36)
+        box(0.86, 0.66, 0.015, -0.2, -0.2, Z0 + 0.37, "khaki", 0.004)
+        box(0.24, 0.2, 0.22, -0.4, -0.3, Z0 + 0.02, "gunmetal", 0.01); vault_door(-0.28, -0.3, Z0 + 0.13, 0.06)
+        gold_stack(0.0, -0.05, 2)
+        sandbags(0.75, 0.7, 0.28, 0.28, Z0, n=9, gap_at=math.pi); soldier(0.75, 0.7)
+        flags(-0.9, 0.6, 1, 0.9)
+        return
+    if level == 2:
+        # Steel safe room with a round vault door, guard post, fence.
+        box(0.9, 0.24, 0.01, 0.95, 0.85, Z0, "khaki", 0.003)
+        box(0.9, 0.7, 0.04, -0.2, -0.3, Z0, "concrete", 0.006)
+        box(0.75, 0.55, 0.42, -0.2, -0.3, Z0 + 0.04, "gunmetal", 0.02)
+        for k in range(5): box(0.012, 0.56, 0.38, -0.5 + k * 0.15, -0.3, Z0 + 0.06, "steel", 0)
+        vault_door(0.175, -0.3, Z0 + 0.25, 0.12)
+        gold_stack(0.45, 0.2, 2)
+        sandbags(0.7, -0.75, 0.25, 0.25, Z0, n=8, gap_at=math.pi / 2); soldier(0.7, -0.75)
+        fence(gap=(0.72, 0.98), e=1.36); box(0.02, 0.26, 0.02, 1.36, 0.85, Z0 + 0.2, "yellow_band", 0.003)
+        return
+    small_gate()
+    if level <= 4:
+        # Concrete vault building with barred windows.
+        vault_bunker(-0.25, -0.3, 0.95, 0.75, 0.45)
+        for k in range(3):
+            box(0.12, 0.012, 0.08, -0.55 + k * 0.3, 0.075 + 0.002, Z0 + 0.25, "glass", 0.002)
+            for j in range(3): box(0.008, 0.016, 0.08, -0.59 + k * 0.3 + j * 0.04, 0.08, Z0 + 0.25, "black", 0)
+        gold_stack(0.55, 0.15, 2)
+        box(0.5, 0.24, 0.012, 0.6, -0.3, Z0, "asphalt", 0.003)
+        if level == 4:
+            sandbags(-0.95, 0.75, 0.25, 0.25, Z0, n=8, gap_at=0); soldier(-0.95, 0.75)
+            flags(0.0, 0.7, 3, 1.0); lamps([(0.75, 0.45)])
+        fence(gap=(0.72, 0.98), e=1.36)
+        trees([(-1.15, -1.15, 0.7)])
+        return
+    # ---- 5–10: bullion depository. Reference: US Bullion Depository, Fort Knox (granite, stepped, corner guard boxes)
+    box(0.24, 0.6, 0.012, -0.15, 0.55, Z0, "concrete", 0.003)
+    depository(-0.15, -0.35, level >= 6, rnd)
+    flags(-0.15, 0.95, 3 if level >= 7 else 1, 1.0)
+    if level >= 7:
+        for (x, y) in ((-1.22, -1.22), (1.22, -1.22), (-1.22, 1.22)): sentry_box(x, y)
+    if level >= 9:
+        vault_ramp(0.9, -0.45)
+        gold_stack(0.55, 0.3, 3); gold_stack(0.85, 0.3, 2)
+        soldier(0.75, -0.05); soldier(1.05, -0.05)
+    if level >= 8:
+        perimeter_wall(gap=(0.72, 0.98), e=1.38)
+    else:
+        fence(gap=(0.72, 0.98), e=1.36)
+    lamps([(0.35, 0.55), (-0.65, 0.55)])
+    if level >= 10:
+        for (x, y) in ((1.25, 0.45), (-1.25, 0.2), (0.4, -1.25)):
+            cyl(0.016, 1.1, x, y, Z0, "steel", 8, 0)
+            box(0.14, 0.05, 0.07, x, y, Z0 + 1.1, "gunmetal", 0.006)
+            box(0.12, 0.012, 0.05, x, y + 0.03, Z0 + 1.105, mat("glass_lit", 0.3, 0, 4.0), 0)
+        for i in range(4): soldier(-0.55 + i * 0.27, 1.2)
+
 def sam_site():
     """Hisar-A+ style low-altitude SAM site (2×2 tiles)."""
     box(1.95, 1.95, 0.08, m="concrete_dk", bevel=0.03)
@@ -1493,6 +1615,7 @@ BUILDERS = {**{f"hq_{n}": (lambda n=n: hq_level(n)) for n in range(1, 11)}, "bui
             **{f"power_{n}": (lambda n=n: globals()[f"power_{n}"](__import__("random").Random(7))) for n in range(1, 7)},
             **{f"oilwell_{n}": (lambda n=n: oilwell_level(n, __import__("random").Random(7))) for n in range(1, 11)},
             **{f"tnt_{n}": (lambda n=n: tnt_level(n, __import__("random").Random(7))) for n in range(1, 11)},
+            **{f"goldvault_{n}": (lambda n=n: goldvault_level(n, __import__("random").Random(7))) for n in range(1, 11)},
             **{f"radar_{n}": (lambda n=n: globals()[f"radar_{n}"](__import__("random").Random(7))) for n in range(1, 5)}, **{f"treasury_{n}": (lambda n=n: treasury_level(n, __import__("random").Random(7))) for n in range(1, 11)}, "def_hisara": sam_site}
 
 # ---------------------------------------------------------------- scene, export, preview
@@ -1534,6 +1657,6 @@ def export(name):
 if __name__ == "__main__":
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     ids = argv or list(BUILDERS)
-    sizes = {**{f"hq_{n}": 4 for n in range(1, 11)}, "builder_1": 2, **{f"radar_{n}": 3 for n in range(1, 5)}, **{f"power_{n}": 3 for n in range(1, 7)}, **{f"oilwell_{n}": 2 for n in range(1, 11)}, **{f"tnt_{n}": 3 for n in range(1, 11)}, **{f"treasury_{n}": 3 for n in range(1, 11)}, "def_hisara": 2}
+    sizes = {**{f"hq_{n}": 4 for n in range(1, 11)}, "builder_1": 2, **{f"radar_{n}": 3 for n in range(1, 5)}, **{f"power_{n}": 3 for n in range(1, 7)}, **{f"oilwell_{n}": 2 for n in range(1, 11)}, **{f"tnt_{n}": 3 for n in range(1, 11)}, **{f"goldvault_{n}": 3 for n in range(1, 11)}, **{f"treasury_{n}": 3 for n in range(1, 11)}, "def_hisara": 2}
     for i in ids:
         reset(); BUILDERS[i](); export(i); preview(i, sizes.get(i, 3)); print("built", i)
