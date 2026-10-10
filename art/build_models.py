@@ -1583,6 +1583,134 @@ def goldvault_level(level, rnd):
             box(0.12, 0.012, 0.05, x, y + 0.03, Z0 + 1.105, mat("glass_lit", 0.3, 0, 4.0), 0)
         for i in range(4): soldier(-0.55 + i * 0.27, 1.2)
 
+# ---------------------------------------------------------------- Fuel Depot (3×3, 10 levels): stores Petrol
+def jerrycans(x, y, cols=4, rows=3, layers=2):
+    box(cols * 0.06 + 0.04, rows * 0.045 + 0.04, 0.02, x, y, Z0, "wood", 0.003)
+    for l in range(layers):
+        for i in range(cols):
+            for j in range(rows):
+                box(0.05, 0.035, 0.07, x - (cols - 1) * 0.03 + i * 0.06, y - (rows - 1) * 0.0225 + j * 0.045, Z0 + 0.02 + l * 0.072, "olive", 0.006)
+
+def bladder(x, y, w, d):
+    """Collapsible fabric fuel tank: a flat pillow."""
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.5, segments=28, ring_count=12, location=(x, y, Z0 + 0.03))
+    o = bpy.context.object; o.scale = (w, d, 0.2); _finish(o, mat("black", 0.85), 0, smooth=True)
+    box(w * 0.6, 0.01, 0.006, x, y, Z0 + 0.13, "yellow_band", 0)
+
+def pump_unit(x, y):
+    box(0.3, 0.18, 0.04, x, y, Z0, "gunmetal", 0.005)
+    box(0.18, 0.15, 0.13, x - 0.04, y, Z0 + 0.04, "olive", 0.01)
+    cyl(0.04, 0.1, x + 0.09, y, Z0 + 0.04, "steel", 12, 0.004)
+    cyl(0.012, 0.08, x - 0.08, y + 0.03, Z0 + 0.17, "black", 6, 0)
+
+def filter_separator(x, y):
+    for sx in (-1, 1): box(0.03, 0.1, 0.08, x + sx * 0.12, y, Z0, "gunmetal", 0.004)
+    bpy.ops.mesh.primitive_cylinder_add(radius=0.07, depth=0.36, vertices=16, location=(x, y, Z0 + 0.15), rotation=(0, math.pi / 2, 0))
+    _finish(bpy.context.object, mat("khaki"), 0.01, smooth=True)
+    for k in range(2): cyl(0.015, 0.08, x - 0.08 + k * 0.16, y, Z0 + 0.2, "steel", 8, 0)
+
+def fuel_tank(x, y, r, h, floating=False, stairs=False, m="concrete"):
+    """Vertical steel storage tank: cone roof, or an open top with a floating roof and wind girder; optional spiral stair."""
+    cyl(r + 0.03, 0.03, x, y, Z0, "concrete_dk", 32, 0.006)
+    cyl(r, h, x, y, Z0 + 0.03, m, 32, 0.008)
+    for k in range(1, 4): cyl(r + 0.003, 0.008, x, y, Z0 + 0.03 + k * h / 4, "concrete_dk", 32, 0)
+    if floating:
+        cyl(r + 0.04, 0.015, x, y, Z0 + 0.03 + h - 0.06, "steel", 32, 0)                                  # wind girder
+        cyl(r - 0.02, 0.02, x, y, Z0 + h - 0.08, "gunmetal", 32, 0)                                       # floating deck
+        box(r * 1.4, 0.02, 0.01, x, y, Z0 + h - 0.05, "steel", 0).rotation_euler = (0, math.radians(-20), 0)   # rolling ladder
+    else:
+        cyl(r + 0.005, 0.07, x, y, Z0 + 0.03 + h, m, 32, 0.006, r2=r * 0.15)
+    if stairs:
+        n = 14
+        for k in range(n):
+            a = math.radians(-30) + k * math.radians(9); z = Z0 + 0.03 + (k + 1) * h / n
+            box(0.05, 0.03, 0.01, x + math.cos(a) * (r + 0.03), y + math.sin(a) * (r + 0.03), z - 0.005, "yellow_band", 0, rz=a + math.pi / 2)
+    box(0.16, 0.012, 0.035, x, y + r - 0.005, Z0 + 0.03 + h * 0.55, "white", 0, rz=0)                       # tank number plate
+
+def loading_rack(x, y, w=0.55, d=0.32):
+    for sx in (-1, 1):
+        for sy in (-1, 1): box(0.025, 0.025, 0.36, x + sx * w / 2, y + sy * d / 2, Z0, "steel", 0.003)
+    box(w + 0.1, d + 0.1, 0.03, x, y, Z0 + 0.36, "hq_red", 0.005)
+    box(w * 0.5, 0.06, 0.28, x, y - d / 2 + 0.05, Z0, "gunmetal", 0.004)                                   # metering skid
+    for k in range(3):
+        a = box(0.012, 0.18, 0.012, x - w / 3 + k * w / 3, y, Z0 + 0.28, "steel", 0); a.rotation_euler = (math.radians(-25), 0, 0)
+        cyl(0.012, 0.08, x - w / 3 + k * w / 3, y + 0.08, Z0 + 0.18, "black", 6, 0)
+    box(w, 0.06, 0.012, x, y, Z0, "concrete", 0.002)
+
+def foam_tank(x, y):
+    cyl(0.1, 0.3, x, y, Z0, "white", 18, 0.006)
+    cyl(0.104, 0.04, x, y, Z0 + 0.2, "red_band", 18, 0)
+    cyl(0.1, 0.03, x, y, Z0 + 0.3, "white", 18, 0.004, r2=0.03)
+    cyl(0.012, 0.2, x + 0.16, y, Z0, "red_band", 6, 0); box(0.08, 0.02, 0.02, x + 0.19, y, Z0 + 0.2, "red_band", 0.002)   # fire monitor
+
+def buried_tanks(x, y):
+    box(0.62, 0.48, 0.03, x, y, Z0, "concrete", 0.006)
+    box(0.55, 0.42, 0.18, x, y, Z0 + 0.02, "camo1", 0.07)
+    for k in range(3):
+        cyl(0.018, 0.14, x - 0.17 + k * 0.17, y - 0.05, Z0 + 0.16, "steel", 8, 0)
+        cyl(0.03, 0.02, x - 0.17 + k * 0.17, y - 0.05, Z0 + 0.3, "steel", 8, 0)
+    box(0.1, 0.1, 0.06, x + 0.15, y + 0.12, Z0 + 0.17, "concrete", 0.006)
+
+def fueldepot_level(level, rnd):
+    plot(3, "sand" if level <= 3 else "grass")
+    if level == 1:
+        # Jerry-can dump: pallets of cans and drums under a camouflage net, sandbags.
+        for (x, y, sx, sy) in [(-1.0, 1.0, 0.45, 0.35), (1.05, -1.0, 0.4, 0.35)]: box(sx, sy, 0.008, x, y, Z0, "grass", 0.004)
+        for (x, y) in ((-0.55, -0.45), (-0.15, -0.45), (-0.55, -0.05), (-0.15, -0.05)): jerrycans(x, y)
+        camo_net(-0.35, -0.25, 1.1, 0.95, 0.42, rnd)
+        drums(0.45, 0.2, 4); drums(0.55, -0.5, 3)
+        sandbags(-0.35, -0.25, 0.8, 0.7, Z0, n=22, gap_at=math.pi / 4)
+        danger_flag(0.75, 0.6)
+        return
+    if level >= 3: small_gate()
+    else: box(0.9, 0.24, 0.01, 0.95, 0.85, Z0, "khaki", 0.003)
+    if level <= 3:
+        # Fuel system supply point: collapsible bladders in earth berms, pump, filter separator, hoses.
+        spots = [(-0.35, -0.45, 1.0, 0.65)] if level == 2 else [(-0.6, -0.5, 0.75, 0.6), (0.35, -0.5, 0.75, 0.6)]
+        for (x, y, w, d) in spots:
+            berm(x, y, w + 0.2, d + 0.1, 0.22, 0.2, "khaki"); bladder(x, y - 0.03, w * 0.85, d * 0.8)
+        pump_unit(0.55 if level == 2 else -0.15, 0.2)
+        if level == 3: filter_separator(0.35, 0.25)
+        ypipe(0.55 if level == 2 else -0.15, -0.2, 0.12, Z0 + 0.02, 0.012, "black")
+        jerrycans(-0.8, 0.55, 3, 2, 2)
+        if level == 2:
+            fence(gap=(0.72, 0.98), e=1.36); box(0.02, 0.26, 0.02, 1.36, 0.85, Z0 + 0.2, "yellow_band", 0.003)
+        else:
+            fence(gap=(0.72, 0.98), e=1.36)
+        danger_flag(0.9, -0.1)
+        return
+    # ---- 4–10: bulk fuel installation. Reference: NATO / US POL (petroleum, oil, lubricants) depots: bunded steel tanks,
+    # pump house, truck loading rack, fire-fighting foam, buried hardened tanks.
+    if level == 4:
+        bund(-0.6, -0.5, 0.9, 0.85); fuel_tank(-0.6, -0.5, 0.3, 0.45)
+        berm(0.45, -0.5, 0.85, 0.7, 0.22, 0.2); bladder(0.45, -0.53, 0.65, 0.5)
+    else:
+        bund(-0.3, -0.5, 1.55, 0.85)
+        fuel_tank(-0.65, -0.5, 0.28, 0.48 if level < 8 else 0.55, floating=level >= 8, stairs=level >= 8)
+        fuel_tank(0.05, -0.5, 0.28, 0.48 if level < 8 else 0.55, floating=level >= 8, stairs=level >= 8, m="olive_dk" if level >= 6 else "concrete")
+        if level >= 6:
+            bund(0.85, -0.6, 0.8, 0.8)
+            fuel_tank(0.85, -0.6, 0.33, 0.55 if level < 8 else 0.7, floating=True, stairs=True)
+    zr, front, side = hq_block(-0.6, 0.55, 0.6, 0.42, 1, rnd, door_x=-0.6)                                    # pump house
+    if level >= 5: hpipe(-0.3, 0.6, 0.3, Z0 + 0.06, 0.016)
+    ypipe(-0.6, -0.08, 0.34, Z0 + 0.06, 0.016)
+    if level >= 5: loading_rack(0.75, 0.3)
+    if level >= 7:
+        foam_tank(-1.12, 0.15)
+        perimeter_wall(gap=(0.72, 0.98), e=1.38)
+        watchtower(-1.2, 1.2)
+    else:
+        fence(gap=(0.72, 0.98), e=1.36)
+    if level >= 9: buried_tanks(0.05, 0.55)
+    danger_flag(0.25, 0.2)
+    lamps([(0.35, 0.95)] if level < 9 else [(0.4, 1.05)])
+    if level >= 10:
+        for (x, y) in ((1.27, 0.02), (-1.25, -0.2)):
+            cyl(0.016, 1.1, x, y, Z0, "steel", 8, 0)
+            box(0.14, 0.05, 0.07, x, y, Z0 + 1.1, "gunmetal", 0.006)
+            box(0.12, 0.012, 0.05, x, y + 0.03, Z0 + 1.105, mat("glass_lit", 0.3, 0, 4.0), 0)
+        for i in range(3): soldier(-0.3 + i * 0.2, 1.22)
+
 def sam_site():
     """Hisar-A+ style low-altitude SAM site (2×2 tiles)."""
     box(1.95, 1.95, 0.08, m="concrete_dk", bevel=0.03)
@@ -1616,6 +1744,7 @@ BUILDERS = {**{f"hq_{n}": (lambda n=n: hq_level(n)) for n in range(1, 11)}, "bui
             **{f"oilwell_{n}": (lambda n=n: oilwell_level(n, __import__("random").Random(7))) for n in range(1, 11)},
             **{f"tnt_{n}": (lambda n=n: tnt_level(n, __import__("random").Random(7))) for n in range(1, 11)},
             **{f"goldvault_{n}": (lambda n=n: goldvault_level(n, __import__("random").Random(7))) for n in range(1, 11)},
+            **{f"fueldepot_{n}": (lambda n=n: fueldepot_level(n, __import__("random").Random(7))) for n in range(1, 11)},
             **{f"radar_{n}": (lambda n=n: globals()[f"radar_{n}"](__import__("random").Random(7))) for n in range(1, 5)}, **{f"treasury_{n}": (lambda n=n: treasury_level(n, __import__("random").Random(7))) for n in range(1, 11)}, "def_hisara": sam_site}
 
 # ---------------------------------------------------------------- scene, export, preview
@@ -1657,6 +1786,6 @@ def export(name):
 if __name__ == "__main__":
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     ids = argv or list(BUILDERS)
-    sizes = {**{f"hq_{n}": 4 for n in range(1, 11)}, "builder_1": 2, **{f"radar_{n}": 3 for n in range(1, 5)}, **{f"power_{n}": 3 for n in range(1, 7)}, **{f"oilwell_{n}": 2 for n in range(1, 11)}, **{f"tnt_{n}": 3 for n in range(1, 11)}, **{f"goldvault_{n}": 3 for n in range(1, 11)}, **{f"treasury_{n}": 3 for n in range(1, 11)}, "def_hisara": 2}
+    sizes = {**{f"hq_{n}": 4 for n in range(1, 11)}, "builder_1": 2, **{f"radar_{n}": 3 for n in range(1, 5)}, **{f"power_{n}": 3 for n in range(1, 7)}, **{f"oilwell_{n}": 2 for n in range(1, 11)}, **{f"tnt_{n}": 3 for n in range(1, 11)}, **{f"goldvault_{n}": 3 for n in range(1, 11)}, **{f"fueldepot_{n}": 3 for n in range(1, 11)}, **{f"treasury_{n}": 3 for n in range(1, 11)}, "def_hisara": 2}
     for i in ids:
         reset(); BUILDERS[i](); export(i); preview(i, sizes.get(i, 3)); print("built", i)
