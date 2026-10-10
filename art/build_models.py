@@ -239,11 +239,7 @@ def hq():
     cyl(0.025, 0.18, gx - 0.08, gy + 0.15, z0, "black", 8, 0)
     for i in range(3): box(0.025, 0.1, 0.025, gx - 0.08, gy + 0.08 - i * 0.1, z0 + 0.16, "yellow_band" if i % 2 == 0 else "black", 0.003)
     for y in (gy - 0.24, gy - 0.4): box(0.26, 0.08, 0.09, gx, y, z0, "concrete", 0.015)
-    # ---- parked vehicles, lamps, trees
-    for a, col in ((1.05, "olive"), (2.1, "khaki")):                                                # parked on the drive, clear of the lamps
-        jeep(px + math.cos(a) * 0.67, py + math.sin(a) * 0.67, a + math.pi / 2, col)
-    for i, x in enumerate((-1.3, -0.95, 0.3, 0.65, 1.0)):
-        jeep(x, -1.62, math.pi / 2, "khaki" if i % 2 else "olive")
+    # ---- lamps, trees
     for a in (0.35, 2.75, 3.6, 5.8):
         lamp(px + math.cos(a) * 0.86, py + math.sin(a) * 0.86, 0.6)
     for (x, y, s) in [(-1.7, 1.75, 1.0), (-1.75, 1.1, 0.9), (-1.6, 0.45, 0.8), (1.75, 1.75, 0.9), (1.72, 0.55, 0.85),
