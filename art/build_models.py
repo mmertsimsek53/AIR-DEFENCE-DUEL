@@ -29,7 +29,7 @@ PAL = {
     "camo1": (0.24, 0.29, 0.15), "camo2": (0.45, 0.40, 0.25), "camo3": (0.14, 0.15, 0.10),
     "grey_navy": (0.55, 0.58, 0.60), "uav_grey": (0.70, 0.72, 0.73), "missile_white": (0.85, 0.85, 0.82),
     "accent": (0.85, 0.65, 0.10), "sandbag": (0.56, 0.49, 0.33), "net": (0.22, 0.27, 0.13), "black": (0.05, 0.05, 0.05),
-    "rust": (0.42, 0.22, 0.12), "red_light": (1.0, 0.12, 0.08), "green_light": (0.2, 1.0, 0.3), "red_band": (0.70, 0.12, 0.08), "yellow_band": (0.95, 0.75, 0.10),
+    "rust": (0.42, 0.22, 0.12), "flame": (1.0, 0.5, 0.08), "red_light": (1.0, 0.12, 0.08), "green_light": (0.2, 1.0, 0.3), "red_band": (0.70, 0.12, 0.08), "yellow_band": (0.95, 0.75, 0.10),
 }
 _mats = {}
 def mat(name, rough=0.6, metal=0.0, emit=0.0):
@@ -204,7 +204,7 @@ def dish(x, y, z, r=0.11, rz=0.6):
 
 def fence(gap=(0.95, 1.3), e=1.86):
     """Chain-link fence round the plot: posts and two wires; gap on the +x side for the gate."""
-    n = 12
+    n = max(6, round(2 * e / 0.31))
     for i in range(n + 1):
         t = -e + i * 2 * e / n
         for (x, y) in ((t, e), (t, -e), (-e, t), (e, t)):
@@ -1165,6 +1165,180 @@ def treasury_level(level, rnd):
             box(0.14, 0.015, 0.06, x, y + 0.035, Z0 + 1.21, mat("glass_lit", 0.3, 0, 4.0), 0)
         for i in range(3): soldier(-0.8 + i * 0.25, 1.25)
 
+# ---------------------------------------------------------------- Oil Well (2×2, 10 levels): produces Petrol
+def pump_jack(x, y, s=1.0, rz=0.0):
+    """Beam pump ('nodding donkey'), built facing +x. Moving parts: pumpjack_beam (walking beam, rocks about y)
+    and pumpjack_crank (cranks and counterweights, turn about y)."""
+    def base():
+        box(0.78 * s, 0.18 * s, 0.04 * s, -0.04 * s, 0, Z0, "gunmetal", 0.006)                            # skid
+        for sy in (-1, 1):                                                                                  # Samson post
+            for sx in (-1, 1):
+                lg = box(0.025 * s, 0.025 * s, 0.4 * s, sx * 0.06 * s, sy * 0.05 * s, Z0 + 0.03 * s, "olive_dk", 0.003)
+                lg.rotation_euler = (sy * math.radians(6), -sx * math.radians(9), 0)
+        def beam():
+            box(0.66 * s, 0.05 * s, 0.06 * s, 0.0, 0, -0.03 * s, "olive", 0.006)
+            box(0.06 * s, 0.07 * s, 0.2 * s, 0.34 * s, 0, -0.14 * s, "khaki", 0.008)                       # horsehead
+            box(0.04 * s, 0.07 * s, 0.05 * s, 0.37 * s, 0, 0.0, "khaki", 0.006)
+            box(0.06 * s, 0.16 * s, 0.03 * s, -0.31 * s, 0, -0.04 * s, "olive_dk", 0.004)                   # equaliser
+        return beam
+    # a root empty so the whole unit can be placed/turned; the moving groups inside are named for animation
+    bpy.ops.object.empty_add(location=(x, y, 0)); root = bpy.context.object; root.name = "pumpjack"
+    before = set(bpy.context.scene.objects)
+    grouped("pumpjack_beam", (0, 0, Z0 + 0.43 * s), base())
+    sphere(0.025 * s, 0, 0, Z0 + 0.43 * s, "gunmetal")                                                       # saddle bearing
+    cyl(0.006 * s, 0.26 * s, 0.37 * s, 0, Z0 + 0.12 * s, "black", 4, 0)                                    # bridle / polished rod
+    cyl(0.035 * s, 0.1 * s, 0.37 * s, 0, Z0, "steel", 10, 0.004)                                           # wellhead
+    for k in range(2): box(0.1 * s, 0.02 * s, 0.02 * s, 0.37 * s, 0, Z0 + 0.04 * s + k * 0.04 * s, "steel", 0.002)
+    box(0.12 * s, 0.12 * s, 0.1 * s, -0.24 * s, 0, Z0 + 0.04 * s, "gunmetal", 0.008)                       # gear reducer
+    box(0.1 * s, 0.08 * s, 0.07 * s, -0.43 * s, 0, Z0 + 0.04 * s, "olive_dk", 0.008)                       # motor
+    def crank():
+        for sy in (-1, 1):
+            box(0.16 * s, 0.02 * s, 0.035 * s, -0.04 * s, sy * 0.08 * s, -0.0175 * s, "gunmetal", 0.003)
+            box(0.09 * s, 0.025 * s, 0.07 * s, -0.11 * s, sy * 0.08 * s, -0.035 * s, "khaki", 0.006)       # counterweights
+    grouped("pumpjack_crank", (-0.24 * s, 0, Z0 + 0.12 * s), crank)
+    for sy in (-1, 1): box(0.012 * s, 0.012 * s, 0.3 * s, -0.31 * s, sy * 0.08 * s, Z0 + 0.12 * s, "steel", 0)   # pitman arms
+    for o in set(bpy.context.scene.objects) - before:
+        if o.parent is None and o is not root: o.parent = root
+    root.rotation_euler = (0, 0, rz)
+
+def vtank(x, y, r, h, m="concrete"):
+    cyl(r, h, x, y, Z0, m, 28, 0.01)
+    cyl(r + 0.005, 0.05, x, y, Z0 + h, m, 28, 0.006, r2=r * 0.25)
+    cyl(r + 0.004, 0.012, x, y, Z0 + h * 0.5, "concrete_dk", 28, 0)
+    for k in range(int(h / 0.05)): box(0.04, 0.008, 0.008, x + r + 0.01, y, Z0 + 0.03 + k * 0.05, "steel", 0)   # ladder
+    for sy in (-1, 1): box(0.008, 0.008, h, x + r + 0.01, y + sy * 0.02, Z0, "steel", 0)
+
+def hpipe(x0, x1, y, z, r=0.018, m="steel"):
+    bpy.ops.mesh.primitive_cylinder_add(radius=r, depth=abs(x1 - x0), vertices=10, location=((x0 + x1) / 2, y, z), rotation=(0, math.pi / 2, 0))
+    _finish(bpy.context.object, mat(m), 0, smooth=True)
+
+def ypipe(x, y0, y1, z, r=0.018, m="steel"):
+    bpy.ops.mesh.primitive_cylinder_add(radius=r, depth=abs(y1 - y0), vertices=10, location=(x, (y0 + y1) / 2, z), rotation=(math.pi / 2, 0, 0))
+    _finish(bpy.context.object, mat(m), 0, smooth=True)
+
+def column(x, y, r, h):
+    """Distillation column: tall vessel on a skirt, platforms every so often, ladder, top vent."""
+    cyl(r + 0.02, 0.08, x, y, Z0, "concrete_dk", 20, 0.006)
+    cyl(r, h, x, y, Z0 + 0.08, "uav_grey", 20, 0.006)
+    sphere(r, x, y, Z0 + 0.08 + h, "uav_grey", half=True)
+    for k in range(1, int(h / 0.25) + 1):
+        z = Z0 + 0.08 + k * 0.25
+        cyl(r + 0.04, 0.012, x, y, z, "gunmetal", 20, 0)
+        for j in range(8):
+            a = j / 8 * math.tau; cyl(0.004, 0.06, x + math.cos(a) * (r + 0.035), y + math.sin(a) * (r + 0.035), z, "yellow_band", 4, 0)
+    for sy in (-1, 1): box(0.006, 0.006, h, x + r + 0.012, y + sy * 0.018, Z0 + 0.08, "steel", 0)
+    for k in range(int(h / 0.05)): box(0.012, 0.04, 0.005, x + r + 0.012, y, Z0 + 0.1 + k * 0.05, "steel", 0)
+    cyl(0.012, 0.1, x, y, Z0 + 0.08 + h + r - 0.01, "steel", 8, 0)
+
+def flare(x, y, h, big=False):
+    cyl(0.03 if big else 0.02, h, x, y, Z0, "gunmetal", 10, 0)
+    if big:
+        for k in range(3):
+            for sx in (-1, 1): box(0.006, 0.006, h * 0.6, x + sx * 0.08, y, Z0, "steel", 0).rotation_euler = (0, sx * math.radians(6), 0)
+    box(0.06, 0.06, 0.03, x, y, Z0 + h, "black", 0.004)
+    cyl(0.035 if big else 0.025, 0.12 if big else 0.08, x, y, Z0 + h + 0.03, mat("flame", 0.5, 0, 6.0), 10, 0, r2=0.0)
+    sphere(0.02 if big else 0.015, x, y, Z0 + h + 0.05, mat("yellow_band", 0.5, 0, 6.0))
+
+def separator(x, y):
+    for sx in (-1, 1):
+        for sy in (-1, 1): box(0.012, 0.012, 0.1, x + sx * 0.05, y + sy * 0.05, Z0, "steel", 0)
+    cyl(0.07, 0.3, x, y, Z0 + 0.1, "concrete", 18, 0.008)
+    sphere(0.07, x, y, Z0 + 0.4, "concrete", half=True)
+    sphere(0.07, x, y, Z0 + 0.1, "concrete")
+
+def derrick(x, y, h=1.2, b=0.17, t=0.05):
+    """Drilling derrick: tapered lattice tower on a drill floor, crown block, doghouse."""
+    box(0.44, 0.44, 0.12, x, y, Z0, "gunmetal", 0.008)
+    zf = Z0 + 0.12
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            dx, dy = sx * (b - t), sy * (b - t)
+            lg = box(0.018, 0.018, math.sqrt(h * h + dx * dx + dy * dy), x + sx * (b + t) / 2, y + sy * (b + t) / 2, zf, "gold", 0)
+            lg.rotation_euler = (sy * math.atan2(b - t, h), -sx * math.atan2(b - t, h), 0)
+    for k in range(1, 8):
+        z = k * h / 8; w = 2 * (b - (b - t) * z / h)
+        box(w, 0.01, 0.01, x, y + w / 2, zf + z, "gold", 0); box(w, 0.01, 0.01, x, y - w / 2, zf + z, "gold", 0)
+        box(0.01, w, 0.01, x + w / 2, y, zf + z, "gold", 0); box(0.01, w, 0.01, x - w / 2, y, zf + z, "gold", 0)
+    box(0.12, 0.12, 0.06, x, y, zf + h, "gunmetal", 0.006)                                                  # crown block
+    cyl(0.004, h - 0.25, x, y, zf + 0.2, "black", 4, 0)
+    box(0.06, 0.05, 0.06, x, y, zf + 0.18, "yellow_band", 0.004)                                            # travelling block
+    box(0.22, 0.16, 0.16, x - 0.05, y + 0.3, Z0, "olive", 0.01)                                             # doghouse
+    box(0.012, 0.08, 0.06, x + 0.06, y + 0.3, Z0 + 0.08, "glass_lit", 0.002)
+    for k in range(4): box(0.3, 0.035, 0.035, x - 0.35, y - 0.12 + k * 0.04, Z0, "steel", 0.004)           # pipe rack of drill pipe
+
+def furnace(x, y):
+    box(0.3, 0.22, 0.24, x, y, Z0, "gunmetal", 0.01)
+    box(0.32, 0.24, 0.03, x, y, Z0 + 0.24, "olive_dk", 0.005)
+    for k in range(3): box(0.06, 0.012, 0.04, x - 0.09 + k * 0.09, y + 0.115, Z0 + 0.04, mat("flame", 0.5, 0, 2.5), 0.002)   # burner ports
+    cyl(0.04, 0.6, x + 0.08, y, Z0 + 0.27, "black", 12, 0, r2=0.03)
+
+def gas_sphere(x, y, r=0.16):
+    for k in range(6):
+        a = k / 6 * math.tau; cyl(0.01, r + 0.06, x + math.cos(a) * r * 0.85, y + math.sin(a) * r * 0.85, Z0, "steel", 6, 0)
+    sphere(r, x, y, Z0 + r + 0.07, "white")
+    cyl(r * 0.9, 0.01, x, y, Z0 + r + 0.07, "uav_grey", 24, 0)
+    for k in range(5): box(0.008, 0.03, 0.008, x + r * 0.9, y, Z0 + 0.03 + k * 0.06, "steel", 0)
+
+def air_coolers(x0, x1, y, z):
+    box(x1 - x0, 0.2, 0.06, (x0 + x1) / 2, y, z, "steel", 0.006)
+    n = int((x1 - x0) / 0.14)
+    for i in range(n): cyl(0.05, 0.01, x0 + 0.07 + i * 0.14, y, z + 0.06, "black", 14, 0)
+
+def oilwell_level(level, rnd):
+    plot(2, "sand")
+    if level <= 5:
+        for (x, y, sx, sy) in [(-0.6, 0.65, 0.3, 0.22), (0.62, -0.62, 0.25, 0.25)]: box(sx, sy, 0.008, x, y, Z0, "grass", 0.004)
+    if level == 1:
+        box(0.9, 0.3, 0.02, 0.0, -0.1, Z0, "concrete", 0.004)
+        pump_jack(0.0, -0.1, 1.0)
+        drums(-0.6, 0.4, 3); drums(0.45, 0.45, 2)
+        return
+    if level == 2:
+        box(0.9, 0.3, 0.02, -0.05, -0.35, Z0, "concrete", 0.004)
+        pump_jack(-0.05, -0.35, 1.0)
+        htank(0.0, 0.4, 0.75, 0.13, "olive_dk")
+        ypipe(0.33, -0.32, 0.25, Z0 + 0.03, 0.012, "black")
+        fence(gap=(-0.1, 0.15), e=0.86)
+        return
+    jx, js = (-0.1, 1.0) if level <= 4 else (-0.35, 0.8)
+    jy = -0.45
+    box(0.9 * js, 0.3 * js, 0.02, jx, jy, Z0, "concrete", 0.004)
+    pump_jack(jx, jy, js)
+    if level <= 5:
+        bund(-0.12, 0.42, 1.05, 0.55)
+        vtank(-0.38, 0.42, 0.17, 0.42, "concrete"); vtank(0.13, 0.42, 0.17, 0.42, "olive_dk")
+        ypipe(jx + 0.37 * js, jy + 0.03, 0.16, Z0 + 0.03, 0.012, "black")
+        if level >= 4:
+            separator(0.62, 0.05)
+            flare(0.65, -0.6, 0.6) if level == 4 else None
+        if level == 5: derrick(0.45, -0.3)
+        fence(gap=(-0.1, 0.15), e=0.86)
+        return
+    # ---- 6–10: field refinery
+    bund(-0.3, 0.47, 0.85, 0.5)
+    vtank(-0.5, 0.47, 0.16, 0.4, "concrete"); vtank(-0.1, 0.47, 0.16, 0.4, "olive_dk")
+    for px in (-0.55, -0.2, 0.15):                                                                            # pipe rack
+        for sy in (-1, 1): box(0.02, 0.02, 0.26, px, -0.12 + sy * 0.07, Z0, "steel", 0)
+        box(0.02, 0.17, 0.02, px, -0.12, Z0 + 0.26, "steel", 0)
+    for k, m in enumerate(("steel", "black", "olive_dk")): hpipe(-0.62, 0.42, -0.17 + k * 0.05, Z0 + 0.3, 0.016, m)
+    if level >= 9: air_coolers(-0.6, 0.2, -0.12, Z0 + 0.33)
+    column(0.45, 0.1, 0.075, 0.9 if level >= 7 else 0.7)
+    ypipe(0.45, -0.12, 0.03, Z0 + 0.3, 0.016)
+    if level >= 7: furnace(0.45, -0.52)
+    if level >= 8:
+        column(0.66, -0.15, 0.05, 0.6)
+        gas_sphere(0.5, 0.58, 0.16)
+    if level >= 10: flare(-0.78, -0.05, 1.15, big=True)
+    if level >= 9:
+        perimeter_wall(gap=(-0.05, 0.2), e=0.88)
+    else:
+        fence(gap=(-0.05, 0.2), e=0.86)
+    if level >= 10:
+        for (x, y) in ((0.8, 0.8), (-0.8, -0.8)):
+            cyl(0.014, 0.9, x, y, Z0, "steel", 8, 0)
+            box(0.12, 0.05, 0.06, x, y, Z0 + 0.9, "gunmetal", 0.006)
+            box(0.1, 0.012, 0.045, x, y + 0.03, Z0 + 0.905, mat("glass_lit", 0.3, 0, 4.0), 0)
+
 def sam_site():
     """Hisar-A+ style low-altitude SAM site (2×2 tiles)."""
     box(1.95, 1.95, 0.08, m="concrete_dk", bevel=0.03)
@@ -1195,6 +1369,7 @@ def sam_site():
 
 BUILDERS = {**{f"hq_{n}": (lambda n=n: hq_level(n)) for n in range(1, 11)}, "builder_1": lambda: builder_1(__import__("random").Random(7)),
             **{f"power_{n}": (lambda n=n: globals()[f"power_{n}"](__import__("random").Random(7))) for n in range(1, 7)},
+            **{f"oilwell_{n}": (lambda n=n: oilwell_level(n, __import__("random").Random(7))) for n in range(1, 11)},
             **{f"radar_{n}": (lambda n=n: globals()[f"radar_{n}"](__import__("random").Random(7))) for n in range(1, 5)}, **{f"treasury_{n}": (lambda n=n: treasury_level(n, __import__("random").Random(7))) for n in range(1, 11)}, "def_hisara": sam_site}
 
 # ---------------------------------------------------------------- scene, export, preview
@@ -1236,6 +1411,6 @@ def export(name):
 if __name__ == "__main__":
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     ids = argv or list(BUILDERS)
-    sizes = {**{f"hq_{n}": 4 for n in range(1, 11)}, "builder_1": 2, **{f"radar_{n}": 3 for n in range(1, 5)}, **{f"power_{n}": 3 for n in range(1, 7)}, **{f"treasury_{n}": 3 for n in range(1, 11)}, "def_hisara": 2}
+    sizes = {**{f"hq_{n}": 4 for n in range(1, 11)}, "builder_1": 2, **{f"radar_{n}": 3 for n in range(1, 5)}, **{f"power_{n}": 3 for n in range(1, 7)}, **{f"oilwell_{n}": 2 for n in range(1, 11)}, **{f"treasury_{n}": 3 for n in range(1, 11)}, "def_hisara": 2}
     for i in ids:
         reset(); BUILDERS[i](); export(i); preview(i, sizes.get(i, 3)); print("built", i)
