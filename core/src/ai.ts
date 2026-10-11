@@ -55,6 +55,7 @@ function shop(m: Match, pi: PlayerIndex) {
   if (p.budget > 400 && (p.launchers.som ?? 0) < 3) buy(m, pi, { c: 'buyLauncher', weapon: 'som' });
   if (p.budget > 500 && (p.launchers.tayfun ?? 0) < 2) buy(m, pi, { c: 'buyLauncher', weapon: 'tayfun' });
   if (p.budget > 450 && (p.launchers.mald ?? 0) < 1) buy(m, pi, { c: 'buyLauncher', weapon: 'mald' });
+  if (p.budget > 200 && (p.launchers.akbaba ?? 0) < 1) buy(m, pi, { c: 'buyLauncher', weapon: 'akbaba' });
   // Restock attack weapons (recon drones need no launcher).
   for (const w of ATTACKS) {
     if (w.reusable || !(w.noLauncher || p.launchers[w.id] > 0)) continue;
@@ -85,6 +86,8 @@ function attackTurn(m: Match, pi: PlayerIndex) {
     let k = 0;
     for (const w of ATTACKS) if ((w.precise || w.id === 'shahed') && !w.recon && !w.reusable) for (let n = left(w.id); n > 0; n--) fire(w.id, bats[Math.floor(k++ / 3) % bats.length]);
   } else for (let i = 0; i < Math.min(left('recon'), toCheck.length); i++) fire('recon', toCheck[i]);
+  // Anti-radiation missiles ride along: whatever defence fires at the drones gets hit.
+  for (let n = left('akbaba'); n > 0; n--) fire('akbaba', pt(0, 0));
   // Cheap drones and decoys keep the defence busy (aimed into the city).
   // Cheap drones and decoys wait for a find; with no recon flying they go now to keep the defence busy.
   if (!(p.stock.recon > 0) || !standing.length) for (const id of ['shahed', 'gerbera', 'mald']) for (let n = left(id); n > 0; n--) fire(id, standing[n % Math.max(1, standing.length)] ?? pt(0, 0));

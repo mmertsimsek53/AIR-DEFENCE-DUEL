@@ -748,7 +748,7 @@ const ORIGINS=[['Turkish',['korkut','sungur','alka','koral','hisara','hisaro','s
   ['Russian',['igla','zu23','tunguska','pantsir','tor','buk','s300','s400','s500']],['Israeli',['irondome','ironbeam','davidsling']]];
 const REC_DEF=[['vs drones',['korkut','gurz']],['vs missiles',['hisara','irondome']],['vs ballistic',['patriot','s400']]];
 const DUEL_SCOUTS=CAT.scouts.filter(s=>s.id==='aksungur'); // the duel uses the Aksungur for surveys
-const REC_ATK=['aksungur','recon','shahed','gerbera','mald','som','tayfun','kinzhal'];
+const REC_ATK=['aksungur','recon','shahed','gerbera','mald','akbaba','harop','som','tayfun','kinzhal'];
 const TARGET_ORDER=['factory','command','power','radar','finance','depot','airbase'];
 // Auto attack: send everything ready to fire at the best known target, in one go.
 function quickStrike(){
@@ -1001,7 +1001,7 @@ function liveHTML(){const list=liveRemaining();
   if(liveSel&&!list.some(x=>x.k===liveSel)){liveSel=null;liveFrom=null;}
   let h='<div class="chips2">'+list.map(x=>'<button class="wchip'+(liveSel===x.k?' on':'')+'" data-live="'+x.k+'" style="--c:'+x.col+'"><b>'+esc(x.name)+'</b><span>'+(x.scout?'scout · ':'')+x.n+' left</span></button>').join('')+'</div>';
   if(!list.length)h='<div class="small">Everything for this turn has been launched.</div>';
-  h+='<div class="liverow"><span class="step-txt">'+(!liveSel?(list.length?'1. Pick a weapon':''):!liveFrom?'2. Tap on the map <b>where it starts</b> (outside the city)':liveSel==='w:recon'?'3. Tap <b>a hideout</b> to check':liveSel&&liveSel.startsWith('s:')?'3. Tap <b>their city</b>: the Aksungur flies a lap and photographs it':'3. Tap <b>where it should hit</b>')+'</span><button class="btn" data-live="end" type="button">End attack</button></div>';
+  h+='<div class="liverow"><span class="step-txt">'+(!liveSel?(list.length?'1. Pick a weapon':''):!liveFrom?'2. Tap on the map <b>where it starts</b> (outside the city)':liveSel==='w:recon'?'3. Tap <b>a hideout</b> to check':liveSel==='w:akbaba'||liveSel==='w:harop'?'3. Tap <b>their city</b>: it homes on the first defence that fires':liveSel&&liveSel.startsWith('s:')?'3. Tap <b>their city</b>: the Aksungur flies a lap and photographs it':'3. Tap <b>where it should hit</b>')+'</span><button class="btn" data-live="end" type="button">End attack</button></div>';
   return h;}
 function hintHTML(){
   const v=view,m=v.me;if(!v)return '';
@@ -1173,7 +1173,7 @@ function updMarkers(){
   const seenE=new Set();
   if(v&&viewSide===1&&v.phase!=='over')for(const b of v.enemy.batteries){const vb=SIDES[1].bats&&SIDES[1].bats[b.uid];const el=markEl(foeTags,b.uid,'ammo');seenE.add(b.uid);
     if(!vb){el.hidden=true;continue;}const s=project(_b.copy(vb.pos).setY(vb.muzzle.y+5));if(!s||behindDock(s.x)){el.hidden=true;continue;}
-    const L=v.batteryLives;el.hidden=false;el.textContent=b.name+' · ♥'+(L-b.damage)+'/'+L;el.className='ammo'+(b.damage?' low':'');el.style.transform='translate('+s.x.toFixed(0)+'px,'+s.y.toFixed(0)+'px)';}
+    const L=v.batteryLives;el.hidden=false;el.textContent=b.name+' · ♥'+(L-b.damage)+'/'+L+(b.dry?' · OUT OF MISSILES':'');el.className='ammo'+(b.dry?' empty':b.damage?' low':'');el.style.transform='translate('+s.x.toFixed(0)+'px,'+s.y.toFixed(0)+'px)';}
   for(const id in foeTags)if(!seenE.has(+id))foeTags[id].hidden=true;
 }
 function updTags(){
@@ -1182,7 +1182,7 @@ function updTags(){
     const s=project(tv.pos);if(!s){tv.tag.hidden=true;continue;}
     tv.tag.hidden=false;tv.tag.style.transform='translate('+s.x.toFixed(1)+'px,'+s.y.toFixed(1)+'px)';
     const k=threatShown(t),cls=k?CLS_TAG[k]:'unk';
-    let txt=t.recon?(t.hovering?'RECON · CHECKING':'RECON'):t.scout?'SCOUT UAV':t.decoy?'DECOY':!t.cls?'UNKNOWN':k==='drone'?(t.hovering?'HOVERING':''):t.name.toUpperCase();
+    let txt=t.recon?(t.hovering?'RECON · CHECKING':'RECON'):t.locked!=null&&!view.battle.iDefend?'LOCKED ON':(t.name==='Harop (loitering)'&&t.hovering)?'HAROP · WAITING':t.scout?'SCOUT UAV':t.decoy?'DECOY':!t.cls?'UNKNOWN':k==='drone'?(t.hovering?'HOVERING':''):t.name.toUpperCase();
     if(t.engaged&&txt)txt+=' · ENG';if(t.priority)txt+=(txt?' · ':'')+'PRIORITY';if(t.hold)txt+=(txt?' · ':'')+'HOLD';
     const key=cls+t.engaged+t.priority+t.hold+txt;
     if(key!==tv.key){tv.key=key;tv.tag.className='tag '+cls+(t.engaged?' eng':'')+(t.priority?' prio':'')+(t.hold?' hold':'');tv.span.textContent=txt;}

@@ -44,6 +44,8 @@
     a({ id: "trg300", name: "TRG-300", cls: "rocket", unit: 0.6, launcher: 40, perTurn: 4, flight: 18, damage: 25, precise: true, role: "Fast guided rocket. One hit destroys a battery or a hideout; hard for guns and lasers to stop." }),
     a({ id: "himars", name: "HIMARS GMLRS", cls: "rocket", unit: 0.3, launcher: 60, perTurn: 6, flight: 18, damage: 20, precise: true, role: "Fast GPS-guided rockets, six per pod. Kills batteries one per hit." }),
     a({ id: "tb2", name: "Bayraktar TB2", cls: "uav", unit: 15, launcher: 0, perTurn: 99, flight: 30, damage: 10, precise: true, reusable: true, munitions: 4, munitionCost: 0.1, role: "Armed UAV with 4 bombs: loiters over the point you choose and drops them one by one. Comes back if it survives." }),
+    a({ id: "akbaba", name: "Akbaba (anti-radiation)", cls: "cruise", unit: 1.5, launcher: 60, perTurn: 4, flight: 8, damage: 25, precise: true, arm: true, role: "Homes on any enemy defence that fires (its radar gives it away) and destroys it. Hard to shoot down. Send it after a wave of drones and decoys." }),
+    a({ id: "harop", name: "Harop (loitering)", cls: "drone", unit: 3, launcher: 0, perTurn: 2, flight: 30, damage: 25, precise: true, arm: true, loiter: 60, noLauncher: true, role: "Circles over the point you choose for up to 60 s and dives on the first enemy defence that switches on its radar." }),
     a({ id: "som", name: "SOM", cls: "cruise", unit: 1.2, launcher: 50, perTurn: 2, flight: 35, damage: 50, precise: true, low: true, role: "Low-flying cruise missile. Long-range SAMs struggle against it; one hit destroys a battery or a hideout." }),
     a({ id: "tomahawk", name: "Tomahawk", cls: "cruise", unit: 2, launcher: 60, perTurn: 2, flight: 35, damage: 60, precise: true, low: true, role: "Low-flying cruise missile with a bigger warhead. One hit destroys a battery or a hideout." }),
     a({ id: "tayfun", name: "Tayfun", cls: "ballistic", unit: 3.5, launcher: 90, perTurn: 2, flight: 12, damage: 80, precise: true, role: "Ballistic missile: very fast, only Patriot and the long-range SAMs can stop it. The sure blow on a found chief." }),
@@ -90,6 +92,10 @@
     // damage (added up over hits within batteryHitRadius) that destroys an air-defence battery
     batteryHitRadius: 0.3,
     // km
+    armHitFactor: 0.2,
+    // defences' hit chance against Akbaba / Harop, relative to normal
+    armSeeker: 50,
+    // km: an anti-radiation weapon locks on to a firing radar within this distance
     surveyPerPass: 6,
     // survey sectors (of 12) a TB2 photographs per lap: half the city
     surveyHitFactor: 0.3,
@@ -158,6 +164,7 @@
     { kind: "structure", name: "Building", effect: "No special effect", repairNow: 0 }
   ];
   var FINANCE_PENALTY = 0.3;
+  var PASSIVE_SYSTEMS = ["stinger", "igla", "sungur", "avenger", "alka", "gokberk", "ironbeam"];
   var TIER_NAMES = ["", "Short range", "Medium range", "Long range", "Top level"];
   var XP = { start: 1e3, win: 30, bigWinBonus: 10, bigWinHealth: 500, loss: -20, concede: -25, window: 100, widenEvery: 15, widenBy: 50 };
   var defence = (id) => DEFENCES.find((s) => s.id === id);
@@ -729,6 +736,8 @@
       b.reloading = 0;
       b.dwell = 0;
       b.dwellTarget = void 0;
+      b.emitted = false;
+      b.dry = false;
       topUp(def, b);
     }
     for (const b of def.buildings) b.battleDamage = 0;
@@ -896,7 +905,7 @@
     const extra = Math.max(0, wantDist - Math.hypot(p0.x, p0.z));
     return { x: round(p0.x + dx * extra), z: round(p0.z + dz * extra) };
   }
-  var SPAWN_DIST = { kargu: 20, recon: 20, grad: 40, himars: 80, trg300: 100 };
+  var SPAWN_DIST = { kargu: 20, recon: 20, akbaba: 30, grad: 40, himars: 80, trg300: 100 };
   var PEAK = { drone: 0.3, decoy: 0.3, uav: 5, rocket: 12, cruise: 0.05, ballistic: 80, hypersonic: 25 };
   function spawnStrike(m, bt, att, def, weapon, target, delay, from, to) {
     const w = attack(weapon);
@@ -1048,6 +1057,7 @@
     if (s.lowCruisePenalty && t.low) p -= s.lowCruisePenalty;
     if (s.weatherHit && m.weatherBad) p *= 0.5;
     if (t.weapon === "recon") p *= RULES.reconHitFactor;
+    if (t.weapon === "akbaba" || t.weapon === "harop") p *= RULES.armHitFactor;
     p += (b.level - 1) * 8;
     return clampHit(p);
   }
@@ -1085,6 +1095,8 @@
         const es = defence(ew.sys);
         if (es.kind !== "ew" || t.ewBy?.includes(ew.uid) || !batteryReady(def, ew) || dist(def.pads[ew.pad], t) > es.range) continue;
         (t.ewBy ?? (t.ewBy = [])).push(ew.uid);
+        ew.emitted = true;
+        ew.revealed = true;
         const p = (es.hit[t.cls] ?? 0) / 100;
         if (p > 0 && !t.returning && rnd(m) < p) {
           if (t.cls === "uav") {
@@ -1120,6 +1132,9 @@
         if ((def.interceptors[s.id] ?? 0) > 0 && def.reloadsLeft > 0) {
           def.reloadsLeft--;
           b.reloading = RELOAD_SECONDS;
+        } else if (!b.dry) {
+          b.dry = true;
+          emit(bt, { t: "msg", text: `${s.name} is out of missiles for this strike.`, tone: "info" });
         }
         continue;
       }
@@ -1195,9 +1210,20 @@
   function moveThreat(m, bt, att, def, t, dt) {
     if (t.hover != null) {
       t.hover -= dt;
+      if (t.weapon === "harop") {
+        if (lockOn(def, t)) return;
+        if (t.hover <= 0) {
+          t.hover = void 0;
+          t.alive = false;
+          t.landed = true;
+          impact(m, bt, def, { x: t.x, z: t.z }, t.damage);
+        }
+        return;
+      }
       if (t.hover <= 0) reconDone(m, bt, att, def, t);
       return;
     }
+    if (attack(t.weapon)?.arm && t.locked == null) lockOn(def, t);
     let move = speedNow(t) * dt;
     while (move > 0 && t.alive) {
       const a3 = t.path[t.leg], b2 = t.path[t.leg + 1];
@@ -1290,6 +1316,11 @@
       }
       const a2 = t.path[t.leg], b = t.path[t.leg + 1];
       t.total = dist(a2, b);
+      return;
+    }
+    if (t.weapon === "harop" && t.locked == null && last) {
+      t.hover = attack("harop").loiter ?? 60;
+      t.alt = 0.4;
       return;
     }
     if (t.weapon === "recon") {
@@ -1414,6 +1445,31 @@
     for (const b of def.batteries) if (sectorOf(def.pads[b.pad].x, def.pads[b.pad].z) === sec) b.revealed = true;
     emit(bt, { t: "survey", sector: sec });
   }
+  function lockOn(def, t) {
+    let best, bd = RULES.armSeeker;
+    for (const b of def.batteries) {
+      if (!b.emitted) continue;
+      const d2 = dist(def.pads[b.pad], t);
+      if (d2 < bd) {
+        bd = d2;
+        best = b;
+      }
+    }
+    if (!best) return false;
+    const pad = def.pads[best.pad];
+    t.locked = best.uid;
+    t.hover = void 0;
+    t.landsInCity = true;
+    t.targetBuilding = void 0;
+    t.path = [{ x: t.x, z: t.z }, { x: pad.x, z: pad.z }];
+    t.leg = 0;
+    t.traveled = 0;
+    t.total = dist(t.path[0], t.path[1]);
+    if (t.weapon === "harop") {
+      t.speed = t.speedIn = Math.max(t.speed, 1.5);
+    }
+    return true;
+  }
   function setIntel(p, uid2, found, turn) {
     p.intel = p.intel.filter((x) => x.uid !== uid2);
     p.intel.push({ uid: uid2, found, turn });
@@ -1482,6 +1538,7 @@
   function fire(m, bt, def, b, pad, t, dt) {
     const s = defence(b.sys);
     b.revealed = true;
+    if (!PASSIVE_SYSTEMS.includes(b.sys)) b.emitted = true;
     if (t.isScout && s.kind !== "laser") (t.firedBy ?? (t.firedBy = [])).push(b.uid);
     if (s.kind === "laser") {
       if (b.dwellTarget !== t.uid) {
@@ -1597,6 +1654,7 @@
     if (p.budget > 400 && (p.launchers.som ?? 0) < 3) buy(m, pi, { c: "buyLauncher", weapon: "som" });
     if (p.budget > 500 && (p.launchers.tayfun ?? 0) < 2) buy(m, pi, { c: "buyLauncher", weapon: "tayfun" });
     if (p.budget > 450 && (p.launchers.mald ?? 0) < 1) buy(m, pi, { c: "buyLauncher", weapon: "mald" });
+    if (p.budget > 200 && (p.launchers.akbaba ?? 0) < 1) buy(m, pi, { c: "buyLauncher", weapon: "akbaba" });
     for (const w of ATTACKS) {
       if (w.reusable || !(w.noLauncher || p.launchers[w.id] > 0)) continue;
       const cap = launchCap(p, w.id), have = p.stock[w.id] ?? 0;
@@ -1625,6 +1683,7 @@
       let k = 0;
       for (const w of ATTACKS) if ((w.precise || w.id === "shahed") && !w.recon && !w.reusable) for (let n = left(w.id); n > 0; n--) fire2(w.id, bats[Math.floor(k++ / 3) % bats.length]);
     } else for (let i = 0; i < Math.min(left("recon"), toCheck.length); i++) fire2("recon", toCheck[i]);
+    for (let n = left("akbaba"); n > 0; n--) fire2("akbaba", pt(0, 0));
     if (!(p.stock.recon > 0) || !standing.length) for (const id of ["shahed", "gerbera", "mald"]) for (let n = left(id); n > 0; n--) fire2(id, standing[n % Math.max(1, standing.length)] ?? pt(0, 0));
     if (p.surveyed.length < 12 && (p.scouts.aksungur ?? 0) > 0) command(m, pi, { c: "fire", scout: "aksungur", from: outside(m), to: pt(0, 0) });
     liveTurn = m.turnNo;
@@ -1725,7 +1784,7 @@
         scars: foe.scars,
         hideoutsLeft: foe.buildings.filter((b) => b.kind === "hideout" && b.down < 99).length,
         buildings: foe.buildings.filter((b) => b.revealed).map((b) => ({ uid: b.uid, kind: b.kind, x: b.x, z: b.z, down: b.down, no: foeNo.get(b.uid), name: nameOfBuilding(b.kind, foeNo.get(b.uid)), hp: b.hp, maxHp: b.maxHp })),
-        batteries: foe.batteries.filter((b) => b.revealed).map((b) => ({ uid: b.uid, sys: b.sys, name: defence(b.sys).name, x: foe.pads[b.pad].x, z: foe.pads[b.pad].z, damage: b.damage ?? 0 }))
+        batteries: foe.batteries.filter((b) => b.revealed).map((b) => ({ uid: b.uid, sys: b.sys, name: defence(b.sys).name, x: foe.pads[b.pad].x, z: foe.pads[b.pad].z, damage: b.damage ?? 0, dry: !!b.dry && !!bt }))
       },
       battle: bt && {
         attacker: bt.attacker,
@@ -1752,6 +1811,7 @@
             hold: t.hold,
             engaged: t.engaged,
             scout: t.isScout,
+            locked: !iDefend ? t.locked : void 0,
             recon: !iDefend && t.weapon === "recon",
             hovering: t.hover != null,
             eta: Math.round(Math.hypot(t.x, t.z) / Math.max(0.01, Math.hypot(t.x, t.z) > 20 ? t.speed : t.speedIn))

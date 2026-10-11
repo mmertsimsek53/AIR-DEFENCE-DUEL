@@ -152,3 +152,10 @@ Status: first outline from Mert, 9 Oct 2026. Everything below "Open questions" i
 - A hideout at 0 is destroyed: chief inside → the attacker wins; empty → both sides know. Damage to hideouts stays between turns.
 - A critical building at 0 is knocked out for 3 turns, then comes back with full lives (or pay to repair now).
 - Remaining lives show on the labels (your own buildings, and enemy ones you have found) and on battery tags.
+
+## Breaking the defence: anti-radiation weapons (decided 11 Oct 2026, Mert: "without hypersonic I cannot open any gap")
+- **Akbaba** anti-radiation missile: launcher $60M, $1.5M each, 4 per turn, 8 s flight. Homes on any enemy defence whose radar is on (it fired this strike) within 50 km; one hit (25) destroys a defence. Defences hit it at 20% of their normal chance. If nothing fires it lands on the aim point.
+- **Harop** loitering drone: $3M, no launcher, 2 per turn. Flies to the aim point, circles up to 60 s and dives on the first defence that switches on its radar (25 damage). Hit at 20% of normal (drone).
+- Passive systems give nothing to home on: Stinger, Igla-S, Sungur, Avenger (infra-red) and ALKA, Gökberk, Iron Beam (lasers). Jammers (Koral, İhtar) give themselves away when they jam.
+- A defence that runs out of missiles with no reloads left announces it ("out of missiles for this strike"); the attacker sees it on known batteries.
+- Measured: 2 Akbabas destroy a lone Pantsir 7 times in 10. AI vs AI median 10 turns (5–14).

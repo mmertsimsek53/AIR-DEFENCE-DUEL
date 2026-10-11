@@ -20,6 +20,8 @@ export interface Battery {
   dwell: number;
   manual?: boolean;       // big systems only: fire only at contacts the player taps
   damage?: number;        // duel: damage taken so far (destroyed at RULES.batteryKillDamage)
+  dry?: boolean;          // out of missiles with no reloads left for this strike
+  emitted?: boolean;      // its radar was on during this strike (it fired): anti-radiation weapons can home on it
 }
 
 export interface Building extends Point {
@@ -102,6 +104,7 @@ export interface Threat {
   spawnedDecoys: boolean;
   stealth: number;
   hover?: number;          // recon drone: seconds left hovering over its hideout
+  locked?: number;         // anti-radiation: uid of the battery it is diving on
   firedBy?: number[];      // survey TB2: batteries that already took their one automatic shot at it
 }
 

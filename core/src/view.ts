@@ -40,7 +40,7 @@ export function viewFor(m: Match, pi: PlayerIndex) {
       name: foe.name, scars: foe.scars,
       hideoutsLeft: foe.buildings.filter(b => b.kind === 'hideout' && b.down < 99).length,
       buildings: foe.buildings.filter(b => b.revealed).map(b => ({ uid: b.uid, kind: b.kind, x: b.x, z: b.z, down: b.down, no: foeNo.get(b.uid), name: nameOfBuilding(b.kind, foeNo.get(b.uid)), hp: b.hp, maxHp: b.maxHp })),
-      batteries: foe.batteries.filter(b => b.revealed).map(b => ({ uid: b.uid, sys: b.sys, name: defence(b.sys).name, x: foe.pads[b.pad].x, z: foe.pads[b.pad].z, damage: b.damage ?? 0 })),
+      batteries: foe.batteries.filter(b => b.revealed).map(b => ({ uid: b.uid, sys: b.sys, name: defence(b.sys).name, x: foe.pads[b.pad].x, z: foe.pads[b.pad].z, damage: b.damage ?? 0, dry: !!b.dry && !!bt })),
     },
     battle: bt && {
       attacker: bt.attacker, defender: bt.defender, iDefend, time: bt.time, bearing: bt.bearing, route: iDefend ? undefined : bt.route, live: !!bt.live, open: !!bt.open,
@@ -54,7 +54,7 @@ export function viewFor(m: Match, pi: PlayerIndex) {
           looksLike: t.looksLike,
           name: !iDefend ? nameOf(t.weapon, t.isScout) : !t.identified ? 'Unknown' : isDecoy && !t.decoyMarked ? (threatName[t.looksLike] ?? 'Unknown') : isDecoy ? 'Decoy' : nameOf(t.weapon, t.isScout),
           decoy: iDefend ? t.decoyMarked : isDecoy,
-          priority: t.priority, hold: t.hold, engaged: t.engaged, scout: t.isScout, recon: !iDefend && t.weapon === 'recon', hovering: t.hover != null,
+          priority: t.priority, hold: t.hold, engaged: t.engaged, scout: t.isScout, locked: !iDefend ? t.locked : undefined, recon: !iDefend && t.weapon === 'recon', hovering: t.hover != null,
           eta: Math.round(Math.hypot(t.x, t.z) / Math.max(0.01, Math.hypot(t.x, t.z) > 20 ? t.speed : t.speedIn)),
         };
       }),

@@ -408,4 +408,44 @@ describe('chief, hideouts, recon drones and decoys', () => {
     expect(h.hp).toBeLessThan(40);
     expect(viewFor(m, 0).enemy.buildings.find(b => b.uid === h.uid)?.hp).toBe(h.hp);
   });
+
+  it('anti-radiation: an Akbaba destroys a defence that fired, but cannot find a passive one', () => {
+    let killedRadar = 0, killedPassive = 0;
+    for (let seed = 1100; seed < 1110; seed++) {
+      for (const sys of ['pantsir', 'stinger'] as const) {
+        const m = createMatch(seed, ['A', 'B'], [false, false], { timed: false });
+        command(m, 0, { c: 'buyLauncher', weapon: 'shahed' }); command(m, 0, { c: 'buyUnits', weapon: 'shahed', n: 10 });
+        command(m, 0, { c: 'buyLauncher', weapon: 'akbaba' }); command(m, 0, { c: 'buyUnits', weapon: 'akbaba', n: 2 });
+        command(m, 1, { c: 'buyBattery', sys, pad: 0 });
+        command(m, 0, { c: 'endSetup' }); command(m, 1, { c: 'endSetup' });
+        hideChiefFrom(m, 1, m.players[1].pads[0].x, m.players[1].pads[0].z);
+        command(m, 0, { c: 'go', strikes: [{ weapon: 'shahed', n: 10 }], scouts: [], live: true });
+        for (let i = 0; i < 2; i++) command(m, 0, { c: 'fire', weapon: 'akbaba', from: { x: 25, z: 0 }, to: { x: 0, z: 0 } });
+        command(m, 0, { c: 'endAttack' });
+        run(m, 90);
+        if (m.players[1].batteries.length === 0) { if (sys === 'pantsir') killedRadar++; else killedPassive++; }
+      }
+    }
+    expect(killedRadar).toBeGreaterThan(5);
+    expect(killedPassive).toBe(0);
+  });
+
+  it('a Harop loiters, then dives on the first radar that switches on', () => {
+    const m = createMatch(1200, ['A', 'B'], [false, false], { timed: false });
+    command(m, 0, { c: 'buyUnits', weapon: 'harop', n: 1 });
+    command(m, 0, { c: 'buyLauncher', weapon: 'shahed' }); command(m, 0, { c: 'buyUnits', weapon: 'shahed', n: 10 });
+    command(m, 1, { c: 'buyBattery', sys: 'hisaro', pad: 7 });
+    const sam = m.players[1].batteries[0];
+    command(m, 1, { c: 'setManual', uid: sam.uid, on: true });   // the defender keeps its radar quiet at first
+    command(m, 0, { c: 'endSetup' }); command(m, 1, { c: 'endSetup' });
+    hideChiefFrom(m, 1, m.players[1].pads[7].x, m.players[1].pads[7].z);
+    command(m, 0, { c: 'go', strikes: [], scouts: [], live: true });
+    command(m, 0, { c: 'fire', weapon: 'harop', from: { x: 25, z: 0 }, to: { x: 0, z: 0 } });
+    run(m, 34);                                             // arrived; nothing has fired, so it loiters
+    const h = m.battle!.threats.find(t => t.weapon === 'harop')!;
+    expect(h.alive && h.hover != null && h.locked == null).toBe(true);
+    command(m, 1, { c: 'setManual', uid: sam.uid, on: false }); // radar on: it fires at the Harop
+    run(m, 30);
+    expect(h.locked).toBe(sam.uid);
+  });
 });

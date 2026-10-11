@@ -1,5 +1,5 @@
 import {
-  ATTACKS, BUILDINGS, CITY_RADIUS, DEFENCES, TIER_NAMES, DEF_UPGRADE, ECONOMY, EXTRA_RADAR_PRICE, FINANCE_PENALTY,
+  ATTACKS, BUILDINGS, CITY_RADIUS, DEFENCES, PASSIVE_SYSTEMS, TIER_NAMES, DEF_UPGRADE, ECONOMY, EXTRA_RADAR_PRICE, FINANCE_PENALTY,
   LONG_RANGE_SAMS, POWER_RADAR_PENALTY, RADAR_LEVELS, RULES, SCOUTS, SPAWN_DISTANCE,
   attack, defence, scout, type BuildingKind, type ThreatClass,
 } from './data';
@@ -419,7 +419,7 @@ function launch(m: Match, pi: PlayerIndex, strikes: { weapon: string; n: number;
     bt.patrols.push({ uid: uid(m), r, a, w, x: round(Math.cos(a) * r), z: round(Math.sin(a) * r), alt: round(4 + rnd(m) * 5), missiles: RULES.patrolMissiles, cooldown: 0 });
   }
   def.inspected = [];
-  for (const b of def.batteries) { b.cooldown = 0; b.reloading = 0; b.dwell = 0; b.dwellTarget = undefined; topUp(def, b); }
+  for (const b of def.batteries) { b.cooldown = 0; b.reloading = 0; b.dwell = 0; b.dwellTarget = undefined; b.emitted = false; b.dry = false; topUp(def, b); }
   for (const b of def.buildings) b.battleDamage = 0;
 
   for (const s of strikes) {
@@ -545,7 +545,7 @@ function routeStart(route: Point[], wantDist: number): Point {
   return { x: round(p0.x + dx * extra), z: round(p0.z + dz * extra) };
 }
 
-const SPAWN_DIST: Record<string, number> = { kargu: 20, recon: 20, grad: 40, himars: 80, trg300: 100 };
+const SPAWN_DIST: Record<string, number> = { kargu: 20, recon: 20, akbaba: 30, grad: 40, himars: 80, trg300: 100 };
 const PEAK: Record<ThreatClass, number> = { drone: 0.3, decoy: 0.3, uav: 5, rocket: 12, cruise: 0.05, ballistic: 80, hypersonic: 25 };
 
 function spawnStrike(m: Match, bt: Battle, att: PlayerState, def: PlayerState, weapon: string, target: number | undefined, delay: number, from?: Point, to?: Point) {
@@ -667,6 +667,7 @@ function hitChance(m: Match, def: PlayerState, b: Battery, t: Threat): number {
   if (s.lowCruisePenalty && t.low) p -= s.lowCruisePenalty;
   if (s.weatherHit && m.weatherBad) p *= 0.5;
   if (t.weapon === 'recon') p *= RULES.reconHitFactor;
+  if (t.weapon === 'akbaba' || t.weapon === 'harop') p *= RULES.armHitFactor;
   p += (b.level - 1) * 8;
   return clampHit(p);
 }
@@ -702,7 +703,7 @@ function battleStep(m: Match, bt: Battle, dt: number) {
     for (const ew of def.batteries) {
       const es = defence(ew.sys);
       if (es.kind !== 'ew' || t.ewBy?.includes(ew.uid) || !batteryReady(def, ew) || dist(def.pads[ew.pad], t) > es.range) continue;
-      (t.ewBy ??= []).push(ew.uid);
+      (t.ewBy ??= []).push(ew.uid); ew.emitted = true; ew.revealed = true;
       const p = (es.hit[t.cls] ?? 0) / 100;
       if (p > 0 && !t.returning && rnd(m) < p) {
         if (t.cls === 'uav') { t.returning = true; t.munitions = 0; turnBack(t); emit(bt, { t: 'msg', text: `${es.name} turned back a ${t.isScout ? 'scout' : 'UAV'}.`, tone: 'good' }); }
@@ -722,6 +723,7 @@ function battleStep(m: Match, bt: Battle, dt: number) {
     if (!batteryReady(def, b)) continue;
     if (s.load > 0 && b.ammo <= 0) {
       if ((def.interceptors[s.id] ?? 0) > 0 && def.reloadsLeft > 0) { def.reloadsLeft--; b.reloading = RELOAD_SECONDS; }
+      else if (!b.dry) { b.dry = true; emit(bt, { t: 'msg', text: `${s.name} is out of missiles for this strike.`, tone: 'info' }); }
       continue;
     }
     const pad = def.pads[b.pad];
@@ -777,11 +779,13 @@ function turnBack(t: Threat) {
 }
 
 function moveThreat(m: Match, bt: Battle, att: PlayerState, def: PlayerState, t: Threat, dt: number) {
-  if (t.hover != null) { // recon drone over its hideout
+  if (t.hover != null) { // recon drone over its hideout, or a Harop loitering
     t.hover -= dt;
+    if (t.weapon === 'harop') { if (lockOn(def, t)) return; if (t.hover <= 0) { t.hover = undefined; t.alive = false; t.landed = true; impact(m, bt, def, { x: t.x, z: t.z }, t.damage); } return; }
     if (t.hover <= 0) reconDone(m, bt, att, def, t);
     return;
   }
+  if (attack(t.weapon)?.arm && t.locked == null) lockOn(def, t);
   let move = speedNow(t) * dt;
   while (move > 0 && t.alive) {
     const a = t.path[t.leg], b = t.path[t.leg + 1];
@@ -856,6 +860,7 @@ function arrive(m: Match, bt: Battle, att: PlayerState, def: PlayerState, t: Thr
     t.total = dist(a, b);
     return;
   }
+  if (t.weapon === 'harop' && t.locked == null && last) { t.hover = attack('harop').loiter ?? 60; t.alt = 0.4; return; }
   if (t.weapon === 'recon') {
     if (!last) { const a = t.path[t.leg], b = t.path[t.leg + 1]; t.total = dist(a, b); return; }
     t.hover = RULES.reconHover; t.alt = 0.15;
@@ -945,6 +950,18 @@ function surveySector(m: Match, bt: Battle, att: PlayerState, def: PlayerState) 
   emit(bt, { t: 'survey', sector: sec });
 }
 
+/** Anti-radiation: lock on to the nearest enemy defence whose radar is on (it fired this strike) and dive at it. */
+function lockOn(def: PlayerState, t: Threat): boolean {
+  let best: Battery | undefined, bd = RULES.armSeeker;
+  for (const b of def.batteries) { if (!b.emitted) continue; const d = dist(def.pads[b.pad], t); if (d < bd) { bd = d; best = b; } }
+  if (!best) return false;
+  const pad = def.pads[best.pad];
+  t.locked = best.uid; t.hover = undefined; t.landsInCity = true; t.targetBuilding = undefined;
+  t.path = [{ x: t.x, z: t.z }, { x: pad.x, z: pad.z }]; t.leg = 0; t.traveled = 0; t.total = dist(t.path[0], t.path[1]);
+  if (t.weapon === 'harop') { t.speed = t.speedIn = Math.max(t.speed, 1.5); } // the dive is fast
+  return true;
+}
+
 function setIntel(p: PlayerState, uid: number, found: boolean, turn: number) {
   p.intel = p.intel.filter(x => x.uid !== uid);
   p.intel.push({ uid, found, turn });
@@ -1006,6 +1023,7 @@ function pickTarget(m: Match, bt: Battle, def: PlayerState, b: Battery, pad: Pad
 function fire(m: Match, bt: Battle, def: PlayerState, b: Battery, pad: Pad, t: Threat, dt: number) {
   const s = defence(b.sys);
   b.revealed = true;
+  if (!PASSIVE_SYSTEMS.includes(b.sys)) b.emitted = true;
   if (t.isScout && s.kind !== 'laser') (t.firedBy ??= []).push(b.uid);
   if (s.kind === 'laser') {
     if (b.dwellTarget !== t.uid) { b.dwellTarget = t.uid; b.dwell = 0; }

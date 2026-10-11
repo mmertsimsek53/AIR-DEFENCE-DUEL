@@ -79,6 +79,8 @@ export interface AttackSpec {
   decoysAtEnd?: number;   // Iskander: decoys released near the end
   noLauncher?: boolean;   // fires without a launcher (perTurn is the cap)
   recon?: boolean;        // mini recon drone: hovers over a hideout and reports whether the chief is inside
+  arm?: boolean;          // anti-radiation: homes on an enemy defence whose radar gives it away by firing
+  loiter?: number;        // seconds it circles over its aim point waiting for a radar (Harop)
   imitates?: ThreatClass; // decoy looks like this
   role: string;
 }
@@ -95,6 +97,8 @@ export const ATTACKS: AttackSpec[] = [
   a({ id: 'trg300', name: 'TRG-300', cls: 'rocket', unit: 0.6, launcher: 40, perTurn: 4, flight: 18, damage: 25, precise: true, role: 'Fast guided rocket. One hit destroys a battery or a hideout; hard for guns and lasers to stop.' }),
   a({ id: 'himars', name: 'HIMARS GMLRS', cls: 'rocket', unit: 0.3, launcher: 60, perTurn: 6, flight: 18, damage: 20, precise: true, role: 'Fast GPS-guided rockets, six per pod. Kills batteries one per hit.' }),
   a({ id: 'tb2', name: 'Bayraktar TB2', cls: 'uav', unit: 15, launcher: 0, perTurn: 99, flight: 30, damage: 10, precise: true, reusable: true, munitions: 4, munitionCost: 0.1, role: 'Armed UAV with 4 bombs: loiters over the point you choose and drops them one by one. Comes back if it survives.' }),
+  a({ id: 'akbaba', name: 'Akbaba (anti-radiation)', cls: 'cruise', unit: 1.5, launcher: 60, perTurn: 4, flight: 8, damage: 25, precise: true, arm: true, role: 'Homes on any enemy defence that fires (its radar gives it away) and destroys it. Hard to shoot down. Send it after a wave of drones and decoys.' }),
+  a({ id: 'harop', name: 'Harop (loitering)', cls: 'drone', unit: 3, launcher: 0, perTurn: 2, flight: 30, damage: 25, precise: true, arm: true, loiter: 60, noLauncher: true, role: 'Circles over the point you choose for up to 60 s and dives on the first enemy defence that switches on its radar.' }),
   a({ id: 'som', name: 'SOM', cls: 'cruise', unit: 1.2, launcher: 50, perTurn: 2, flight: 35, damage: 50, precise: true, low: true, role: 'Low-flying cruise missile. Long-range SAMs struggle against it; one hit destroys a battery or a hideout.' }),
   a({ id: 'tomahawk', name: 'Tomahawk', cls: 'cruise', unit: 2.0, launcher: 60, perTurn: 2, flight: 35, damage: 60, precise: true, low: true, role: 'Low-flying cruise missile with a bigger warhead. One hit destroys a battery or a hideout.' }),
   a({ id: 'tayfun', name: 'Tayfun', cls: 'ballistic', unit: 3.5, launcher: 90, perTurn: 2, flight: 12, damage: 80, precise: true, role: 'Ballistic missile: very fast, only Patriot and the long-range SAMs can stop it. The sure blow on a found chief.' }),
@@ -135,6 +139,8 @@ export const RULES = {
   reconHitFactor: 0.5,     // defences' hit chance against a mini recon drone, relative to a drone
   batteryKillDamage: 20,   // damage (added up over hits within batteryHitRadius) that destroys an air-defence battery
   batteryHitRadius: 0.3,   // km
+  armHitFactor: 0.2,       // defences' hit chance against Akbaba / Harop, relative to normal
+  armSeeker: 50,           // km: an anti-radiation weapon locks on to a firing radar within this distance
   surveyPerPass: 6,        // survey sectors (of 12) a TB2 photographs per lap: half the city
   surveyHitFactor: 0.3,    // defences' hit chance against a survey TB2, relative to a UAV (≈3–4 shots to bring it down)
   patrolPrice: 40,         // $M: Akıncı air patrol over your own city (stays all match)
@@ -195,6 +201,9 @@ export const BUILDINGS: { kind: BuildingKind; name: string; effect: string; repa
   { kind: 'structure', name: 'Building', effect: 'No special effect', repairNow: 0 },
 ];
 export const FINANCE_PENALTY = 0.3;
+
+/** Systems without a search radar (infra-red, optical, lasers): anti-radiation weapons cannot home on them. */
+export const PASSIVE_SYSTEMS = ['stinger', 'igla', 'sungur', 'avenger', 'alka', 'gokberk', 'ironbeam'];
 
 export const TIER_NAMES = ['', 'Short range', 'Medium range', 'Long range', 'Top level'];
 
