@@ -458,7 +458,7 @@ let viewSide=0,choice=0,tab=null,placing=null,selected=null,plan=newPlan(),upSeg
 let liveSel=null,liveFrom=null; // live attack: chosen weapon/scout and start point
 const liveGfx=new THREE.Group();scene.add(liveGfx);
 function newPlan(){return {counts:{},target:null,scouts:{},scoutPath:{},scoutPathU:{},bearing:null,route:null,routeU:null};}
-let drawMode=null,showAllDef=false,showAllAtk=false;
+let drawMode=null,showAllDef=false,showAllAtk=false,draftOpen=null; // draftOpen: defence level open in setup (null = the next one to fill)
 let lastTurnKey='',sheetSig='',sheetT=0,useShadows=true;
 const TV=new Map(),IV=new Map(),PV=new Map();   // threat, interceptor and air-patrol visuals by uid
 const patrolMat=new THREE.MeshLambertMaterial({color:0x5b6470});
@@ -729,7 +729,7 @@ function launch(){
 }
 
 function vsChips(hit,col){return '<div class="vs">'+CLS_ORDER.filter(k=>hit[k]).map(k=>'<i class="y" style="--c:'+CLS_CSS[k]+'">'+CLS_LABEL[k]+' '+Math.round(hit[k])+'%</i>').join('')+'</div>';}
-function sig(){const v=view,m=v.me;return [v.phase,v.myTurn,tab,upSeg,m.budget,JSON.stringify(m.stock),JSON.stringify(m.launchers),JSON.stringify(m.scouts),JSON.stringify(m.interceptors),m.patrols,m.chief,JSON.stringify(m.intel),m.surveyed.length,m.batteries.map(b=>b.manual?1:0).join(''),v.enemy.buildings.length,
+function sig(){const v=view,m=v.me;return [v.phase,v.myTurn,tab,upSeg,m.budget,JSON.stringify(m.stock),JSON.stringify(m.launchers),JSON.stringify(m.scouts),JSON.stringify(m.interceptors),m.patrols,draftOpen,m.chief,JSON.stringify(m.intel),m.surveyed.length,m.batteries.map(b=>b.manual?1:0).join(''),v.enemy.buildings.length,
   m.batteries.map(b=>b.uid+':'+b.ammo).join(','),m.buildings.map(b=>b.down).join(','),v.enemy.buildings.map(b=>b.uid+':'+b.down).join(','),JSON.stringify(plan),placing].join('|');}
 
 function hideSheet(){$('sheet').hidden=true;document.body.classList.remove('sheet-open');}
@@ -762,8 +762,11 @@ function sheetHTML(){
     if(v.phase==='setup'){
       const P=CAT.rules.draftPicks,total=P[1]+P[2]+P[3]+P[4];
       h+='<div class="note">Pick your defence now: <b>2 short range, 2 medium range, 2 long range and 1 top-level system</b> ('+m.batteries.length+' of '+total+' picked). Picks are free with their first load of missiles. After setup no defences can be added; your money goes on attack weapons, drones and spare missiles. Tap a picked system in your city to remove it.</div>';
-      for(let t=1;t<=4;t++){const n=picked(t),full=n>=P[t];
-        h+='<h3>'+CAT.tierNames[t]+' <span class="small">· '+n+' / '+P[t]+' picked'+(full?' · full':' · tap one, then a glowing + in your city')+'</span></h3><div class="tiles">'+
+      // One level open at a time: the one you chose, otherwise the first that still needs picks.
+      const firstOpen=[1,2,3,4].find(t=>picked(t)<P[t]),openT=draftOpen&&draftOpen<=4?draftOpen:firstOpen;
+      for(let t=1;t<=4;t++){const n=picked(t),full=n>=P[t],open=t===openT;
+        h+='<div class="sec-h'+(open?' open':'')+'" data-act="tier" data-k="'+t+'" style="margin-top:8px"><span>'+CAT.tierNames[t]+'</span><span class="cnt">'+n+' / '+P[t]+' picked'+(full?' ✓':'')+'</span><span class="chev">›</span></div>';
+        if(open)h+='<div class="small" style="margin:6px 2px">'+(full?'Full. Remove one in your city to pick another.':'Tap one, then a glowing + in your city.')+'</div><div class="tiles">'+
           CAT.defences.filter(d=>d.tier===t).sort((x,y)=>x.price-y.price).map(d=>card(d,full)).join('')+'</div>';}
     }
     {const n=m.patrols||0,P=CAT.rules.patrolPrice,setup=v.phase==='setup';
@@ -822,6 +825,8 @@ $('sheet').addEventListener('click',e=>{
     case 'launcher':if(cmd({c:'buyLauncher',weapon:k}))msg(ATK[k].name+' launcher bought','money');break;
     case 'units':cmd({c:'buyUnits',weapon:k,n:+b.dataset.n});break;
     case 'scout':if(cmd({c:'buyScout',scout:k}))msg(SCT[k].name+' ready','money');break;
+    case 'tier':{const P=CAT.rules.draftPicks,cur=draftOpen!=null?draftOpen:[1,2,3,4].find(t=>view.me.batteries.filter(b=>DEF[b.sys].tier===t).length<P[t]);
+      draftOpen=cur===+k?-1:+k;}break; // tapping the open level closes it (-1: all closed until the next pick)
     case 'patrol':if(cmd({c:'buyPatrol'}))msg('Akıncı air patrol added','money');break;
     case 'manual':{const bat=view.me.batteries.find(x=>x.uid===+k);if(bat&&cmd({c:'setManual',uid:bat.uid,on:!bat.manual}))msg(DEF[bat.sys].name+(bat.manual?' fires automatically':' fires only at contacts you tap'),'good');}break;
     case 'chiefTo':{const setup=view.phase==='setup',h=view.me.buildings.find(x=>x.uid===+k);if(cmd({c:setup?'placeChief':'moveChief',uid:+k}))msg('Chief '+(setup?'placed in ':'moved to ')+(h?h.name:'the hideout')+(setup?'':' · −'+fmt(view.me.chiefMove)),'money');}break;
@@ -985,7 +990,7 @@ cv.addEventListener('contextmenu',e=>e.preventDefault());cv.addEventListener('po
 cv.addEventListener('wheel',e=>{e.preventDefault();cam.r=Math.min(380,Math.max(40,cam.r*(1+e.deltaY*0.001)));},{passive:false});
 function project(p){_c.copy(p).project(camera);return _c.z<1&&_c.z>-1?{x:(_c.x*.5+.5)*innerWidth,y:(-_c.y*.5+.5)*innerHeight}:null;}
 function nearestThreat(x,y){let best=null,bd=56;for(const [uid,tv] of TV){const s=project(tv.pos);if(!s)continue;const d=Math.hypot(s.x-x,s.y-y);if(d<bd){bd=d;best=uid;}}return best;}
-function placeAt(padId){const k=placing;if(!k)return;if(cmd({c:'buyBattery',sys:k,pad:padId})){msg(DEF[k].name+' deployed','money');setPlacing(null);refreshUI();}}
+function placeAt(padId){const k=placing;if(!k)return;if(cmd({c:'buyBattery',sys:k,pad:padId})){const t=DEF[k].tier;draftOpen=view.me.batteries.filter(b=>DEF[b.sys].tier===t).length<CAT.rules.draftPicks[t]?t:null;/* stay on this level until it is full, then the next */msg(DEF[k].name+' deployed','money');setPlacing(null);refreshUI();}}
 function tap(x,y){
   if(!view)return;
   if(placing&&canShop()&&viewSide===0){const taken=new Set(view.me.batteries.map(b=>b.pad));let best=null,bd=46;
