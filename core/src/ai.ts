@@ -19,7 +19,8 @@ function freePad(p: PlayerState, inner: boolean): number | undefined {
 function setup(m: Match, pi: PlayerIndex) {
   const p = m.players[pi];
   const r = nextRandom(m);
-  const layers = r < 0.5 ? ['korkut', 'pantsir', 'irondome', 'hisara'] : ['zu23', 'sungur', 'hisaro', 'irondome'];
+  // Always one system that can stop ballistic missiles (S-300 or David's Sling), plus short-range cover.
+  const layers = r < 0.5 ? ['korkut', 'pantsir', 's300'] : ['zu23', 'sungur', 'irondome', 'davidsling'];
   for (const sys of layers) { const pad = freePad(p, defence(sys).range < 10); if (pad != null) buy(m, pi, { c: 'buyBattery', sys, pad }); }
   buy(m, pi, { c: 'buyLauncher', weapon: 'shahed' });
   buy(m, pi, { c: 'buyUnits', weapon: 'shahed', n: 10 });
