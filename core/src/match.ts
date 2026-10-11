@@ -676,16 +676,15 @@ function battleStep(m: Match, bt: Battle, dt: number) {
     if (!t.detected && r <= (t.weapon === 'recon' ? Math.min(rr, RULES.reconDetect) : rr)) t.detected = true;
     if (t.detected && !t.identified && r <= idR) t.identified = true;
     if (t.detected && !t.decoyMarked && (t.cls === 'decoy' || t.weapon === 'decoy') && decoyR > 0 && r <= decoyR) t.decoyMarked = true;
-    // Electronic warfare: one roll as the contact enters Koral range.
-    if (!t.ewChecked) {
-      const ew = def.batteries.find(b => b.sys === 'koral' && batteryReady(def, b) && dist(def.pads[b.pad], t) <= defence('koral').range);
-      if (ew) {
-        t.ewChecked = true;
-        const p = (defence('koral').hit[t.cls] ?? 0) / 100;
-        if (p > 0 && rnd(m) < p) {
-          if (t.cls === 'uav') { t.returning = true; t.munitions = 0; turnBack(t); emit(bt, { t: 'msg', text: `Koral turned back a ${t.isScout ? 'scout' : 'UAV'}.`, tone: 'good' }); }
-          else { kill(bt, t, def, ew); }
-        }
+    // Electronic warfare: each jammer (Koral, İhtar) gets one roll as the contact enters its range.
+    for (const ew of def.batteries) {
+      const es = defence(ew.sys);
+      if (es.kind !== 'ew' || t.ewBy?.includes(ew.uid) || !batteryReady(def, ew) || dist(def.pads[ew.pad], t) > es.range) continue;
+      (t.ewBy ??= []).push(ew.uid);
+      const p = (es.hit[t.cls] ?? 0) / 100;
+      if (p > 0 && !t.returning && rnd(m) < p) {
+        if (t.cls === 'uav') { t.returning = true; t.munitions = 0; turnBack(t); emit(bt, { t: 'msg', text: `${es.name} turned back a ${t.isScout ? 'scout' : 'UAV'}.`, tone: 'good' }); }
+        else { kill(bt, t, def, ew); break; }
       }
     }
   }

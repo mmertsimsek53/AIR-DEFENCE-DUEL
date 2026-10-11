@@ -18,7 +18,8 @@ const BLD={};for(const b of CAT.buildings)BLD[b.kind]=b;
 
 /* ======================= STYLE ======================= */
 const SYS_COL={zu23:0xffd27a,gepard:0xffc04d,korkut:0xffb020,stinger:0x9dffb0,sungur:0x2fd27a,alka:0xff3fc0,ironbeam:0xff6ad5,koral:0x9acc00,
-  pantsir:0x3fe0c8,hisara:0x1fb6e0,irondome:0x5fd0ff,irist:0x4f9cff,hisaro:0x2f7fe0,davidsling:0x8aa8ff,siper:0x7a5cff,s400:0xe0204a,patriot:0xff6a2b};
+  pantsir:0x3fe0c8,hisara:0x1fb6e0,irondome:0x5fd0ff,irist:0x4f9cff,hisaro:0x2f7fe0,davidsling:0x8aa8ff,siper:0x7a5cff,s400:0xe0204a,patriot:0xff6a2b,
+  gurz:0x22c7a0,gokberk:0xff5fb0,ihtar:0xb8e04a,avenger:0x7dffa0,phalanx:0xffe08a,nasams:0x5aa8ff,thaad:0xff9a55,igla:0xa8ffb8,tunguska:0x40d8b0,tor:0x36b8d8,buk:0x9a7cff,s300:0xd8506a,s500:0xff3060};
 const css=h=>'#'+h.toString(16).padStart(6,'0');
 const CLS_CSS={drone:'#ffe066',decoy:'#9aa6b0',uav:'#c48bff',rocket:'#ff9a66',cruise:'#ff8a3d',ballistic:'#ff5a4e',hypersonic:'#ff3380',unk:'#ffb340'};
 const CLS_TAG={drone:'dro',decoy:'dec',uav:'uav',rocket:'roc',cruise:'cru',ballistic:'bal',hypersonic:'hyp'};
@@ -351,6 +352,33 @@ function buildModel(key,g,root){
   else if(key==='siper'){veh(g,9,3,acc);tubes(g,2,2,.55,7,1.25,false,1,2.3,-3.8);top=8;}
   else if(key==='patriot'){veh(g,8,3,acc);tubes(g,2,2,.6,5.8,1.3,true,.66,2.3,-3.2);top=6.5;}
   else if(key==='s400'){veh(g,9.5,3,acc);tubes(g,2,2,.5,7.6,1.15,false,1.52,2.3,-3.9);top=9;}
+  // ---- systems added 11 Oct 2026, same vehicle kit
+  else if(key==='gurz'){veh(g,8,2.9,acc);tur=new THREE.Group();tur.position.set(0,2.9,-1.4);g.add(tur);tur.add(shadowy(new THREE.Mesh(new THREE.BoxGeometry(2.4,1.3,2.4),olive)));
+    for(const sx of [-1.5,1.5]){const pod=tubes(tur,2,2,.18,2.4,.42,true,.4,.3,-.6);pod.position.x=sx;}
+    for(const sx of [-.5,.5]){const b=new THREE.Mesh(new THREE.CylinderGeometry(.12,.12,2.8,6).rotateX(Math.PI/2).translate(0,0,2),steel);b.position.set(sx,-.2,0);tur.add(b);}
+    tur.add(new THREE.Mesh(new THREE.BoxGeometry(1.4,.9,.15),acc).translateY(1.1).translateZ(-.7));}
+  else if(key==='gokberk'){veh(g,5.6,2.4,acc);tur=new THREE.Group();tur.position.set(0,2.8,-.9);g.add(tur);tur.add(shadowy(new THREE.Mesh(new THREE.CylinderGeometry(.8,.9,1.1,12),olive)));
+    const lens=new THREE.Mesh(new THREE.SphereGeometry(.45,12,8),acc);lens.position.set(0,.15,.85);tur.add(lens);}
+  else if(key==='ihtar'){veh(g,6.2,2.6,acc);const mast=new THREE.Mesh(new THREE.CylinderGeometry(.16,.2,5,6),steel);mast.position.set(0,4.7,-1.3);g.add(mast);
+    tur=new THREE.Group();tur.position.set(0,7.3,-1.3);g.add(tur);tur.add(new THREE.Mesh(new THREE.BoxGeometry(1.6,1,.18),acc));const j=new THREE.Mesh(new THREE.BoxGeometry(.9,.6,.15),acc);j.position.set(0,-.9,.1);tur.add(j);
+    pulse=new THREE.Mesh(new THREE.RingGeometry(.94,1,64).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:SYS_COL[key],transparent:true,opacity:0,depthWrite:false,side:THREE.DoubleSide}));root.add(pulse);top=7;}
+  else if(key==='avenger'){veh(g,4.8,2.4,acc);tur=new THREE.Group();tur.position.set(0,2.7,-1);g.add(tur);tur.add(shadowy(new THREE.Mesh(new THREE.BoxGeometry(1.2,1,1.2),olive)));
+    for(const sx of [-1,1]){const pod=tubes(tur,2,2,.17,1.7,.4,true,.35,.1,-.6);pod.position.x=sx;}}
+  else if(key==='phalanx'){g.add(mesh(new THREE.BoxGeometry(3,1.6,3),olive,0,.8,0));tur=new THREE.Group();tur.position.set(0,2.2,0);g.add(tur);
+    tur.add(shadowy(new THREE.Mesh(new THREE.CylinderGeometry(.9,.9,1.2,14),whiteMat)));const dome=mesh(new THREE.SphereGeometry(.85,14,10),whiteMat,0,1.2,-.1);dome.scale.set(1,1.3,1);tur.add(dome);
+    const b=new THREE.Mesh(new THREE.CylinderGeometry(.18,.18,2.6,8).rotateX(Math.PI/2).translate(0,0,1.8),steel);tur.add(b);top=3.4;}
+  else if(key==='nasams'){veh(g,7,2.8,acc);tubes(g,3,2,.36,4.2,.82,true,.75,2.3,-2.8);top=5;}
+  else if(key==='thaad'){veh(g,10,3,acc);tubes(g,4,2,.48,7,1.05,true,.95,2.4,-4);top=8;}
+  else if(key==='igla'){veh(g,4,2.1,acc);const post=new THREE.Mesh(new THREE.CylinderGeometry(.18,.18,1,6),steel);post.position.set(0,2.3,-.8);g.add(post);tur=tubes(g,2,1,.16,1.5,.4,false,.4,2.9,-1.2);}
+  else if(key==='tunguska'){veh(g,7.5,2.9,acc);tur=new THREE.Group();tur.position.set(0,2.9,-1.3);g.add(tur);tur.add(shadowy(new THREE.Mesh(new THREE.BoxGeometry(2.4,1.3,2.4),olive)));
+    for(const sx of [-1.6,1.6]){const pod=tubes(tur,2,2,.17,2.2,.4,false,.3,.3,-.6);pod.position.x=sx;const b=new THREE.Mesh(new THREE.CylinderGeometry(.1,.1,2.2,6).rotateX(Math.PI/2).translate(0,0,1.6),steel);b.position.set(sx*.45,-.3,0);tur.add(b);}
+    tur.add(new THREE.Mesh(new THREE.BoxGeometry(1.5,.9,.15),acc).translateY(1.1).translateZ(-.7));}
+  else if(key==='tor'){veh(g,7.5,2.9,acc);tur=new THREE.Group();tur.position.set(0,2.9,-1.6);g.add(tur);tur.add(shadowy(new THREE.Mesh(new THREE.BoxGeometry(2.6,2.4,2.4),olive)));
+    tur.add(new THREE.Mesh(new THREE.BoxGeometry(2,1.1,.15),acc).translateY(1.9).translateZ(-.5));tur.add(new THREE.Mesh(new THREE.BoxGeometry(1.4,1,.2),steel).translateY(.3).translateZ(1.3));top=6;}
+  else if(key==='buk'){veh(g,8,2.9,acc);tur=new THREE.Group();tur.position.set(0,2.9,-1.6);g.add(tur);tur.add(shadowy(new THREE.Mesh(new THREE.BoxGeometry(2.2,1,2.4),olive)));
+    tubes(tur,2,2,.32,4,.75,false,.65,.9,-.4);tur.add(new THREE.Mesh(new THREE.BoxGeometry(1.6,1,.15),acc).translateY(.7).translateZ(1.3));top=6;}
+  else if(key==='s300'){veh(g,10,3,acc);tubes(g,2,2,.55,7.5,1.2,false,1.52,2.3,-4);top=9;}
+  else if(key==='s500'){veh(g,11,3.2,acc);tubes(g,2,2,.62,8.6,1.35,false,1.52,2.4,-4.4);top=10;}
   return {tur,pulse,top};
 }
 const beamGeo=new THREE.CylinderGeometry(.16,.16,1,6).rotateX(Math.PI/2).translate(0,0,.5);
@@ -660,7 +688,9 @@ function finishDraw(){
   if(mode==='route'){plan.route=km;plan.routeU=u;plan.bearing=Math.atan2(km[0].z,km[0].x);msg('Route set · strike comes from the '+compass(plan.bearing),'good');}
   else{plan.scoutPath[mode]=km;plan.scoutPathU[mode]=u;msg(SCT[mode].name+' will fly this path','good');}
   drawMode=null;$('placing').hidden=true;tab='attack';sheetSig='';rebuildPlanGfx();refreshUI();}
-const REC_DEF=[['vs drones',['korkut','sungur']],['vs missiles',['hisara','irondome']],['vs ballistic',['davidsling','patriot']]];
+const ORIGINS=[['Turkish',['korkut','sungur','alka','koral','hisara','hisaro','siper','gurz','gokberk','ihtar']],['American',['stinger','avenger','phalanx','nasams','patriot','thaad']],
+  ['Russian',['igla','zu23','tunguska','pantsir','tor','buk','s300','s400','s500']],['Israeli',['irondome','ironbeam','davidsling']]];
+const REC_DEF=[['vs drones',['korkut','gurz']],['vs missiles',['hisara','irondome']],['vs ballistic',['patriot','s400']]];
 const DUEL_SCOUTS=CAT.scouts.filter(s=>s.id==='tb2s'); // the duel uses the TB2 for surveys
 const REC_ATK=['recon','shahed','gerbera','mald','som','tayfun','tb2s'];
 const TARGET_ORDER=['factory','command','power','radar','finance','depot','airbase'];
@@ -722,7 +752,7 @@ function sheetHTML(){
         '<span class="meta"><b>'+fmt(s.price)+'</b> · '+s.range+' km</span><span class="hits">'+best.map(k=>'<i style="--k:'+CLS_CSS[k]+'">'+CLS_LABEL[k]+' '+Math.round(s.hit[k])+'</i>').join('')+'</span></button>';};
     h+='<h3>Buy a defence <span class="small">· tap one, then a glowing + in your city</span></h3>';
     if(!showAllDef){h+='<div class="tiles">';for(const [title,ids] of REC_DEF)h+=ids.map(id=>card(DEF[id],title)).join('');h+='</div>';}
-    else h+='<div class="tiles">'+CAT.defences.map(s=>card(s)).join('')+'</div>';
+    else for(const [title,ids] of ORIGINS){const list=ids.filter(id=>DEF[id]).sort((x,y)=>DEF[x].price-DEF[y].price);h+='<h3>'+title+'</h3><div class="tiles">'+list.map(id=>card(DEF[id])).join('')+'</div>';}
     h+='<button class="mini" data-act="showall" data-k="def">'+(showAllDef?'Show recommended only':'Show all '+CAT.defences.length+' systems')+'</button>';
     return h;
   }
@@ -883,7 +913,7 @@ function intelHTML(){
   if(v.phase==='setup')return '<b>SETUP</b> · Buy and place defences, buy launchers and weapons, a surveillance UAV helps you find their buildings.';
   for(const b of m.batteries){const s=DEF[b.sys];if(s.load&&b.ammo+(m.interceptors[b.sys]||0)===0)w.push(s.name+' has no missiles left.');}
   if(m.buildings.some(b=>b.kind==='factory'&&b.down>0))w.push('Factory down: no new missiles this turn.');
-  if(m.buildings.some(b=>b.kind==='power'&&b.down>0))w.push('Power down: lasers and Koral are off.');
+  if(m.buildings.some(b=>b.kind==='power'&&b.down>0))w.push('Power down: lasers and jammers are off.');
   if(m.storage.used>m.storage.safe)w.push((m.storage.used-m.storage.safe)+' items sit unprotected above ground.');
   if(v.weatherBad&&m.batteries.some(b=>b.sys==='ironbeam'))w.push('Bad weather: Iron Beam at half strength.');
   return '<b>TURN '+v.turnNo+'</b> · +'+fmt(m.income)+' income · '+v.enemy.buildings.length+' enemy buildings known'+(w.length?'<br><span class="warn">'+w.join(' ')+'</span>':'<br><span class="ok">Plan a strike in the Strike tab and press GO, or Wait to save money.</span>');
@@ -1085,7 +1115,7 @@ function step(real,draw){
   }else if(window.BASE&&BASE.active)BASE.step(dt,real);else cam.theta+=dt*0.05;
   const S=SIDES[viewSide];
   if(S.bats)for(const id in S.bats){const b=S.bats[id];if(b.pulse){b.pT+=dt;const k=(b.pT%2)/2;b.pulse.scale.setScalar(.5+k*RAD(DEF[b.sys].range)*.35);b.pulse.material.opacity=(1-k)*.35;}
-    if(b.sys==='koral'&&b.tur)b.tur.rotation.y+=dt*2;if(b.beam&&b.beamT>0){b.beamT-=dt;if(b.beamT<=0)b.beam.visible=false;}
+    if(DEF[b.sys].kind==='ew'&&b.tur)b.tur.rotation.y+=dt*2;if(b.beam&&b.beamT>0){b.beamT-=dt;if(b.beamT<=0)b.beam.visible=false;}
     const sel=selected===+id&&viewSide===0;if(b.showT>0)b.showT-=dt;b.ring.visible=sel||b.showT>0;}
   if(placing&&viewSide===0&&S.padRings){const k=1+Math.sin(T*6)*.18;for(const id in S.padRings)S.padRings[id].children[0].scale.setScalar(k);padBeamMat.opacity=.16+Math.sin(T*6)*.08;}
   if(S.crit)for(const id in S.crit){const c=S.crit[id];if(c.spin&&!c.down)c.spin.rotation.y+=dt*1.6;if(c.stack&&!c.down&&rand()<.35)for(const p of c.stack){const q=_a.copy(p).add(c.g.position);emit(SMOKE,q.x,q.y,q.z,(rand()-.5)+.8,2+rand(),(rand()-.5),4+rand()*2,2,9,.92,.92,.94,.35,.1,-.2);}}

@@ -17,6 +17,20 @@
     d({ id: "davidsling", name: "David's Sling", kind: "sam", price: 300, shot: 1, load: 8, range: 150, fireEvery: 1.5, interceptorSpeed: 2, hit: { decoy: 85, uav: 85, rocket: 85, cruise: 85, ballistic: 60 }, role: "Heavy rockets, cruise and short-range ballistic." }),
     d({ id: "siper", name: "Siper", kind: "sam", price: 380, shot: 1.5, load: 8, range: 150, fireEvery: 1.5, interceptorSpeed: 2, hit: { decoy: 85, uav: 95, cruise: 88, ballistic: 45 }, role: "Long-range area defence. Limited ballistic capability." }),
     d({ id: "s400", name: "S-400", kind: "sam", price: 450, shot: 1.5, load: 8, range: 250, fireEvery: 1.5, interceptorSpeed: 2.2, lowCruisePenalty: 20, hit: { decoy: 85, uav: 95, cruise: 70, ballistic: 65, hypersonic: 10 }, role: "Very long range. Low cruise missiles slip under it." }),
+    // ---- added 11 Oct 2026 (Turkish, American, Russian); numbers approved by Mert
+    d({ id: "gurz", name: "G\xFCrz", kind: "sam", price: 140, shot: 0.2, load: 8, range: 15, fireEvery: 0.9, interceptorSpeed: 1.1, hit: { drone: 85, decoy: 85, uav: 85, rocket: 50, cruise: 80 }, role: "Turkish gun + missile system. Answer to rockets and drones." }),
+    d({ id: "gokberk", name: "G\xF6kberk", kind: "laser", price: 70, shot: 0, load: 0, range: 3, dwell: 1.5, needsPower: true, hit: { drone: 92, decoy: 92, uav: 50 }, role: "Turkish anti-drone laser. Near-free shots. Needs power." }),
+    d({ id: "ihtar", name: "\u0130htar", kind: "ew", price: 45, shot: 0, load: 0, range: 10, needsPower: true, hit: { drone: 40, decoy: 40, uav: 20 }, role: "Turkish anti-drone radar and jammer. Drones lost, UAVs turned back. Needs power." }),
+    d({ id: "avenger", name: "Avenger", kind: "sam", price: 35, shot: 0.4, load: 8, range: 5, fireEvery: 1.2, interceptorSpeed: 0.7, hit: { drone: 70, decoy: 70, uav: 60, cruise: 30 }, role: "American Stinger vehicle, 8 missiles ready." }),
+    d({ id: "phalanx", name: "Phalanx C-RAM", kind: "gun", price: 90, shot: 0.05, load: 0, range: 2, fireEvery: 0.3, hit: { drone: 75, decoy: 75, uav: 40, rocket: 70, cruise: 50 }, role: "American last-line gun. Shreds rockets and drones close in." }),
+    d({ id: "nasams", name: "NASAMS", kind: "sam", price: 220, shot: 0.8, load: 6, range: 40, fireEvery: 1.2, interceptorSpeed: 1.3, hit: { drone: 80, decoy: 85, uav: 92, rocket: 30, cruise: 90 }, role: "American medium range. Strong against cruise missiles." }),
+    d({ id: "thaad", name: "THAAD", kind: "sam", price: 700, shot: 6, load: 8, range: 200, fireEvery: 1.5, interceptorSpeed: 3, hit: { decoy: 85, ballistic: 95, hypersonic: 20 }, role: "American high-altitude interceptor. Ballistic missiles only." }),
+    d({ id: "igla", name: "Igla-S", kind: "sam", price: 12, shot: 0.3, load: 4, range: 5, fireEvery: 1.5, interceptorSpeed: 0.7, hit: { drone: 65, decoy: 65, uav: 55, cruise: 25 }, role: "Russian shoulder-fired missile. The cheapest missile post." }),
+    d({ id: "tunguska", name: "Tunguska", kind: "sam", price: 90, shot: 0.1, load: 8, range: 8, fireEvery: 0.8, interceptorSpeed: 0.9, hit: { drone: 75, decoy: 75, uav: 75, cruise: 50 }, role: "Russian gun + missile vehicle." }),
+    d({ id: "tor", name: "Tor-M2", kind: "sam", price: 150, shot: 0.4, load: 16, range: 15, fireEvery: 0.9, interceptorSpeed: 1, hit: { drone: 85, decoy: 85, uav: 90, rocket: 50, cruise: 85 }, role: "Russian short range with 16 missiles." }),
+    d({ id: "buk", name: "Buk-M3", kind: "sam", price: 230, shot: 0.8, load: 6, range: 70, fireEvery: 1.3, interceptorSpeed: 1.6, hit: { drone: 75, decoy: 85, uav: 92, rocket: 40, cruise: 85, ballistic: 20 }, role: "Russian medium range." }),
+    d({ id: "s300", name: "S-300", kind: "sam", price: 350, shot: 1.2, load: 8, range: 150, fireEvery: 1.5, interceptorSpeed: 2, lowCruisePenalty: 20, hit: { decoy: 85, uav: 90, cruise: 70, ballistic: 50 }, role: "Russian long range. A cheaper S-400; low cruise missiles slip under it." }),
+    d({ id: "s500", name: "S-500", kind: "sam", price: 800, shot: 5, load: 8, range: 400, fireEvery: 1.5, interceptorSpeed: 3, lowCruisePenalty: 20, hit: { decoy: 85, uav: 95, cruise: 70, ballistic: 90, hypersonic: 50 }, role: "Russian top tier. The best answer to hypersonic missiles." }),
     d({ id: "patriot", name: "Patriot PAC-3 MSE", kind: "sam", price: 600, shot: 4, load: 8, range: 60, fireEvery: 1.2, interceptorSpeed: 2.5, hit: { decoy: 85, uav: 90, rocket: 60, cruise: 85, ballistic: 90, hypersonic: 35 }, role: "Hit-to-kill. The answer to ballistic missiles." })
   ];
   var a = (s) => s;
@@ -1031,20 +1045,20 @@
       if (!t.detected && r <= (t.weapon === "recon" ? Math.min(rr, RULES.reconDetect) : rr)) t.detected = true;
       if (t.detected && !t.identified && r <= idR) t.identified = true;
       if (t.detected && !t.decoyMarked && (t.cls === "decoy" || t.weapon === "decoy") && decoyR > 0 && r <= decoyR) t.decoyMarked = true;
-      if (!t.ewChecked) {
-        const ew = def.batteries.find((b) => b.sys === "koral" && batteryReady(def, b) && dist(def.pads[b.pad], t) <= defence("koral").range);
-        if (ew) {
-          t.ewChecked = true;
-          const p = (defence("koral").hit[t.cls] ?? 0) / 100;
-          if (p > 0 && rnd(m) < p) {
-            if (t.cls === "uav") {
-              t.returning = true;
-              t.munitions = 0;
-              turnBack(t);
-              emit(bt, { t: "msg", text: `Koral turned back a ${t.isScout ? "scout" : "UAV"}.`, tone: "good" });
-            } else {
-              kill(bt, t, def, ew);
-            }
+      for (const ew of def.batteries) {
+        const es = defence(ew.sys);
+        if (es.kind !== "ew" || t.ewBy?.includes(ew.uid) || !batteryReady(def, ew) || dist(def.pads[ew.pad], t) > es.range) continue;
+        (t.ewBy ?? (t.ewBy = [])).push(ew.uid);
+        const p = (es.hit[t.cls] ?? 0) / 100;
+        if (p > 0 && !t.returning && rnd(m) < p) {
+          if (t.cls === "uav") {
+            t.returning = true;
+            t.munitions = 0;
+            turnBack(t);
+            emit(bt, { t: "msg", text: `${es.name} turned back a ${t.isScout ? "scout" : "UAV"}.`, tone: "good" });
+          } else {
+            kill(bt, t, def, ew);
+            break;
           }
         }
       }
@@ -1754,7 +1768,20 @@
     davidsling: 7,
     siper: 7,
     s400: 8,
-    patriot: 9
+    patriot: 9,
+    igla: 1,
+    avenger: 1,
+    phalanx: 2,
+    ihtar: 2,
+    gokberk: 3,
+    tunguska: 3,
+    gurz: 4,
+    tor: 4,
+    nasams: 5,
+    buk: 6,
+    s300: 7,
+    thaad: 9,
+    s500: 10
   };
   var DEFENCE_TYPES = DEFENCES.map((d2) => {
     const u = DEF_UNLOCK[d2.id] ?? 1;

@@ -163,3 +163,24 @@ A hit of 20+ damage on a revealed building knocks it out until repaired. Every h
 | TB2 survey | $15M, reusable; one lap photographs 6 of 12 sectors; each battery one automatic shot at 30% of its UAV hit chance |
 | Radar (fixed) | 150 km range, threat type at 60 km, decoys never marked |
 | Storage / reloads / repair | 10 protected slots · 2 reloads per strike · 3 turns |
+
+## 11. Air-defence systems added 11 Oct 2026 (approved by Mert; German systems removed, Israeli kept)
+
+| System | Origin | Battery $M | Shot $M | Load | Range km | Drone | UAV | Rocket | Cruise | Ballistic | Hypersonic |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Gürz | TR | 140 | 0.2 | 8 | 15 | 85 | 85 | 50 | 80 | – | – |
+| Gökberk (laser) | TR | 70 | 0 | ∞ | 3 | 92 | 50 | – | – | – | – |
+| İhtar (EW) | TR | 45 | 0 | ∞ | 10 | 40 | 20 | – | – | – | – |
+| Avenger | US | 35 | 0.4 | 8 | 5 | 70 | 60 | – | 30 | – | – |
+| Phalanx C-RAM (gun) | US | 90 | 0.05/burst | ∞ | 2 | 75 | 40 | 70 | 50 | – | – |
+| NASAMS | US | 220 | 0.8 | 6 | 40 | 80 | 92 | 30 | 90 | – | – |
+| THAAD | US | 700 | 6.0 | 8 | 200 | – | – | – | – | 95 | 20 |
+| Igla-S | RU | 12 | 0.3 | 4 | 5 | 65 | 55 | – | 25 | – | – |
+| Tunguska | RU | 90 | 0.1 | 8 | 8 | 75 | 75 | – | 50 | – | – |
+| Tor-M2 | RU | 150 | 0.4 | 16 | 15 | 85 | 90 | 50 | 85 | – | – |
+| Buk-M3 | RU | 230 | 0.8 | 6 | 70 | 75 | 92 | 40 | 85 | 20 | – |
+| S-300 | RU | 350 | 1.2 | 8 | 150 | – | 90 | – | 70 | 50 | – |
+| S-500 | RU | 800 | 5.0 | 8 | 400 | – | 95 | – | 70 | 90 | 50 |
+
+Decoys: same hit % as the threat they imitate (85 for the missile systems). S-300 and S-500 lose 20 points against low cruise missiles. Each jammer (Koral, İhtar) gets its own roll at a contact entering its range.
+In the game: 28 systems — Turkish 10, American 6, Russian 9, Israeli 3. Removed: Gepard, IRIS-T SLM.

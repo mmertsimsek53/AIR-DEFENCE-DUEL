@@ -92,6 +92,7 @@ export interface Threat {
   hold: boolean;
   engaged: number;         // interceptors in flight at it
   ewChecked: boolean;
+  ewBy?: number[];         // jammers that already had their roll at this contact
   returning: boolean;      // UAV turned back / going home
   munitions: number;
   dropLeg: number;         // armed UAV: the path leg that ends over its target
