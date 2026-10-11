@@ -348,9 +348,9 @@ i[style*="--r"]{font-style:normal;white-space:nowrap}i[style*="--r"]::before{con
   <div class="kv"><span>Income</span><b id="income">—</b></div>
   <div class="kv ars"><span>Defence missiles</span><b id="arsDef">0</b></div>
   <div class="kv ars"><span>Strike weapons</span><b id="arsAtk">0</b></div>
-  <div class="lbl" style="display:flex;justify-content:space-between">City health <span id="hp" style="color:var(--fg)">1000</span></div>
+  <div class="lbl" style="display:flex;justify-content:space-between">Your chief <span id="hp" style="color:var(--fg)">Hideout 1</span></div>
   <div class="bar"><i id="hpBar"></i></div>
-  <div class="lbl" style="display:flex;justify-content:space-between"><span id="oppName">Opponent</span> <span id="ohp" style="color:var(--fg)">1000</span></div>
+  <div class="lbl" style="display:flex;justify-content:space-between"><span id="oppName">Opponent</span> <span id="ohp" style="color:var(--fg)">8 left</span></div>
   <div class="bar enemy"><i id="ohpBar"></i></div>
 </div>
 
@@ -373,7 +373,7 @@ i[style*="--r"]{font-style:normal;white-space:nowrap}i[style*="--r"]::before{con
   <div class="tabs" id="tabs" hidden>
     <button class="tab" data-tab="build" type="button">Defence</button>
     <button class="tab" data-tab="attack" type="button">Attack</button>
-    <button class="tab" data-tab="upgrades" type="button">Upgrades</button>
+    <button class="tab" data-tab="chief" type="button">Chief</button>
     <button class="tab" data-tab="city" type="button">City</button>
     <button class="btn" id="cityTab" type="button">Enemy city</button>
   </div>
@@ -403,15 +403,15 @@ i[style*="--r"]{font-style:normal;white-space:nowrap}i[style*="--r"]::before{con
   <div class="mcard">
     <div class="eyebrow">Sandbox training · online duels come with the server</div>
     <h1>AIR DEFENCE DUEL</h1>
-    <p>Two cities. Build your air defences, strike your rival's city, defend live when they strike back. Every missile costs money.</p>
+    <p>Two cities. Each side hides its chief in one of eight hideouts. Build your air defences, find the enemy chief with recon drones, and strike the right hideout first. Every missile costs money.</p>
     <ol>
-      <li><b>Setup:</b> buy defence systems and place them on the pads, buy launchers, weapons and surveillance UAVs. Tap <b>I'm done</b>.</li>
-      <li><b>Your turn:</b> upgrade, plan a strike and press <b>GO</b>, or <b>No attack</b> to save money. No clock in training.</li>
+      <li><b>Setup:</b> place defences on the pads, buy launchers, weapons, decoys and mini recon drones, and choose your chief's hideout (Chief tab). Tap <b>I'm done</b>.</li>
+      <li><b>Your turn:</b> tap <b>START ATTACK</b> and send weapons one by one, or <b>No attack</b> to save money. You can move your chief for money. No clock in training.</li>
       <li><b>Under attack:</b> tap a contact to make it the priority, long-press to hold fire on it.</li>
     </ol>
-    <p class="more" style="color:var(--dim)">Critical buildings are hidden until a UAV flies over them. Knock out the enemy's factory, power, radar or command centre to cripple them. A city at zero health is destroyed.</p>
+    <p class="more" style="color:var(--dim)">Decoys look real to the defender. Recon drones hover over a hideout to see if the chief is inside, but enemy defences shoot at them. Moving your chief costs money. Hit the hideout with the chief inside and you win.</p>
     <div class="field"><span class="lbl">Commander</span><input id="nameIn" maxlength="14" placeholder="Your name" autocomplete="off"></div>
-    <div class="btns"><button class="btn primary" id="baseBtn" type="button" style="--pc:#6fe3ff">My Base</button><button class="btn" id="startBtn" type="button">City duel vs AI (old)</button><button class="btn" type="button" disabled>Online · soon</button></div>
+    <div class="btns"><button class="btn primary" id="startBtn" type="button" style="--pc:#6fe3ff">Duel vs AI</button><button class="btn" id="baseBtn" type="button">My Base (paused)</button><button class="btn" type="button" disabled>Online · soon</button></div>
   </div>
 </div>
 
@@ -437,6 +437,8 @@ i[style*="--r"]{font-style:normal;white-space:nowrap}i[style*="--r"]::before{con
 </div>
 
 <script src="three.min.js"></script>
+<script src="GLTFLoader.js"></script>
+<script src="models.js"></script>
 <script src="core.js"></script>
 <script src="game.js"></script>
 <script src="base.js"></script>

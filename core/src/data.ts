@@ -64,6 +64,8 @@ export interface AttackSpec {
   salvo?: number;         // Grad: rockets per unit
   scatter?: number;       // unguided: share that lands inside the city (0..1)
   decoysAtEnd?: number;   // Iskander: decoys released near the end
+  noLauncher?: boolean;   // fires without a launcher (perTurn is the cap)
+  recon?: boolean;        // mini recon drone: hovers over a hideout and reports whether the chief is inside
   imitates?: ThreatClass; // decoy looks like this
   role: string;
 }
@@ -72,6 +74,8 @@ const a = (s: AttackSpec) => s;
 
 export const ATTACKS: AttackSpec[] = [
   a({ id: 'gerbera', name: 'Gerbera decoy', cls: 'decoy', unit: 0.05, launcher: 10, perTurn: 10, flight: 70, damage: 0, precise: false, imitates: 'drone', role: 'Looks like a drone. Wastes enemy interceptors.' }),
+  a({ id: 'mald', name: 'Missile decoy (MALD)', cls: 'decoy', unit: 0.3, launcher: 30, perTurn: 4, flight: 35, damage: 0, precise: false, imitates: 'cruise', role: 'Flies like a cruise missile. The enemy cannot tell it from a real one.' }),
+  a({ id: 'recon', name: 'Mini recon drone', cls: 'drone', unit: 0.5, launcher: 0, perTurn: 4, flight: 40, damage: 0, precise: true, noLauncher: true, recon: true, role: 'Flies to a hideout, hovers 5 s and tells you if the chief is inside. Defences shoot at it.' }),
   a({ id: 'shahed', name: 'Shahed-136', cls: 'drone', unit: 0.1, launcher: 15, perTurn: 10, flight: 70, damage: 8, precise: false, scatter: 0.9, role: 'Cheap swarm drone. Drains interceptors.' }),
   a({ id: 'kargu', name: 'Kargu-2', cls: 'drone', unit: 0.08, launcher: 10, perTurn: 8, flight: 40, damage: 4, precise: true, role: 'Small loitering drone. Hits a revealed building.' }),
   a({ id: 'grad', name: 'BM-21 Grad', cls: 'rocket', unit: 1.5, launcher: 20, perTurn: 1, flight: 20, damage: 3, precise: false, salvo: 40, scatter: 0.5, role: '40-rocket salvo. Unguided; about half land in empty areas.' }),
@@ -105,7 +109,19 @@ export const RULES = {
   turnSeconds: 60,
   turnSecondsCommandHit: 30,
   disconnectSeconds: 60,
-  cityHealth: 1000,
+  cityHealth: 1000,        // base raids only; the duel is won by killing the chief
+  hideouts: 8,             // identical hideouts per city; the chief is in one
+  chiefMove: 30,           // $M to move the chief to another hideout (own turn)
+  reconHover: 5,           // s a recon drone must hover over a hideout to check it
+  radarRange: 150,         // km, fixed in the duel (no upgrades)
+  identifyRange: 60,       // km: threat type shown inside this distance; decoys are never marked
+  storage: 10,             // protected slots (stock above this is lost if the depot is hit)
+  reloads: 2,              // battery reloads from the depot per strike
+  repairTurns: 3,          // turns a knocked-out building stays down
+  reconDetect: 6,          // km: mini recon drones are only seen this close (small, low)
+  reconHitFactor: 0.6,     // defences' hit chance against a mini recon drone, relative to a drone
+  batteryKillDamage: 20,   // a hit this strong within batteryHitRadius destroys an air-defence battery
+  batteryHitRadius: 0.3,   // km
   startBudget: 600,
   income: 120,
   knockoutDamage: 20,
@@ -142,7 +158,7 @@ export const ECONOMY = {
 } as const;
 export type EconomyId = keyof typeof ECONOMY;
 
-export type BuildingKind = 'command' | 'radar' | 'power' | 'depot' | 'factory' | 'airbase' | 'finance' | 'structure';
+export type BuildingKind = 'command' | 'radar' | 'power' | 'depot' | 'factory' | 'airbase' | 'finance' | 'hideout' | 'structure';
 export const BUILDINGS: { kind: BuildingKind; name: string; effect: string; repairNow: number }[] = [
   { kind: 'command', name: 'Command centre', effect: 'Next turn 30 s instead of 60 s', repairNow: 40 },
   { kind: 'radar', name: 'Radar site', effect: "That radar's coverage is lost", repairNow: 30 },
@@ -151,6 +167,7 @@ export const BUILDINGS: { kind: BuildingKind; name: string; effect: string; repa
   { kind: 'factory', name: 'Missile factory', effect: "Can't buy missiles or rockets", repairNow: 40 },
   { kind: 'airbase', name: 'Airbase', effect: "UAVs can't take off", repairNow: 30 },
   { kind: 'finance', name: 'Financial district', effect: 'Income −30%', repairNow: 50 },
+  { kind: 'hideout', name: 'Hideout', effect: 'Your chief may be inside. Hit with the chief inside = you lose', repairNow: 0 },
   { kind: 'structure', name: 'Building', effect: 'No special effect', repairNow: 0 },
 ];
 export const FINANCE_PENALTY = 0.3;

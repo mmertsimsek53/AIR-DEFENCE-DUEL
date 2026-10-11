@@ -150,3 +150,15 @@ A hit of 20+ damage on a revealed building knocks it out until repaired. Every h
 - **Defence-heavy:** Patriot $600M = whole budget, nothing else. Too all-in — shows the "can't fix everything" rule.
 - **Balanced:** Korkut 40 + Pantsir 110 + Iron Dome 150 + Hisar-O+ 200 + radar range L1 40 = $540M, $60M left for attack launchers.
 - **Attack rush:** Shahed launcher 15 + 10 Shaheds 1 + Tomahawk launcher 60 + 4 Tomahawks 8 + Korkut 40 + Stinger 15 = $139M, rest saved for the next turns.
+
+## 10. Chief duel (11 Oct 2026; replaces city health and all upgrades)
+
+| Item | Value |
+|---|---|
+| Hideouts per city | 8 (visible to both sides) |
+| Move the chief | $30M, own turn only |
+| Mini recon drone | $0.5M each, no launcher, 4 per turn, hovers 5 s, seen by radar only within 6 km, hit chance × 0.6 |
+| Missile decoy (MALD) | $0.3M each, launcher $30M, 4 per turn, looks like a cruise missile |
+| Battery destroyed by | a hit of 20+ damage within 0.3 km |
+| Radar (fixed) | 150 km range, threat type at 60 km, decoys never marked |
+| Storage / reloads / repair | 10 protected slots · 2 reloads per strike · 3 turns |

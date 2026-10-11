@@ -10,7 +10,8 @@ import bpy, bmesh, math, os, sys
 from mathutils import Vector
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUT_GLB = os.path.join(ROOT, "web", "models")
+LITE = os.environ.get("ADD_LITE") == "1"   # lite: no bevels, for the duel city on phones (art/lite/*.glb)
+OUT_GLB = os.path.join(ROOT, "art", "lite") if LITE else os.path.join(ROOT, "web", "models")
 OUT_PNG = os.path.join(ROOT, "art", "previews")
 os.makedirs(OUT_GLB, exist_ok=True); os.makedirs(OUT_PNG, exist_ok=True)
 
@@ -51,7 +52,7 @@ def mat(name, rough=0.6, metal=0.0, emit=0.0):
 # ---------------------------------------------------------------- primitives
 def _finish(o, m, bevel, smooth=False):
     o.data.materials.append(m)
-    if bevel:
+    if bevel and not LITE:
         mod = o.modifiers.new("bevel", "BEVEL"); mod.width = bevel; mod.segments = 2; mod.limit_method = "ANGLE"
     if smooth:
         for p in o.data.polygons: p.use_smooth = True
@@ -1711,6 +1712,23 @@ def fueldepot_level(level, rnd):
             box(0.12, 0.012, 0.05, x, y + 0.03, Z0 + 1.105, mat("glass_lit", 0.3, 0, 4.0), 0)
         for i in range(3): soldier(-0.3 + i * 0.2, 1.22)
 
+# ---------------------------------------------------------------- Hideout (2×2, duel): where the chief may be
+def hideout():
+    """Hardened shelter: a concrete arch half buried in an earth mound, blast door with hazard stripes,
+    vents and sandbag wings by the door. All eight in a city look the same.
+    Reference: hardened aircraft shelters / command bunkers (arched, earth-covered, steel blast doors)."""
+    plot(2, "sand")
+    half_cyl(0.62, 1.25, -0.1, 0.0, Z0, "grass")                                                         # earth mound
+    half_cyl(0.5, 1.3, -0.08, 0.0, Z0, "concrete")                                                       # concrete arch
+    half_cyl(0.46, 0.04, 0.58, 0.0, Z0, "concrete_dk")                                                   # front face
+    box(0.03, 0.5, 0.36, 0.6, 0.0, Z0, "gunmetal", 0.004)                                                 # blast door
+    for k in range(6): box(0.035, 0.07, 0.035, 0.62, -0.21 + k * 0.084, Z0 + 0.38, "yellow_band" if k % 2 == 0 else "black", 0)
+    for k in range(2): cyl(0.03, 0.14, -0.35 + k * 0.4, 0.0, Z0 + 0.6, "steel", 10, 0); cyl(0.045, 0.02, -0.35 + k * 0.4, 0.0, Z0 + 0.74, "steel", 10, 0)
+    cyl(0.008, 0.6, -0.55, 0.3, Z0 + 0.3, "black", 6, 0)                                                 # whip aerial
+    for sy in (-1, 1):
+        for k in range(3): box(0.12, 0.26, 0.1, 0.78, sy * 0.4, Z0 + k * 0.09, "sandbag", 0.03)            # sandbag wings by the door
+    sphere(0.025, 0.62, 0.32, Z0 + 0.42, mat("red_light", 0.4, 0, 3.0))
+
 def sam_site():
     """Hisar-A+ style low-altitude SAM site (2×2 tiles)."""
     box(1.95, 1.95, 0.08, m="concrete_dk", bevel=0.03)
@@ -1739,7 +1757,7 @@ def sam_site():
     box(0.18, 0.14, 0.1, 0.6, -0.6, 0.08, "olive_dk", 0.015); box(0.18, 0.14, 0.1, 0.6, -0.44, 0.08, "olive_dk", 0.015)
     box(0.18, 0.14, 0.1, 0.6, -0.52, 0.18, "olive", 0.015)
 
-BUILDERS = {**{f"hq_{n}": (lambda n=n: hq_level(n)) for n in range(1, 11)}, "builder_1": lambda: builder_1(__import__("random").Random(7)),
+BUILDERS = {**{f"hq_{n}": (lambda n=n: hq_level(n)) for n in range(1, 11)}, "builder_1": lambda: builder_1(__import__("random").Random(7)), "hideout": hideout,
             **{f"power_{n}": (lambda n=n: globals()[f"power_{n}"](__import__("random").Random(7))) for n in range(1, 7)},
             **{f"oilwell_{n}": (lambda n=n: oilwell_level(n, __import__("random").Random(7))) for n in range(1, 11)},
             **{f"tnt_{n}": (lambda n=n: tnt_level(n, __import__("random").Random(7))) for n in range(1, 11)},
@@ -1786,6 +1804,8 @@ def export(name):
 if __name__ == "__main__":
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     ids = argv or list(BUILDERS)
-    sizes = {**{f"hq_{n}": 4 for n in range(1, 11)}, "builder_1": 2, **{f"radar_{n}": 3 for n in range(1, 5)}, **{f"power_{n}": 3 for n in range(1, 7)}, **{f"oilwell_{n}": 2 for n in range(1, 11)}, **{f"tnt_{n}": 3 for n in range(1, 11)}, **{f"goldvault_{n}": 3 for n in range(1, 11)}, **{f"fueldepot_{n}": 3 for n in range(1, 11)}, **{f"treasury_{n}": 3 for n in range(1, 11)}, "def_hisara": 2}
+    sizes = {**{f"hq_{n}": 4 for n in range(1, 11)}, "builder_1": 2, "hideout": 2, **{f"radar_{n}": 3 for n in range(1, 5)}, **{f"power_{n}": 3 for n in range(1, 7)}, **{f"oilwell_{n}": 2 for n in range(1, 11)}, **{f"tnt_{n}": 3 for n in range(1, 11)}, **{f"goldvault_{n}": 3 for n in range(1, 11)}, **{f"fueldepot_{n}": 3 for n in range(1, 11)}, **{f"treasury_{n}": 3 for n in range(1, 11)}, "def_hisara": 2}
     for i in ids:
-        reset(); BUILDERS[i](); export(i); preview(i, sizes.get(i, 3)); print("built", i)
+        reset(); BUILDERS[i](); export(i)
+        if not LITE: preview(i, sizes.get(i, 3))
+        print("built", i)

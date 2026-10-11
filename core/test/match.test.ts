@@ -1,15 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import { RULES, aiStep, command, createMatch, tick, viewFor, incomeFor } from '../src';
+import type { Match, PlayerIndex } from '../src';
 
 const run = (m: ReturnType<typeof createMatch>, seconds: number) => { for (let i = 0; i < seconds * 10; i++) { aiStep(m); tick(m, 0.1); } };
+const hideoutsOf = (m: Match, pi: PlayerIndex) => m.players[pi].buildings.filter(b => b.kind === 'hideout');
+/** Put a player's chief in the hideout farthest from a point (keeps random hits from ending a test early). */
+const hideChiefFrom = (m: Match, pi: PlayerIndex, x: number, z: number) => {
+  m.players[pi].chief = hideoutsOf(m, pi).sort((a, b) => Math.hypot(b.x - x, b.z - z) - Math.hypot(a.x - x, a.z - z))[0].uid;
+};
 
 describe('setup and turns', () => {
-  it('starts in setup with the starting budget and seven hidden buildings', () => {
+  it('starts in setup with seven hidden buildings and eight visible hideouts; the chief is secret', () => {
     const m = createMatch(1, ['A', 'B']);
     expect(m.phase).toBe('setup');
     expect(m.players[0].budget).toBe(RULES.startBudget);
-    expect(m.players[0].buildings).toHaveLength(7);
-    expect(viewFor(m, 1).enemy.buildings).toHaveLength(0);
+    expect(m.players[0].buildings).toHaveLength(7 + RULES.hideouts);
+    const seen = viewFor(m, 1).enemy;
+    expect(seen.buildings).toHaveLength(RULES.hideouts);
+    expect(seen.buildings.every(b => b.kind === 'hideout')).toBe(true);
+    expect(JSON.stringify(seen)).not.toContain('chief');
+    expect(hideoutsOf(m, 0).some(h => h.uid === m.players[0].chief)).toBe(true);
   });
 
   it('moves to turn 1 after 120 s and pays income at the start of a turn', () => {
@@ -36,12 +46,25 @@ describe('setup and turns', () => {
     expect(command(m, 1, { c: 'buyBattery', sys: 'zu23', pad: 1 }).ok).toBe(false); // not B's turn
   });
 
-  it('economy upgrade raises income', () => {
+  it('income is fixed; there are no upgrades', () => {
     const m = createMatch(5, ['A', 'B']);
-    const p = m.players[0];
-    expect(incomeFor(p)).toBe(120);
-    command(m, 0, { c: 'upgradeEconomy', track: 'income' });
-    expect(incomeFor(p)).toBe(140);
+    expect(incomeFor(m.players[0])).toBe(RULES.income);
+    expect(command(m, 0, { c: 'upgradeEconomy', track: 'income' } as never).ok).toBe(false);
+  });
+
+  it('the chief is placed free in setup and moved for money on your own turn', () => {
+    const m = createMatch(8, ['A', 'B']);
+    const [h1, h2, h3] = hideoutsOf(m, 0).filter(h => h.uid !== m.players[0].chief);
+    expect(command(m, 0, { c: 'placeChief', uid: h1.uid }).ok).toBe(true);
+    expect(m.players[0].chief).toBe(h1.uid);
+    expect(m.players[0].budget).toBe(RULES.startBudget);
+    expect(command(m, 0, { c: 'moveChief', uid: h2.uid }).ok).toBe(false); // not during setup
+    command(m, 0, { c: 'endSetup' }); command(m, 1, { c: 'endSetup' });
+    const before = m.players[0].budget;
+    expect(command(m, 0, { c: 'moveChief', uid: h2.uid }).ok).toBe(true);
+    expect(m.players[0].budget).toBe(before - RULES.chiefMove);
+    expect(command(m, 1, { c: 'moveChief', uid: hideoutsOf(m, 1).find(h => h.uid !== m.players[1].chief)!.uid }).ok).toBe(false); // not B's turn
+    expect(command(m, 0, { c: 'placeChief', uid: h3.uid }).ok).toBe(false); // placing free is setup only
   });
 });
 
@@ -51,10 +74,11 @@ describe('strikes', () => {
     command(m, 0, { c: 'buyLauncher', weapon: 'shahed' });
     command(m, 0, { c: 'buyUnits', weapon: 'shahed', n: 10 });
     command(m, 0, { c: 'endSetup' }); command(m, 1, { c: 'endSetup' });
+    hideChiefFrom(m, 1, 0, 0);
     expect(command(m, 0, { c: 'go', strikes: [{ weapon: 'shahed', n: 10 }], scouts: [] }).ok).toBe(true);
     run(m, 120);
-    expect(m.players[1].health).toBeLessThan(RULES.cityHealth);
-    expect(m.players[1].health).toBeGreaterThan(RULES.cityHealth - 81);
+    expect(m.lastReport!.hits).toBeGreaterThan(0);
+    expect(m.players[1].scars.length).toBeGreaterThan(0);
   });
 
   it('guns shoot down drones and cost money per burst', () => {
@@ -95,7 +119,6 @@ describe('strikes', () => {
       command(m, 0, { c: 'buyLauncher', weapon: 'iskander' });
       command(m, 0, { c: 'buyUnits', weapon: 'iskander', n: 2 });
       command(m, 1, { c: 'buyBattery', sys: 'patriot', pad: 0 });
-      m.players[1].radar.range = 3; m.players[1].radar.decoy = 3;
       command(m, 0, { c: 'endSetup' }); command(m, 1, { c: 'endSetup' });
       command(m, 0, { c: 'go', strikes: [{ weapon: 'iskander', n: 2 }], scouts: [] });
       run(m, 60);
@@ -111,9 +134,9 @@ describe('full sandbox match', () => {
     let guard = 0;
     while (m.phase !== 'over' && guard++ < 60 * 60 * 10) { aiStep(m); tick(m, 0.1); }
     for (const p of m.players) { expect(Number.isFinite(p.budget)).toBe(true); expect(p.budget).toBeGreaterThanOrEqual(0); }
-    expect(m.turnNo).toBeGreaterThan(4);
+    expect(m.turnNo).toBeGreaterThan(2);
     // Report how it went (helps tuning).
-    (globalThis as unknown as { console: { log: (s: string) => void } }).console.log(`turns ${m.turnNo}, phase ${m.phase}, health ${m.players.map(p => p.health).join(' / ')}, budgets ${m.players.map(p => Math.round(p.budget)).join(' / ')}`);
+    (globalThis as unknown as { console: { log: (s: string) => void } }).console.log(`turns ${m.turnNo}, phase ${m.phase}, winner ${m.winner} (${m.endReason}), hideouts left ${m.players.map(p => p.buildings.filter(b => b.kind === 'hideout' && b.down < 99).length).join(' / ')}, budgets ${m.players.map(p => Math.round(p.budget)).join(' / ')}`);
   });
 });
 
@@ -184,6 +207,7 @@ describe('live attack', () => {
     const m = createMatch(61, ['A', 'B'], [false, false], { timed: false });
     command(m, 0, { c: 'buyLauncher', weapon: 'tomahawk' }); command(m, 0, { c: 'buyUnits', weapon: 'tomahawk', n: 3 });
     command(m, 0, { c: 'endSetup' }); command(m, 1, { c: 'endSetup' });
+    hideChiefFrom(m, 1, 0, 1);
     expect(command(m, 0, { c: 'go', strikes: [], scouts: [], live: true }).ok).toBe(true);
     expect(command(m, 0, { c: 'fire', weapon: 'tomahawk', from: { x: 1, z: 1 }, to: { x: 0, z: 0 } }).ok).toBe(false); // start inside the city
     expect(command(m, 0, { c: 'fire', weapon: 'tomahawk', from: { x: 30, z: 0 }, to: { x: 2, z: 1 } }).ok).toBe(true);
@@ -198,5 +222,114 @@ describe('live attack', () => {
     command(m, 0, { c: 'endAttack' });
     tick(m, 1);
     expect(m.phase).toBe('report');
+  });
+});
+
+describe('chief, hideouts, recon drones and decoys', () => {
+  const ready = (seed: number) => {
+    const m = createMatch(seed, ['A', 'B'], [false, false], { timed: false });
+    command(m, 0, { c: 'buyUnits', weapon: 'recon', n: 4 });
+    return m;
+  };
+  const start = (m: Match) => { command(m, 0, { c: 'endSetup' }); command(m, 1, { c: 'endSetup' }); };
+
+  it('a recon drone hovers over a hideout and reports whether the chief is inside', () => {
+    const m = ready(71); start(m);
+    const hs = hideoutsOf(m, 1), chief = m.players[1].chief, empty = hs.find(h => h.uid !== chief)!;
+    expect(command(m, 0, { c: 'go', strikes: [{ weapon: 'recon', n: 1, target: chief }, { weapon: 'recon', n: 1, target: empty.uid }], scouts: [] }).ok).toBe(true);
+    run(m, 120);
+    const intel = m.players[0].intel;
+    expect(intel.find(x => x.uid === chief)?.found).toBe(true);
+    expect(intel.find(x => x.uid === empty.uid)?.found).toBe(false);
+    expect(m.players[1].inspected).toContain(chief);       // the defender saw it hover there
+    expect(m.phase).not.toBe('over');                       // recon drones do no damage
+  });
+
+  it('recon drones must be sent to a standing hideout', () => {
+    const m = ready(72); start(m);
+    const crit = m.players[1].buildings.find(b => b.kind !== 'hideout')!;
+    expect(command(m, 0, { c: 'go', strikes: [{ weapon: 'recon', n: 1 }], scouts: [] }).ok).toBe(false);
+    crit.revealed = true;
+    expect(command(m, 0, { c: 'go', strikes: [{ weapon: 'recon', n: 1, target: crit.uid }], scouts: [] }).ok).toBe(false);
+    expect(command(m, 0, { c: 'go', strikes: [{ weapon: 'recon', n: 5, target: hideoutsOf(m, 1)[0].uid }], scouts: [] }).ok).toBe(false); // 4 per turn
+  });
+
+  it('guns shoot recon drones down', () => {
+    let lost = 0;
+    for (let seed = 80; seed < 85; seed++) {
+      const m = ready(seed);
+      for (const pad of [0, 1, 2, 3, 4, 5]) command(m, 1, { c: 'buyBattery', sys: 'korkut', pad });
+      start(m);
+      const targets = hideoutsOf(m, 1).slice(0, 4);
+      command(m, 0, { c: 'go', strikes: targets.map(h => ({ weapon: 'recon', n: 1, target: h.uid })), scouts: [] });
+      run(m, 120);
+      lost += 4 - m.players[0].intel.length;
+    }
+    expect(lost).toBeGreaterThan(5);
+  });
+
+  it('hitting the chief\'s hideout wins; hitting an empty one destroys it and tells the attacker', () => {
+    const m = ready(91);
+    command(m, 0, { c: 'buyLauncher', weapon: 'tomahawk' }); command(m, 0, { c: 'buyUnits', weapon: 'tomahawk', n: 2 });
+    start(m);
+    const chief = m.players[1].chief, empty = hideoutsOf(m, 1).find(h => h.uid !== chief)!;
+    m.rng = 5; // a seed where the empty-hideout strike does not miss
+    command(m, 0, { c: 'go', strikes: [{ weapon: 'tomahawk', n: 1, target: empty.uid }], scouts: [] });
+    run(m, 90);
+    if (empty.down >= 99) {
+      expect(m.players[0].intel.find(x => x.uid === empty.uid)?.found).toBe(false);
+      expect(viewFor(m, 0).enemy.hideoutsLeft).toBe(RULES.hideouts - 1);
+    }
+    expect(m.phase).not.toBe('over');
+    // Straight onto the chief.
+    m.players[1].buildings.filter(b => b.kind === 'hideout').forEach(h => { if (h.uid !== chief) h.down = 99; });
+    const t = { weapon: 'tomahawk', n: 1, target: chief };
+    let guard = 0;
+    while (m.phase !== 'over' && guard++ < 12) {
+      if (m.phase === 'report') command(m, 0, { c: 'continue' });
+      if (m.phase === 'turn' && m.active === 1) command(m, 1, { c: 'wait' });
+      if (m.phase === 'turn' && m.active === 0) { m.players[0].stock.tomahawk = 1; command(m, 0, { c: 'go', strikes: [t], scouts: [] }); }
+      run(m, 60);
+    }
+    expect(m.phase).toBe('over');
+    expect(m.winner).toBe(0);
+    expect(m.endReason).toBe('chief');
+  });
+
+  it('the defender never sees which contacts are decoys', () => {
+    const m = ready(95);
+    command(m, 0, { c: 'buyLauncher', weapon: 'mald' }); command(m, 0, { c: 'buyUnits', weapon: 'mald', n: 4 });
+    command(m, 0, { c: 'buyLauncher', weapon: 'tomahawk' }); command(m, 0, { c: 'buyUnits', weapon: 'tomahawk', n: 2 });
+    start(m);
+    command(m, 0, { c: 'go', strikes: [{ weapon: 'mald', n: 4 }, { weapon: 'tomahawk', n: 2 }], scouts: [] });
+    let sawClose = false;
+    for (let i = 0; i < 400 && m.phase === 'battle'; i++) {
+      tick(m, 0.1);
+      const v = viewFor(m, 1).battle;
+      for (const t of v?.threats ?? []) {
+        expect(t.decoy).toBe(false);
+        if (t.cls) { expect(t.cls).toBe('cruise'); sawClose = true; }
+      }
+      const a = viewFor(m, 0).battle;
+      if (a) expect(a.threats.filter(t => t.decoy).length).toBe(a.threats.filter(t => t.name.includes('MALD')).length);
+    }
+    expect(sawClose).toBe(true);
+  });
+
+  it('a precise hit on a revealed battery destroys it', () => {
+    const m = ready(97);
+    command(m, 0, { c: 'buyLauncher', weapon: 'tayfun' }); command(m, 0, { c: 'buyUnits', weapon: 'tayfun', n: 2 });
+    command(m, 1, { c: 'buyBattery', sys: 'zu23', pad: 3 });
+    start(m);
+    hideChiefFrom(m, 1, m.players[1].pads[3].x, m.players[1].pads[3].z);
+    m.players[1].batteries[0].revealed = true;
+    m.players[1].batteries[0].holdFire = true;
+    const pad = m.players[1].pads[3];
+    command(m, 0, { c: 'go', strikes: [], scouts: [], live: true });
+    command(m, 0, { c: 'fire', weapon: 'tayfun', from: { x: 30, z: 0 }, to: { x: pad.x + 0.3, z: pad.z } });
+    command(m, 0, { c: 'fire', weapon: 'tayfun', from: { x: 30, z: 0 }, to: { x: pad.x + 0.3, z: pad.z } });
+    command(m, 0, { c: 'endAttack' });
+    run(m, 60);
+    expect(m.players[1].batteries).toHaveLength(0);
   });
 });

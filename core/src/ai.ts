@@ -1,6 +1,7 @@
-// Sandbox training opponent. Simple and readable on purpose: it buys a layered defence, scouts first,
-// then hits revealed buildings and swarms with cheap drones. It defends with auto-fire.
-import { DEFENCES, ATTACKS, ECONOMY, RADAR_LEVELS, defence } from './data';
+// Sandbox training opponent. Simple and readable on purpose: it buys a layered defence, hunts the chief with
+// recon drones (covered by decoys and cheap drones), and strikes the hideout once the chief is found.
+// It moves its own chief when an enemy recon drone has checked the hideout the chief is in. It defends with auto-fire.
+import { ATTACKS, RULES, defence } from './data';
 import { command, launchCap } from './match';
 import { nextRandom } from './rng';
 import type { Match, PlayerIndex, PlayerState } from './types';
@@ -20,10 +21,11 @@ function setup(m: Match, pi: PlayerIndex) {
   const r = nextRandom(m);
   const layers = r < 0.5 ? ['korkut', 'pantsir', 'irondome', 'hisara'] : ['gepard', 'sungur', 'hisaro', 'irondome'];
   for (const sys of layers) { const pad = freePad(p, defence(sys).range < 10); if (pad != null) buy(m, pi, { c: 'buyBattery', sys, pad }); }
-  buy(m, pi, { c: 'upgradeRadar', track: 'range' });
   buy(m, pi, { c: 'buyLauncher', weapon: 'shahed' });
   buy(m, pi, { c: 'buyUnits', weapon: 'shahed', n: 10 });
-  buy(m, pi, { c: 'buyScout', scout: 'tb2s' });
+  buy(m, pi, { c: 'buyLauncher', weapon: 'gerbera' });
+  buy(m, pi, { c: 'buyUnits', weapon: 'gerbera', n: 10 });
+  buy(m, pi, { c: 'buyUnits', weapon: 'recon', n: 4 });
   buy(m, pi, { c: 'buyLauncher', weapon: 'som' });
   buy(m, pi, { c: 'buyUnits', weapon: 'som', n: 2 });
   buy(m, pi, { c: 'endSetup' });
@@ -31,23 +33,26 @@ function setup(m: Match, pi: PlayerIndex) {
 
 function shop(m: Match, pi: PlayerIndex) {
   const p = m.players[pi];
+  // Hide the chief again if an enemy recon drone checked its hideout.
+  if (p.inspected.includes(p.chief)) {
+    const others = p.buildings.filter(b => b.kind === 'hideout' && b.down < 99 && b.uid !== p.chief);
+    if (others.length) buy(m, pi, { c: 'moveChief', uid: others[Math.floor(nextRandom(m) * others.length) % others.length].uid });
+  }
   // Keep one reload of interceptors in the depot for every missile battery.
   for (const b of p.batteries) {
     const s = defence(b.sys); if (s.load === 0) continue;
     const have = p.interceptors[s.id] ?? 0;
     if (have < s.load && p.budget > s.shot * s.load + 40) buy(m, pi, { c: 'buyInterceptors', sys: s.id, n: s.load - have });
   }
-  if (p.econ.income === 0 && p.budget > 260) buy(m, pi, { c: 'upgradeEconomy', track: 'income' });
-  if (p.radar.decoy === 0 && p.budget > 200) buy(m, pi, { c: 'upgradeRadar', track: 'decoy' });
   // Grow the defence once rich.
   if (p.budget > 450 && p.batteries.length < 8) {
     const choice = ['irist', 'hisaro', 'davidsling', 'siper'][Math.floor(nextRandom(m) * 4)];
     const pad = freePad(p, false); if (pad != null) buy(m, pi, { c: 'buyBattery', sys: choice, pad });
   }
   if (p.budget > 300 && !(p.launchers.tayfun > 0)) buy(m, pi, { c: 'buyLauncher', weapon: 'tayfun' });
-  // Restock attack weapons.
+  // Restock attack weapons (recon drones need no launcher).
   for (const w of ATTACKS) {
-    if (w.reusable || !(p.launchers[w.id] > 0)) continue;
+    if (w.reusable || !(w.noLauncher || p.launchers[w.id] > 0)) continue;
     const cap = launchCap(p, w.id), have = p.stock[w.id] ?? 0;
     if (have < cap && p.budget > w.unit * (cap - have) + 60) buy(m, pi, { c: 'buyUnits', weapon: w.id, n: cap - have });
   }
@@ -55,26 +60,25 @@ function shop(m: Match, pi: PlayerIndex) {
 
 function attackTurn(m: Match, pi: PlayerIndex) {
   const p = m.players[pi], foe = m.players[pi === 0 ? 1 : 0];
-  const revealed = foe.buildings.filter(b => b.revealed && b.down === 0);
+  const standing = foe.buildings.filter(b => b.kind === 'hideout' && b.down < 99);
+  const known = (uid: number) => p.intel.find(x => x.uid === uid);
+  const found = standing.find(h => known(h.uid)?.found);
+  // Unchecked first, then the ones checked longest ago (the chief may have moved).
+  const toCheck = standing.filter(h => !known(h.uid)?.found)
+    .sort((a, b) => (known(a.uid)?.turn ?? -1) - (known(b.uid)?.turn ?? -1));
   const strikes: { weapon: string; n: number; target?: number }[] = [];
-  const scouts: { scout: string; path: { x: number; z: number }[] }[] = [];
-  if (revealed.length < 3 && (p.scouts.tb2s ?? 0) > 0) {
-    const a = nextRandom(m) * Math.PI;
-    scouts.push({ scout: 'tb2s', path: [{ x: Math.cos(a) * 4, z: Math.sin(a) * 4 }, { x: -Math.cos(a) * 4, z: -Math.sin(a) * 4 }] });
+  const left = (id: string) => Math.min(p.stock[id] ?? 0, launchCap(p, id));
+  if (found) {
+    // Everything precise goes at the chief's hideout; cheap drones and decoys soak up the defence.
+    for (const w of ATTACKS) { const n = left(w.id); if (n > 0 && !w.reusable && w.precise && !w.recon) strikes.push({ weapon: w.id, n, target: found.uid }); }
+  } else {
+    const n = Math.min(left('recon'), toCheck.length);
+    for (let i = 0; i < n; i++) strikes.push({ weapon: 'recon', n: 1, target: toCheck[i].uid });
+    // A ballistic gamble on an unchecked hideout now and then.
+    if (toCheck.length && left('tayfun') > 0 && nextRandom(m) < 0.3) strikes.push({ weapon: 'tayfun', n: 1, target: toCheck[toCheck.length - 1].uid });
   }
-  const order = ['factory', 'command', 'power', 'radar', 'finance', 'depot', 'airbase'];
-  revealed.sort((x, y) => order.indexOf(x.kind) - order.indexOf(y.kind));
-  let ti = 0;
-  for (const w of ATTACKS) {
-    const n = Math.min(p.stock[w.id] ?? 0, launchCap(p, w.id));
-    if (n <= 0 || w.reusable) continue;
-    if (w.precise && revealed.length) {
-      for (let i = 0; i < n; i++) strikes.push({ weapon: w.id, n: 1, target: revealed[ti++ % revealed.length].uid });
-    } else strikes.push({ weapon: w.id, n });
-  }
-  if (strikes.length || scouts.length) {
-    if (command(m, pi, { c: 'go', strikes, scouts }).ok) return;
-  }
+  for (const id of ['shahed', 'gerbera', 'mald']) { const n = left(id); if (n > 0) strikes.push({ weapon: id, n }); }
+  if (strikes.length && command(m, pi, { c: 'go', strikes, scouts: [] }).ok) return;
   command(m, pi, { c: 'wait' });
 }
 
@@ -92,5 +96,4 @@ export function aiStep(m: Match) {
   });
 }
 
-// Silence "unused" for catalogue imports kept for future tuning.
-void DEFENCES; void ECONOMY; void RADAR_LEVELS;
+void RULES;

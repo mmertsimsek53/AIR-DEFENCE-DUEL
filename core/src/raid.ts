@@ -18,7 +18,7 @@ const centreKm = (g: number, x: number, y: number, size: number) => ({ x: (x + s
 function emptyPlayer(index: 0 | 1, name: string, isAI: boolean): PlayerState {
   return {
     index, name, isAI, budget: 0, health: 0, pads: [], scars: [], batteries: [], buildings: [], interceptors: {}, launchers: {}, stock: {},
-    scouts: {}, launched: {}, offUp: {}, econ: { income: 0, storage: 0, logistics: 1, repair: 0 }, radar: { range: 0, identify: 0, decoy: 0 },
+    scouts: {}, launched: {}, offUp: {}, econ: { income: 0, storage: 0, logistics: 1, repair: 0 }, radar: { range: 0, identify: 0, decoy: 0 }, chief: -1, intel: [], inspected: [],
     autoFire: true, reloadsLeft: 0, spent: 0, conceded: false, ready: true, restock: {},
   };
 }

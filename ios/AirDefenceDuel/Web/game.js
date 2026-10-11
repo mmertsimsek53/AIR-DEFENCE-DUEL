@@ -25,7 +25,7 @@ const CLS_TAG={drone:'dro',decoy:'dec',uav:'uav',rocket:'roc',cruise:'cru',balli
 const CLS_LABEL={drone:'DRN',decoy:'DEC',uav:'UAV',rocket:'RKT',cruise:'CRU',ballistic:'BAL',hypersonic:'HYP'};
 const CLS_ORDER=['drone','decoy','uav','rocket','cruise','ballistic','hypersonic'];
 const SIZE={ballistic:3.2,decoy:1.3,cruise:2.2,drone:1.1,uav:2.6,rocket:1.2,hypersonic:3.6};
-const BLD_COL={command:0xd84040,radar:0x4fd8f0,power:0xf2c832,depot:0x8fae5a,factory:0xc0855a,airbase:0x8aa0c0,finance:0x5fc890};
+const BLD_COL={command:0xd84040,radar:0x4fd8f0,power:0xf2c832,depot:0x8fae5a,factory:0xc0855a,airbase:0x8aa0c0,finance:0x5fc890,hideout:0xe0b040};
 const SCOUT_PATHS=[['N → S',[0,-5],[0,5]],['W → E',[-5,0],[5,0]],['NW → SE',[-4,-4],[4,4]],['NE → SW',[4,-4],[-4,4]]];
 
 // Rules work in km around the defending city; the scene is the prototype's units (city radius 106).
@@ -235,10 +235,29 @@ function burnNear(S,x,z,r){
     b.dead=true;b.g.scale.y=0.3;for(const p of b.parts)p.material=Array.isArray(p.material)?burntMats:burnt;S.fires.push({x:b.x,y:b.h*0.3,z:b.z,t:25,w:Math.min(b.w,b.d)*.4});}
 }
 
+/* --- building models made in Blender (art/build_models.py → art/lite → web/models.js) --- */
+// Which model stands for which building in the duel city, and its plot size in tiles (scene: ~18 units across).
+const KIND_MODEL={command:['hq_7',4],radar:['radar_4',3],power:['power_4',3],finance:['treasury_8',3],depot:['tnt_7',3],hideout:['hideout',2]};
+const MODEL={};
+if(window.ADD_MODELS&&THREE.GLTFLoader){const ld=new THREE.GLTFLoader();
+  for(const k in ADD_MODELS){try{const bin=atob(ADD_MODELS[k]),buf=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)buf[i]=bin.charCodeAt(i);
+    ld.parse(buf.buffer,'',gl=>{gl.scene.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});MODEL[k]=gl.scene;},e=>console.log('model '+k+': '+e));}catch(e){console.log('model '+k+': '+e);}}}
+function blenderModel(kind){
+  const spec=KIND_MODEL[kind],src=spec&&MODEL[spec[0]];if(!src)return null;
+  const g=new THREE.Group(),m=src.clone(true);m.scale.setScalar(18/spec[1]);m.rotation.y=Math.PI;g.add(m); // Blender front (+y) faces the camera
+  const spin=m.getObjectByName('radar_rotor_iff')||m.getObjectByName('radar_rotor')||null;
+  g.traverse(o=>{if(o.isMesh)o.userData.mat=o.material;});
+  return {g,spin,stack:null};
+}
+
 /* --- critical buildings --- */
 function critModel(kind){
+  const bm=blenderModel(kind);if(bm)return bm;
   const g=new THREE.Group(),acc=new THREE.MeshBasicMaterial({color:BLD_COL[kind]});let spin=null,stack=null;
-  if(kind==='command'){
+  if(kind==='hideout'){ // fallback while the Blender model loads
+    const mound=mesh(new THREE.CylinderGeometry(6,6,14,16,1,false,0,Math.PI).rotateZ(Math.PI/2).rotateY(Math.PI/2),new THREE.MeshLambertMaterial({color:0x5f7a45}),0,0,0);g.add(mound);
+    g.add(mesh(new THREE.BoxGeometry(4.5,4,.4),darkMat,0,2,7.1));
+  }else if(kind==='command'){
     g.add(mesh(new THREE.BoxGeometry(14,5,10),concrete,0,2.5,0));g.add(mesh(new THREE.BoxGeometry(9,3.4,7),concrete,0,6.7,0));
     g.add(mesh(new THREE.BoxGeometry(14.1,.5,10.1),acc,0,4.6,0));
     g.add(mesh(new THREE.CylinderGeometry(.15,.2,9,6),steel,4.5,12.9,2));g.add(mesh(new THREE.BoxGeometry(.08,1,1.6),acc,4.5,16.8,2.8));
@@ -452,14 +471,20 @@ function syncCity(S,isHome){
   for(const b of blds){seenB.add(b.uid);let c=S.crit[b.uid];
     if(!c){c=critModel(b.kind);c.uid=b.uid;c.kind=b.kind;c.down=false;c.x=b.x*U;c.z=b.z*U;c.g.position.set(c.x,0,c.z);S.root.add(c.g);
       const el=document.createElement('div');el.className='ind';el.style.setProperty('--c',css(BLD_COL[b.kind]));el.hidden=true;$('tags').appendChild(el);c.el=el;S.labelEls.push(el);S.crit[b.uid]=c;}
-    const down=b.down>0;if(down!==c.down){c.down=down;setBurnt(c,down);if(down)S.fires.push({x:c.x,y:3,z:c.z,t:9999,w:4,crit:b.uid});else S.fires=S.fires.filter(f=>f.crit!==b.uid);}
-    const txt=(BLD[b.kind]?BLD[b.kind].name:b.kind).toUpperCase()+(down?' · DOWN '+b.down:'');
-    c.txt=txt;c.revealed=isHome&&b.revealed;}
+    const down=b.down>0;if(down!==c.down){c.down=down;setBurnt(c,down);if(down)S.fires.push({x:c.x,y:3,z:c.z,t:b.down>=99?40:9999,w:4,crit:b.uid});else S.fires=S.fires.filter(f=>f.crit!==b.uid);}
+    c.txt=b.kind==='hideout'?hideoutLabel(b,isHome):(BLD[b.kind]?BLD[b.kind].name:b.kind).toUpperCase()+(down?' · DOWN '+b.down:'');
+    c.chief=isHome&&b.uid===v.me.chief;c.revealed=isHome&&b.revealed&&b.kind!=='hideout';}
   for(const id in S.crit)if(!seenB.has(+id)){S.root.remove(S.crit[id].g);S.crit[id].el.remove();delete S.crit[id];}
   // Impact scars.
   const scars=isHome?v.me.scars:v.enemy.scars;
   while(S.scarCount<scars.length){const s=scars[S.scarCount++];if(s.d>0)burnNear(S,s.x*U,s.z*U,3+s.d*.12);}
 }
+
+// Hideout label: yours show where the chief is; the enemy's show what your drones and strikes learned.
+function hideoutLabel(b,isHome){const v=view,name=(b.name||'Hideout').toUpperCase();
+  if(b.down>=99)return name+' · DESTROYED';
+  if(isHome)return name+(b.uid===v.me.chief?' · CHIEF':'')+(v.me.inspected.includes(b.uid)?' · CHECKED BY ENEMY':'');
+  const i=v.me.intel.find(x=>x.uid===b.uid);return name+(i?(i.found?' · CHIEF SEEN T'+i.turn:' · EMPTY T'+i.turn):'');}
 
 function clearBattle(){for(const t of TV.values()){scene.remove(t.mesh);t.tag.remove();}TV.clear();for(const i of IV.values())scene.remove(i.mesh);IV.clear();}
 
@@ -519,6 +544,9 @@ function handleEvents(list){
       if(b&&b.beam){if(b.tur)b.tur.lookAt(_c);_a.copy(b.muzzle);_a.y+=.2;b.beam.visible=true;b.beam.position.copy(_a);b.beam.lookAt(_c);b.beam.scale.set(1,1,_a.distanceTo(_c));b.beamT=.35;}
       for(let k=0;k<6;k++)emit(GLOW,_c.x,_c.y,_c.z,(rand()-.5)*3,(rand()-.5)*3,(rand()-.5)*3,.25,1.6,.4,1,.4,.8,1,0,0);}
     else if(e.t==='reveal'){if(!iDefend)msg('Target revealed','good');}
+    else if(e.t==='intel'){const no=hideNo(e.building,!iDefend);if(iDefend)msg('An enemy recon drone checked Hideout '+no+(e.building===view.me.chief?' · your chief is there!':''),e.building===view.me.chief?'bad':'warn');
+      else{msg(e.found?'CHIEF FOUND in Hideout '+no+'!':'Hideout '+no+' is empty',e.found?'good':'');if(e.found)banner('CHIEF FOUND','Hideout '+no+' · strike it before they move',3);}}
+    else if(e.t==='hideout'){const no=hideNo(e.building,!iDefend);if(!e.chief)msg('Hideout '+no+' destroyed · it was empty',iDefend?'warn':'');}
     else if(e.t==='msg'){msg(e.text,e.tone==='bad'?'bad':e.tone==='good'?'good':'');}
   }
 }
@@ -545,6 +573,7 @@ function onPhase(){
   sheetSig='';refreshUI();
 }
 
+function hideNo(uid,enemy){const b=(enemy?view.enemy.buildings:view.me.buildings).find(x=>x.uid===uid);return b&&b.no||'?';}
 function m_factoryDown(){return view.me.buildings.some(b=>b.kind==='factory'&&b.down>0);}
 function showReport(){
   const v=view,r=v.report;if(!r)return;
@@ -552,20 +581,21 @@ function showReport(){
     $('repBody').innerHTML=[['Destroyed',r.raid.destroyedPct+'%'],['Headquarters',r.raid.hqDown?'destroyed':'standing'],['Weapons launched',r.launched],['Shot down',r.stopped],['Hits',r.hits]].map(l=>'<div class="kv"><span>'+l[0]+'</span><b>'+l[1]+'</b></div>').join('');
     $('repBtn').textContent='Back to base';$('repMenu').hidden=true;$('report').hidden=false;return;}
   const attackerIsMe=v.battle?!v.battle.iDefend:false;
-  const lines=[['Contacts launched',r.launched],['Stopped',r.stopped],['Hits',r.hits],['City damage',Math.round(r.damage)],
+  const lines=[['Contacts launched',r.launched],['Stopped',r.stopped],['Hits',r.hits],
     ['Interceptors fired',r.interceptorsUsed+' · '+fmt(r.defenceSpent)],['Strike cost',fmt(r.attackSpent)]];
   if(r.knockedOut.length)lines.push(['Knocked out',r.knockedOut.join(', ')]);
-  lines.push([(attackerIsMe?v.enemy.name:'Your')+' buildings known to the attacker',r.revealed+' of '+(attackerIsMe?'7+':v.me.buildings.length)]);
+  lines.push([(attackerIsMe?v.enemy.name+':':'Your')+' buildings known to the attacker',r.revealed+' of 7']);
+  lines.push([attackerIsMe?v.enemy.name+' hideouts standing':'Your hideouts standing',attackerIsMe?v.enemy.hideoutsLeft:v.me.buildings.filter(b=>b.kind==='hideout'&&b.down<99).length]);
   $('repEyebrow').textContent='Turn '+v.turnNo+' · '+(attackerIsMe?'your strike on '+v.enemy.name:v.enemy.name+"'s strike on you");
-  $('repTitle').textContent=attackerIsMe?(r.damage>60?'HEAVY DAMAGE':r.damage>0?'STRIKE LANDED':'STRIKE STOPPED'):(r.damage===0?'STRIKE REPELLED':r.damage<60?'CITY DAMAGED':'HEAVY DAMAGE');
+  $('repTitle').textContent=attackerIsMe?(r.hits>0?'STRIKE LANDED':'STRIKE STOPPED'):(r.hits===0?'STRIKE REPELLED':'CITY HIT');
   $('repBody').innerHTML=lines.map(l=>'<div class="kv"><span>'+esc(l[0])+'</span><b style="text-align:right">'+esc(l[1])+'</b></div>').join('');
   $('repBtn').textContent='Continue';$('repMenu').hidden=true;$('report').hidden=false;
 }
 function showOver(){
   const v=view;
   $('repEyebrow').textContent='Duel over';$('repTitle').textContent=v.iWon?'VICTORY':'DEFEAT';
-  const why=v.endReason==='conceded'?(v.iWon?v.enemy.name+' accepted defeat.':'You accepted defeat.'):(v.iWon?v.enemy.name+"'s city is destroyed.":'Your city is destroyed.');
-  $('repBody').innerHTML='<div class="kv"><span>Result</span><b style="text-align:right">'+esc(why)+'</b></div><div class="kv"><span>Your city</span><b>'+Math.round(v.me.health)+'</b></div><div class="kv"><span>'+esc(v.enemy.name)+'</span><b>'+Math.round(v.enemy.health)+'</b></div>';
+  const why=v.endReason==='conceded'?(v.iWon?v.enemy.name+' accepted defeat.':'You accepted defeat.'):(v.iWon?'You killed '+v.enemy.name+"'s chief.":'Your chief was killed.');
+  $('repBody').innerHTML='<div class="kv"><span>Result</span><b style="text-align:right">'+esc(why)+'</b></div><div class="kv"><span>Turns</span><b>'+v.turnNo+'</b></div><div class="kv"><span>Your hideouts standing</span><b>'+v.me.buildings.filter(b=>b.kind==='hideout'&&b.down<99).length+'</b></div><div class="kv"><span>'+esc(v.enemy.name)+' hideouts standing</span><b>'+v.enemy.hideoutsLeft+'</b></div>';
   $('repBtn').textContent='Play again';$('repMenu').hidden=false;$('report').hidden=false;
 }
 $('repBtn').onclick=()=>{if(raidMode){$('report').hidden=true;cmd({c:'continue'});const res=ADD.raidFinish();raidMode=false;running=false;view=null;clearBattle();refreshUI();BASE.raidEnd(res);return;}
@@ -628,18 +658,24 @@ function finishDraw(){
   else{plan.scoutPath[mode]=km;plan.scoutPathU[mode]=u;msg(SCT[mode].name+' will fly this path','good');}
   drawMode=null;$('placing').hidden=true;tab='attack';sheetSig='';rebuildPlanGfx();refreshUI();}
 const REC_DEF=[['vs drones',['korkut','sungur']],['vs missiles',['hisara','irondome']],['vs ballistic',['davidsling','patriot']]];
-const REC_ATK=['shahed','trg300','som','tayfun','tb2s'];
+const REC_ATK=['recon','shahed','gerbera','mald','som','tayfun','tb2s'];
 const TARGET_ORDER=['factory','command','power','radar','finance','depot','airbase'];
 // Auto attack: send everything ready to fire at the best known target, in one go.
 function quickStrike(){
   const v=view,m=v.me;if(!myTurn())return;
-  const tg=v.enemy.buildings.filter(b=>b.down===0).sort((a,b)=>TARGET_ORDER.indexOf(a.kind)-TARGET_ORDER.indexOf(b.kind))[0];
+  // Chief found → everything precise at that hideout. Otherwise recon drones check unchecked hideouts and the rest hits the best known building.
+  const standing=v.enemy.buildings.filter(b=>b.kind==='hideout'&&b.down<99),known=uid=>m.intel.find(x=>x.uid===uid);
+  const found=standing.find(h=>known(h.uid)&&known(h.uid).found);
+  const unchecked=standing.filter(h=>!known(h.uid)).concat(standing.filter(h=>known(h.uid)&&!known(h.uid).found).sort((a,b)=>known(a.uid).turn-known(b.uid).turn));
+  const tg=found||v.enemy.buildings.filter(b=>b.kind!=='hideout'&&b.down===0).sort((a,b)=>TARGET_ORDER.indexOf(a.kind)-TARGET_ORDER.indexOf(b.kind))[0];
   const strikes=[],scouts=[],parts=[];
-  for(const w of CAT.attacks){const st=m.stock[w.id]||0;if(!st)continue;const n=w.reusable?st:Math.min(st,m.caps[w.id]||0);if(n>0){strikes.push(w.precise&&tg?{weapon:w.id,n,target:tg.uid}:{weapon:w.id,n});parts.push(n+' '+w.name);}}
+  for(const w of CAT.attacks){const st=m.stock[w.id]||0;if(!st)continue;let n=w.reusable?st:Math.min(st,m.caps[w.id]||0);if(n<=0)continue;
+    if(w.recon){if(found)continue;n=Math.min(n,unchecked.length);for(let i=0;i<n;i++)strikes.push({weapon:w.id,n:1,target:unchecked[i].uid});if(n)parts.push(n+' recon');continue;}
+    strikes.push(w.precise&&tg?{weapon:w.id,n,target:tg.uid}:{weapon:w.id,n});parts.push(n+' '+w.name);}
   if(v.enemy.buildings.length<7){const sc=CAT.scouts.find(s=>(m.scouts[s.id]||0)>0);
     if(sc){const b=-Math.PI/2+(v.turnNo%3-1)*0.8;scouts.push({scout:sc.id,path:[{x:Math.cos(b)*5,z:Math.sin(b)*5},{x:-Math.cos(b)*5,z:-Math.sin(b)*5}]});parts.push('scout');}}
   if(!parts.length){msg('Nothing in stock: buy weapons in Attack, or tap No attack','warn');tab='attack';refreshUI();return;}
-  if(cmd({c:'go',strikes,scouts}))msg('Auto attack: '+parts.join(', ')+(tg?' → '+BLD[tg.kind].name:''),'good');
+  if(cmd({c:'go',strikes,scouts}))msg('Auto attack: '+parts.join(', ')+(tg?' → '+(tg.name||BLD[tg.kind].name):''),'good');
 }
 function planEmpty(){for(const k in plan.counts)if(plan.counts[k]>0)return false;for(const k in plan.scoutPath)if(plan.scoutPath[k])return false;return true;}
 function launch(){
@@ -653,8 +689,8 @@ function launch(){
 }
 
 function vsChips(hit,col){return '<div class="vs">'+CLS_ORDER.filter(k=>hit[k]).map(k=>'<i class="y" style="--c:'+CLS_CSS[k]+'">'+CLS_LABEL[k]+' '+Math.round(hit[k])+'%</i>').join('')+'</div>';}
-function sig(){const v=view,m=v.me;return [v.phase,v.myTurn,tab,upSeg,m.budget,JSON.stringify(m.stock),JSON.stringify(m.launchers),JSON.stringify(m.scouts),JSON.stringify(m.interceptors),JSON.stringify(m.econ),JSON.stringify(m.radar),JSON.stringify(m.offUp),
-  m.batteries.map(b=>b.uid+':'+b.level+':'+b.ammo).join(','),m.buildings.map(b=>b.down).join(','),v.enemy.buildings.map(b=>b.uid+':'+b.down).join(','),JSON.stringify(plan),placing].join('|');}
+function sig(){const v=view,m=v.me;return [v.phase,v.myTurn,tab,upSeg,m.budget,JSON.stringify(m.stock),JSON.stringify(m.launchers),JSON.stringify(m.scouts),JSON.stringify(m.interceptors),m.chief,JSON.stringify(m.intel),
+  m.batteries.map(b=>b.uid+':'+b.ammo).join(','),m.buildings.map(b=>b.down).join(','),v.enemy.buildings.map(b=>b.uid+':'+b.down).join(','),JSON.stringify(plan),placing].join('|');}
 
 function hideSheet(){$('sheet').hidden=true;document.body.classList.remove('sheet-open');}
 function renderSheet(){
@@ -673,10 +709,9 @@ function sheetHTML(){
     if(m.batteries.length){
       h+='<h3>Your defences <span class="small">· spare missiles are re-bought automatically at the start of each of your turns</span></h3><div class="items">'+m.batteries.map(b=>{const s=DEF[b.sys],spare=m.interceptors[b.sys]||0,rc=s.shot*s.load;
         const count=s.load?'<b class="big'+(b.ammo===0?' bad':'')+'">'+b.ammo+'</b><span> loaded</span> <b class="big">'+spare+'</b><span> spare</span>':'<b class="big">∞</b><span> '+(s.kind==='gun'?fmt(s.shot)+'/burst':'no ammo')+'</span>';
-        return '<div class="item" style="--c:'+css(SYS_COL[b.sys])+'"><div class="nm"><b>'+esc(s.name)+'</b><span>Level '+b.level+' · range '+s.range+' km</span></div><div class="cnt">'+count+'</div><div class="acts">'+
+        return '<div class="item" style="--c:'+css(SYS_COL[b.sys])+'"><div class="nm"><b>'+esc(s.name)+'</b><span>Range '+s.range+' km</span></div><div class="cnt">'+count+'</div><div class="acts">'+
           (s.load?'<div class="stepper"><span class="small">Keep spare</span><button class="step" data-act="rsdec" data-k="'+b.sys+'"'+((m.restock[b.sys]||0)<=0?' disabled':'')+'>−</button><output>'+(m.restock[b.sys]||0)+'</output><button class="step" data-act="rsinc" data-k="'+b.sys+'">+</button></div>'+
-            '<button class="mini" data-act="reload" data-k="'+b.uid+'"'+(B<rc?' disabled':'')+'>Buy '+s.load+' now · '+fmt(rc)+'</button>':'')+
-          (b.upgradeCost!=null?'<button class="mini" data-act="upBat" data-k="'+b.uid+'"'+(B<b.upgradeCost?' disabled':'')+'>Upgrade '+fmt(b.upgradeCost)+'</button>':'')+'</div></div>';}).join('')+'</div>';
+            '<button class="mini" data-act="reload" data-k="'+b.uid+'"'+(B<rc?' disabled':'')+'>Buy '+s.load+' now · '+fmt(rc)+'</button>':'')+'</div></div>';}).join('')+'</div>';
     }
     const card=(s,role)=>{const col=css(SYS_COL[s.id]),best=CLS_ORDER.filter(k=>s.hit[k]&&k!=='decoy').sort((x,y)=>s.hit[y]-s.hit[x]).slice(0,3);
       return '<button class="tile'+(placing===s.id?' sel':'')+'" type="button" data-act="place" data-k="'+s.id+'" style="--c:'+col+'"'+(B<s.price?' disabled':'')+'>'+(role?'<span class="role">'+role+'</span>':'')+'<b class="tn">'+esc(s.name)+'</b>'+
@@ -693,8 +728,8 @@ function sheetHTML(){
     const ownedS=CAT.scouts.filter(s=>(m.scouts[s.id]||0)>0);
     if(owned.length||ownedS.length){
       h+='<h3>Your weapons'+(mine?' <span class="small">· tap START ATTACK, then send them one by one on the map</span>':'')+'</h3><div class="items">';
-      for(const w of owned){const st=m.stock[w.id]||0,cap=w.reusable?st:(m.caps[w.id]||0),fire=Math.min(st,cap),buyN=w.reusable?1:Math.max(1,cap-st),q=Math.min(plan.counts[w.id]||0,fire);plan.counts[w.id]=q;
-        h+='<div class="item" style="--c:'+CLS_CSS[w.cls]+'"><div class="nm"><b>'+esc(w.name)+'</b><span>'+(w.reusable?'reusable UAV':(m.launchers[w.id]||0)+' launcher · fires '+cap+'/turn')+' · '+(w.precise?'precise':'unguided')+'</span></div>'+
+      for(const w of owned){const st=m.stock[w.id]||0,cap=w.reusable?st:w.noLauncher?w.perTurn:(m.caps[w.id]||0),fire=Math.min(st,cap),buyN=w.reusable?1:Math.max(1,cap-st),q=Math.min(plan.counts[w.id]||0,fire);plan.counts[w.id]=q;
+        h+='<div class="item" style="--c:'+CLS_CSS[w.cls]+'"><div class="nm"><b>'+esc(w.name)+'</b><span>'+(w.reusable?'reusable UAV':w.recon?'finds the chief · up to '+cap+'/turn':w.noLauncher?'up to '+cap+'/turn':(m.launchers[w.id]||0)+' launcher · fires '+cap+'/turn')+(w.recon?'':' · '+(w.cls==='decoy'?'decoy':w.precise?'precise':'unguided'))+'</span></div>'+
           '<div class="cnt"><b class="big'+(st===0?' bad':'')+'">'+st+'</b><span> in stock</span></div><div class="acts">'+
           '<button class="mini" data-act="units" data-k="'+w.id+'" data-n="'+buyN+'"'+(B<w.unit*buyN?' disabled':'')+'>Buy '+buyN+' · '+fmt(w.unit*buyN)+'</button>'+
           '</div></div>';}
@@ -706,39 +741,28 @@ function sheetHTML(){
     const rest=CAT.attacks.filter(w=>!owned.includes(w)&&(showAllAtk||REC_ATK.includes(w.id))),restS=CAT.scouts.filter(s=>!ownedS.includes(s)&&(showAllAtk||REC_ATK.includes(s.id)));
     const wt=(id,name,col,meta,act,price,n)=>'<button class="tile" type="button" data-act="'+act+'" data-k="'+id+'"'+(n?' data-n="'+n+'"':'')+' style="--c:'+col+'"'+(B<price?' disabled':'')+'><b class="tn">'+esc(name)+'</b><span class="meta">'+meta+'</span><span class="meta"><b>'+fmt(price)+'</b></span></button>';
     h+='<h3>Add a weapon <span class="small">· tap to buy its launcher (or the UAV)</span></h3><div class="tiles">'+
-      rest.map(w=>w.reusable?wt(w.id,w.name,CLS_CSS[w.cls],'armed UAV · reusable','units',w.unit,1):wt(w.id,w.name,CLS_CSS[w.cls],threatLabel(w.cls)+' · '+fmt(w.unit)+' each · '+w.perTurn+'/turn','launcher',w.launcher)).join('')+
+      rest.map(w=>w.reusable?wt(w.id,w.name,CLS_CSS[w.cls],'armed UAV · reusable','units',w.unit,1):w.noLauncher?wt(w.id,w.name,CLS_CSS[w.cls],(w.recon?'finds the chief · ':'')+'no launcher · '+fmt(w.unit)+' each','units',w.unit*w.perTurn,w.perTurn):wt(w.id,w.name,CLS_CSS[w.cls],threatLabel(w.cls)+' · '+fmt(w.unit)+' each · '+w.perTurn+'/turn','launcher',w.launcher)).join('')+
       restS.map(sc=>wt(sc.id,sc.name,CLS_CSS.uav,'scout UAV · sees '+sc.reveal+' km','scout',sc.price)).join('')+'</div>';
     h+='<button class="mini" data-act="showall" data-k="atk">'+(showAllAtk?'Show recommended only':'Show all weapons')+'</button>';
-    h+='<div class="note">A launcher is bought once and sets how many can fly each turn. '+(mine?'Press <b>START ATTACK</b>: pick a weapon, tap where it starts (outside the city), then tap where it should hit.':'You attack on your turn.')+'</div>';
+    h+='<div class="note">A launcher is bought once and sets how many can fly each turn. Decoys look real to the enemy. <b>Mini recon drones</b> fly to a hideout, hover 5 s and tell you if the chief is inside; enemy defences shoot at them. '+(mine?'Press <b>START ATTACK</b>: pick a weapon, tap where it starts (outside the city), then tap where it should hit.':'You attack on your turn.')+'</div>';
     return h;
   }
-  if(tab==='upgrades'){
-    let h='<div class="seg"><button class="mini'+(upSeg==='def'?' on':'')+'" data-act="seg" data-k="def">Defensive</button><button class="mini'+(upSeg==='off'?' on':'')+'" data-act="seg" data-k="off">Offensive</button><button class="mini'+(upSeg==='eco'?' on':'')+'" data-act="seg" data-k="eco">Economy</button></div>';
-    if(upSeg==='def'){
-      const R=CAT.radar;const row=(t,key,vf)=>{const lv=m.radar[key];const c=R.cost[lv+1];
-        return '<div class="row" style="--c:#6fe3ff"><div class="nm"><b>'+t+' · L'+lv+'</b><span>'+R.names[lv]+'</span></div><div class="st">'+vf(lv)+(lv<3?'<br><span>Next: '+vf(lv+1)+'</span>':'')+'</div><div class="acts">'+(lv<3?'<button class="mini" data-act="radar" data-k="'+key+'"'+(B<c?' disabled':'')+'>'+fmt(c)+'</button>':'<span class="small">Max</span>')+'</div><div></div></div>';};
-      const inf=x=>x==null||x>999;
-      h+='<h3>Radar</h3><div class="rows">'+row('Range','range',l=>R.range[l]+' km warning')+row('Identification','identify',l=>inf(R.identify[l])?'type on detection':'type at '+R.identify[l]+' km')+row('Decoy detection','decoy',l=>R.decoy[l]===0?'never':inf(R.decoy[l])?'on detection':'at '+R.decoy[l]+' km')+
-        '<div class="row"><div class="nm"><b>Extra radar site</b><span>Backup if a radar site is knocked out</span></div><div class="st">'+m.buildings.filter(b=>b.kind==='radar').length+' sites</div><div class="acts"><button class="mini" data-act="radarSite"'+(B<CAT.extraRadar?' disabled':'')+'>Build '+fmt(CAT.extraRadar)+'</button></div><div></div></div></div>';
-      h+='<h3>Batteries</h3>'+(m.batteries.length?'<div class="rows">'+m.batteries.map(b=>'<div class="row" style="--c:'+css(SYS_COL[b.sys])+'"><div class="nm"><b>'+esc(b.name)+' · L'+b.level+'</b><span>Each level: hit chance +8 pts, load +25%</span></div><div class="st">'+(b.load?b.ammo+'/'+b.load+' loaded':'')+'</div><div class="acts">'+(b.upgradeCost!=null?'<button class="mini" data-act="upBat" data-k="'+b.uid+'"'+(B<b.upgradeCost?' disabled':'')+'>L'+(b.level+1)+' · '+fmt(b.upgradeCost)+'</button>':'<span class="small">Max</span>')+'</div><div></div></div>').join('')+'</div>':'<div class="note">Buy defence systems in the Defence tab first.</div>');
-    }else if(upSeg==='off'){
-      const owned=CAT.attacks.filter(w=>(m.launchers[w.id]||0)>0||(m.stock[w.id]||0)>0);
-      if(!owned.length)h+='<div class="note">Buy a launcher or UAV in the Weapons tab first.</div>';
-      for(const w of owned){h+='<h3 style="color:'+CLS_CSS[w.cls]+'">'+esc(w.name)+'</h3><div class="rows">';
-        for(const k of ['warhead','guidance','stealth','capacity']){if(k==='capacity'&&w.reusable)continue;const tr=CAT.offUpgrades[k],lv=(m.offUp[w.id]||{})[k]||0;
-          h+='<div class="row" style="--c:'+CLS_CSS[w.cls]+'"><div class="nm"><b>'+tr.label+' · L'+lv+'</b><span>'+tr.effect+'</span></div><div class="st"></div><div class="acts">'+(lv<3?'<button class="mini" data-act="upOff" data-k="'+w.id+'" data-t="'+k+'"'+(B<tr.cost[lv]?' disabled':'')+'>'+fmt(tr.cost[lv])+'</button>':'<span class="small">Max</span>')+'</div><div></div></div>';}
-        h+='</div>';}
-    }else{
-      const E=CAT.economy;const er=(key,u,note)=>{const tr=E[key],lv=m.econ[key];
-        return '<div class="row" style="--c:#9dffc4"><div class="nm"><b>'+tr.label+' · L'+lv+'</b><span>'+(note||'')+'</span></div><div class="st">'+u(tr.values[lv])+(lv<tr.cost.length?'<br><span>Next: '+u(tr.values[lv+1])+'</span>':'')+'</div><div class="acts">'+(lv<tr.cost.length?'<button class="mini" data-act="eco" data-k="'+key+'"'+(B<tr.cost[lv]?' disabled':'')+'>'+fmt(tr.cost[lv])+'</button>':'<span class="small">Max</span>')+'</div><div></div></div>';};
-      h+='<div class="rows">'+er('income',x=>'+'+fmt(x)+'/turn','On top of the '+fmt(CAT.rules.income)+' everyone gets')+er('storage',x=>x+' protected slots','Stock above this is lost if the depot is hit · stored now '+m.storage.used)+er('logistics',x=>x+' reloads per strike','Batteries reloaded from the depot during a strike')+er('repair',x=>x+' turns','Time to repair a knocked-out building')+'</div>';
-    }
+  if(tab==='chief'){
+    const mine=m.buildings.filter(b=>b.kind==='hideout'),setup=v.phase==='setup',turn=myTurn();
+    let h='<h3>Your chief <span class="small">· hit the hideout with the chief inside and the match is lost</span></h3><div class="rows">'+mine.map(b=>{const here=b.uid===m.chief,dead=b.down>=99,seen=m.inspected.includes(b.uid);
+      const act=here?'<span class="small" style="color:var(--ok)">Chief is here</span>':dead?'<span class="small">Destroyed</span>':setup?'<button class="mini" data-act="chiefTo" data-k="'+b.uid+'">Put chief here</button>':turn?'<button class="mini" data-act="chiefTo" data-k="'+b.uid+'"'+(B<m.chiefMove?' disabled':'')+'>Move here · '+fmt(m.chiefMove)+'</button>':'';
+      return '<div class="row" style="--c:'+css(BLD_COL.hideout)+'"><div class="nm"><b>'+esc(b.name)+'</b><span>'+(dead?'Destroyed':seen?'<span style="color:var(--danger)">Checked by an enemy recon drone</span>':'Not checked by the enemy')+'</span></div><div class="st"></div><div class="acts">'+act+'</div><div></div></div>';}).join('')+'</div>';
+    h+='<div class="note">'+(setup?'Placing the chief is free during setup.':'Moving the chief costs '+fmt(m.chiefMove)+' and is only possible on your turn. The enemy is not told.')+'</div>';
+    const foe=v.enemy.buildings.filter(b=>b.kind==='hideout');
+    h+='<h3>'+esc(v.enemy.name)+"'s hideouts</h3><div class=\"rows\">"+foe.map(b=>{const i=m.intel.find(x=>x.uid===b.uid);
+      return '<div class="row" style="--c:'+css(BLD_COL.hideout)+'"><div class="nm"><b>'+esc(b.name)+'</b><span>'+(b.down>=99?'Destroyed':!i?'Not checked yet':i.found?'<span style="color:var(--ok)">Chief seen on turn '+i.turn+'</span>':'Empty on turn '+i.turn)+'</span></div><div class="st"></div><div class="acts"></div><div></div></div>';}).join('')+'</div>';
+    h+='<div class="note">The chief may have moved since a hideout was checked.</div>';
     return h;
   }
   if(tab==='city'){
-    return '<h3>Critical buildings</h3><div class="rows">'+m.buildings.map(b=>{const spec=BLD[b.kind];
+    return '<h3>Critical buildings</h3><div class="rows">'+m.buildings.filter(b=>b.kind!=='hideout').map(b=>{const spec=BLD[b.kind];
       return '<div class="row" style="--c:'+css(BLD_COL[b.kind])+'"><div class="nm"><b>'+esc(spec.name)+(b.revealed?' <span style="color:var(--danger)">· KNOWN TO ENEMY</span>':'')+'</b><span>If hit: '+esc(spec.effect)+'</span></div><div class="st">'+(b.down>0?'<span style="color:var(--danger)">Down '+b.down+' turn'+(b.down===1?'':'s')+'</span>':'Working')+'</div><div class="acts">'+(b.down>0&&canShop()?'<button class="mini" data-act="repair" data-k="'+b.uid+'"'+(B<spec.repairNow?' disabled':'')+'>Repair '+fmt(spec.repairNow)+'</button>':'')+'</div><div></div></div>';}).join('')+
-      '</div><div class="note">Your buildings are hidden from '+esc(v.enemy.name)+' until a UAV flies over them or they are hit. Enemy buildings you have found: '+v.enemy.buildings.length+'.</div>';
+      '</div><div class="note">Your buildings are hidden from '+esc(v.enemy.name)+' until a UAV flies over them or they are hit. Enemy buildings you have found: '+v.enemy.buildings.filter(b=>b.kind!=='hideout').length+' of 7.</div>';
   }
   return '';
 }
@@ -750,12 +774,7 @@ $('sheet').addEventListener('click',e=>{
     case 'launcher':if(cmd({c:'buyLauncher',weapon:k}))msg(ATK[k].name+' launcher bought','money');break;
     case 'units':cmd({c:'buyUnits',weapon:k,n:+b.dataset.n});break;
     case 'scout':if(cmd({c:'buyScout',scout:k}))msg(SCT[k].name+' ready','money');break;
-    case 'seg':upSeg=k;break;
-    case 'radar':if(cmd({c:'upgradeRadar',track:k}))msg('Radar upgraded','money');break;
-    case 'radarSite':if(cmd({c:'buyRadarSite'}))msg('Radar site built','money');break;
-    case 'upBat':cmd({c:'upgradeBattery',uid:+k});break;
-    case 'upOff':cmd({c:'upgradeOffence',weapon:k,track:b.dataset.t});break;
-    case 'eco':if(cmd({c:'upgradeEconomy',track:k}))msg(CAT.economy[k].label+' upgraded','money');break;
+    case 'chiefTo':{const setup=view.phase==='setup',h=view.me.buildings.find(x=>x.uid===+k);if(cmd({c:setup?'placeChief':'moveChief',uid:+k}))msg('Chief '+(setup?'placed in ':'moved to ')+(h?h.name:'the hideout')+(setup?'':' · −'+fmt(view.me.chiefMove)),'money');}break;
     case 'rsinc':case 'rsdec':{const cur=view.me.restock[k]||0,step=DEF[k].load;cmd({c:'setRestock',sys:k,n:a==='rsinc'?cur+step:Math.max(0,cur-step)});}break;
     case 'reload':{const bat=view.me.batteries.find(x=>x.uid===+k);if(bat&&cmd({c:'buyInterceptors',sys:bat.sys,n:DEF[bat.sys].load}))msg(DEF[bat.sys].load+' spare '+DEF[bat.sys].name+' missiles bought','money');}break;
     case 'repair':if(cmd({c:'repairNow',uid:+k}))msg('Repaired','money');break;
@@ -781,13 +800,12 @@ $('cancelPlace').onclick=()=>{if(drawMode)setDraw(null);else setPlacing(null);};
 function openInfo(uid){
   selected=uid;const v=view,b=v.me.batteries.find(x=>x.uid===uid);if(!b){closeInfo();return;}
   const s=DEF[b.sys],el=$('info'),shop=canShop();el.style.setProperty('--c',css(SYS_COL[b.sys]));
-  const hit={};for(const k in s.hit)hit[k]=Math.min(98,s.hit[k]+(b.level-1)*8);
+  const hit=s.hit;
   const reloadCost=s.load?s.shot*s.load:0;
-  el.innerHTML='<h3>'+esc(s.name)+'<small>Level '+b.level+'</small></h3><p>'+esc(s.role)+'</p>'+
+  el.innerHTML='<h3>'+esc(s.name)+'</h3><p>'+esc(s.role)+'</p>'+
     '<div class="kv"><span>Range</span><b>'+s.range+' km</b></div>'+(s.load?'<div class="kv"><span>Loaded</span><b>'+b.ammo+' / '+b.load+' · depot '+(v.me.interceptors[b.sys]||0)+'</b></div>':'<div class="kv"><span>Ammunition</span><b>'+(s.kind==='gun'?fmt(s.shot)+' per burst':'none needed')+'</b></div>')+
     vsChips(hit)+'<div class="kv"><span>Kills</span><b>'+b.kills+'</b></div>'+
     '<div class="tabs">'+(shop&&s.load?'<button class="btn" type="button" data-i="reload"'+(v.me.budget<reloadCost?' disabled':'')+'>+1 reload · '+fmt(reloadCost)+'</button>':'')+
-    (shop&&b.upgradeCost!=null?'<button class="btn primary" type="button" data-i="up"'+(v.me.budget<b.upgradeCost?' disabled':'')+'>Upgrade · '+fmt(b.upgradeCost)+'</button>':'')+
     '<button class="btn'+(b.holdFire?' danger':'')+'" type="button" data-i="hold">'+(b.holdFire?'Holding fire':'Hold fire')+'</button>'+
     (shop?'<button class="btn danger" type="button" data-i="sell">Sell · +'+fmt(s.price/2)+'</button>':'')+'<button class="btn" type="button" data-i="close">Close</button></div>';
   el.hidden=false;
@@ -795,7 +813,6 @@ function openInfo(uid){
 $('info').addEventListener('click',e=>{const b=e.target.closest('[data-i]');if(!b||b.disabled||selected==null)return;const uid=selected,bat=view.me.batteries.find(x=>x.uid===uid);if(!bat)return closeInfo();
   const i=b.dataset.i;
   if(i==='reload'){if(cmd({c:'buyInterceptors',sys:bat.sys,n:DEF[bat.sys].load}))msg('Reload bought','money');}
-  else if(i==='up'){if(cmd({c:'upgradeBattery',uid}))msg(DEF[bat.sys].name+' upgraded','money');}
   else if(i==='hold')cmd({c:'holdBattery',uid});
   else if(i==='sell'){if(cmd({c:'sellBattery',uid})){msg(DEF[bat.sys].name+' sold','money');closeInfo();return;}}
   else if(i==='close'){closeInfo();return;}
@@ -820,7 +837,7 @@ function liveHTML(){const list=liveRemaining();
   if(liveSel&&!list.some(x=>x.k===liveSel)){liveSel=null;liveFrom=null;}
   let h='<div class="chips2">'+list.map(x=>'<button class="wchip'+(liveSel===x.k?' on':'')+'" data-live="'+x.k+'" style="--c:'+x.col+'"><b>'+esc(x.name)+'</b><span>'+(x.scout?'scout · ':'')+x.n+' left</span></button>').join('')+'</div>';
   if(!list.length)h='<div class="small">Everything for this turn has been launched.</div>';
-  h+='<div class="liverow"><span class="step-txt">'+(!liveSel?(list.length?'1. Pick a weapon':''):!liveFrom?'2. Tap on the map <b>where it starts</b> (outside the city)':'3. Tap <b>where it should hit</b>')+'</span><button class="btn" data-live="end" type="button">End attack</button></div>';
+  h+='<div class="liverow"><span class="step-txt">'+(!liveSel?(list.length?'1. Pick a weapon':''):!liveFrom?'2. Tap on the map <b>where it starts</b> (outside the city)':liveSel==='w:recon'?'3. Tap <b>a hideout</b> to check':'3. Tap <b>where it should hit</b>')+'</span><button class="btn" data-live="end" type="button">End attack</button></div>';
   return h;}
 function hintHTML(){
   const v=view,m=v.me;if(!v)return '';
@@ -832,14 +849,16 @@ function hintHTML(){
   if(placing)return '<b>NEXT</b> Tap a glowing <b>+</b> in your city';
   if(drawMode)return '<b>NEXT</b> Draw with your finger on the enemy city';
   if(v.phase==='setup'){
-    if(!m.batteries.length)return '<b>NEXT</b> Tap <b>Defence</b> and place your first defence';
+    if(!m.batteries.length)return '<b>NEXT</b> Tap <b>Defence</b> and place your first defence · your chief hides in Hideout '+m.chiefNo+' (change it in <b>Chief</b>)';
     if(!Object.values(m.launchers).some(n=>n>0)&&!hasAtk)return '<b>NEXT</b> Tap <b>Attack</b> and buy a launcher, e.g. Shahed-136 drones';
-    if(!hasScout)return '<b>NEXT</b> Buy a <b>scout UAV</b> in Attack: it finds their buildings';
+    if(!(m.stock.recon>0))return '<b>NEXT</b> Buy <b>Mini recon drones</b> in Attack: they find the enemy chief';
     if(!ballistic)return '<b>TIP</b> Nothing in your city can stop ballistic missiles · then press <b>'+(v.timed?'Ready':"I'm done")+'</b>';
     return ammoWarn||'<b>NEXT</b> Press <b>'+(v.timed?'Ready':"I'm done")+'</b> when you are finished';
   }
   if(v.phase==='turn'&&v.myTurn){
     if(ammoWarn)return ammoWarn;
+    if(m.inspected.includes(m.chief))return '<span class="warn">An enemy drone checked your chief\'s hideout</span> · move the chief in <b>Chief</b>';
+    {const f=v.enemy.buildings.find(b=>b.kind==='hideout'&&b.down<99&&m.intel.some(x=>x.uid===b.uid&&x.found));if(f)return '<b>CHIEF FOUND</b> in '+esc(f.name)+' · START ATTACK and hit it';}
     return hasAtk||hasScout?'<b>NEXT</b> Tap <b>START ATTACK</b> and send weapons one by one · or <b>Auto attack</b>':'<b>NEXT</b> Buy weapons in <b>Attack</b>, or tap <b>No attack</b>';
   }
   if(v.phase==='turn')return v.enemy.name+' is planning a strike'+(ammoWarn?' · '+ammoWarn:'');
@@ -982,7 +1001,7 @@ function updTags(){
     const s=project(tv.pos);if(!s){tv.tag.hidden=true;continue;}
     tv.tag.hidden=false;tv.tag.style.transform='translate('+s.x.toFixed(1)+'px,'+s.y.toFixed(1)+'px)';
     const k=threatShown(t),cls=k?CLS_TAG[k]:'unk';
-    let txt=t.scout?'SCOUT UAV':t.decoy?'DECOY':!t.cls?'UNKNOWN':k==='drone'?'':t.name.toUpperCase();
+    let txt=t.recon?(t.hovering?'RECON · CHECKING':'RECON'):t.scout?'SCOUT UAV':t.decoy?'DECOY':!t.cls?'UNKNOWN':k==='drone'?(t.hovering?'HOVERING':''):t.name.toUpperCase();
     if(t.engaged&&txt)txt+=' · ENG';if(t.priority)txt+=(txt?' · ':'')+'PRIORITY';if(t.hold)txt+=(txt?' · ':'')+'HOLD';
     const key=cls+t.engaged+t.priority+t.hold+txt;
     if(key!==tv.key){tv.key=key;tv.tag.className='tag '+cls+(t.engaged?' eng':'')+(t.priority?' prio':'')+(t.hold?' hold':'');tv.span.textContent=txt;}
@@ -1001,15 +1020,16 @@ function updHud(){
   let intc=0;for(const b of m.batteries)if(b.load)intc+=b.ammo;for(const k in m.interceptors)intc+=m.interceptors[k];
   let atk=0;for(const k in m.stock)atk+=m.stock[k];for(const k in m.scouts)atk+=m.scouts[k];
   $('arsDef').textContent=intc;$('arsAtk').textContent=atk;
-  $('hp').textContent=Math.round(m.health);const hb=$('hpBar');hb.style.width=Math.max(0,m.health/10)+'%';hb.classList.toggle('low',m.health<400);
-  $('oppName').textContent=v.enemy.name;$('ohp').textContent=Math.round(v.enemy.health);$('ohpBar').style.width=Math.max(0,v.enemy.health/10)+'%';
+  const myLeft=m.buildings.filter(b=>b.kind==='hideout'&&b.down<99).length,N=CAT.rules.hideouts,seen=m.inspected.includes(m.chief);
+  $('hp').textContent='Hideout '+m.chiefNo+(seen?' · seen!':'');$('hp').style.color=seen?'var(--danger)':'';const hb=$('hpBar');hb.style.width=(myLeft/N*100)+'%';hb.classList.toggle('low',seen);
+  $('oppName').textContent=v.enemy.name+' hideouts';$('ohp').textContent=v.enemy.hideoutsLeft+' left'+(m.intel.some(x=>x.found&&v.enemy.buildings.some(b=>b.uid===x.uid&&b.down<99))?' · chief found':'');$('ohpBar').style.width=(v.enemy.hideoutsLeft/N*100)+'%';
   const showClock=(v.phase==='setup'||v.phase==='turn'||v.phase==='report')&&v.timed;
   $('phaseName').textContent=v.phase==='setup'?'SETUP':v.phase==='turn'?(v.myTurn?'YOUR TURN':'ENEMY TURN'):v.phase==='battle'?(v.battle.iDefend?'DEFEND':'STRIKE'):v.phase==='report'?'NEXT TURN':'OVER';
   $('clock').textContent=showClock?v.secondsLeft:(v.battle?Math.round(v.battle.time)+'s':'');$('clock').classList.toggle('low',showClock&&v.secondsLeft<=10&&v.phase!=='report');
   $('phaseName2').textContent=$('phaseName').textContent;$('clock2').textContent=$('clock').textContent;document.querySelector('.tclock').classList.toggle('low',showClock&&v.secondsLeft<=10&&v.phase!=='report');
   $('phaseSub').textContent=v.phase==='turn'&&!v.myTurn?'planning':v.weatherBad&&v.phase==='turn'?'bad weather':'';
   if(v.phase==='battle'){const b=v.battle;let ld=0;for(const bb of m.batteries)if(bb.load)ld+=bb.ammo;
-    $('status').innerHTML='<span>Contacts</span> '+b.threats.length+' <span>Stopped</span> '+b.stats.stopped+' <span>Hits</span> '+b.stats.hits+(b.iDefend?' <span>Loaded</span> '+ld+' <span>Reloads</span> '+m.reloadsLeft+' <span>Budget</span> '+fmt(m.budget)+' <button class="chip '+(m.autoFire?'on':'bad')+'" id="autoBtn" type="button">Auto-fire '+(m.autoFire?'on':'off')+'</button>':' <span>Damage</span> '+Math.round(b.stats.damage));}
+    $('status').innerHTML='<span>Contacts</span> '+b.threats.length+' <span>Stopped</span> '+b.stats.stopped+' <span>Hits</span> '+b.stats.hits+(b.iDefend?' <span>Loaded</span> '+ld+' <span>Reloads</span> '+m.reloadsLeft+' <span>Budget</span> '+fmt(m.budget)+' <button class="chip '+(m.autoFire?'on':'bad')+'" id="autoBtn" type="button">Auto-fire '+(m.autoFire?'on':'off')+'</button>':' <span>Their hideouts</span> '+v.enemy.hideoutsLeft);}
 }
 $('liveBar').addEventListener('click',e=>{const b=e.target.closest('[data-live]');if(!b||!view)return;const k=b.dataset.live;
   if(k==='end'){if(cmd({c:'endAttack'})){liveSel=null;liveFrom=null;msg('Attack ended · watching the results','good');}}
@@ -1087,7 +1107,7 @@ window.ADDX={THREE,V,TAU,rand,scene,camera,renderer,cam,emit,SMOKE,GLOW,explode,
     $('menu').hidden=true;$('report').hidden=true;running=true;cam.theta=0.75;cam.phi=.8;cam.r=190;cam.tx=0;cam.tz=0;refreshUI();}};
 window.__scr=(x,z)=>project(new V(x,0,z));
 window.__padXY=id=>{const p=PADS.find(q=>q.id===id);return p&&project(_b.set(p.x,1,p.z));};
-window.__advance=sec=>{const n=Math.max(1,Math.round(sec/0.05));for(let i=0;i<n;i++)step(0.05,i===n-1);return view&&{phase:view.phase,turn:view.turnNo,me:view.me.health,foe:view.enemy.health};};
+window.__advance=sec=>{const n=Math.max(1,Math.round(sec/0.05));for(let i=0;i<n;i++)step(0.05,i===n-1);return view&&{phase:view.phase,turn:view.turnNo,winner:view.winner,foeHideouts:view.enemy.hideoutsLeft};};
 requestAnimationFrame(frame);
 if(/[?&]demo=1/.test(location.search)){$('nameIn').value='Demo';startGame(true);}
 })();

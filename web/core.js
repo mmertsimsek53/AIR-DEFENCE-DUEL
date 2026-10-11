@@ -24,6 +24,8 @@
   var a = (s) => s;
   var ATTACKS = [
     a({ id: "gerbera", name: "Gerbera decoy", cls: "decoy", unit: 0.05, launcher: 10, perTurn: 10, flight: 70, damage: 0, precise: false, imitates: "drone", role: "Looks like a drone. Wastes enemy interceptors." }),
+    a({ id: "mald", name: "Missile decoy (MALD)", cls: "decoy", unit: 0.3, launcher: 30, perTurn: 4, flight: 35, damage: 0, precise: false, imitates: "cruise", role: "Flies like a cruise missile. The enemy cannot tell it from a real one." }),
+    a({ id: "recon", name: "Mini recon drone", cls: "drone", unit: 0.5, launcher: 0, perTurn: 4, flight: 40, damage: 0, precise: true, noLauncher: true, recon: true, role: "Flies to a hideout, hovers 5 s and tells you if the chief is inside. Defences shoot at it." }),
     a({ id: "shahed", name: "Shahed-136", cls: "drone", unit: 0.1, launcher: 15, perTurn: 10, flight: 70, damage: 8, precise: false, scatter: 0.9, role: "Cheap swarm drone. Drains interceptors." }),
     a({ id: "kargu", name: "Kargu-2", cls: "drone", unit: 0.08, launcher: 10, perTurn: 8, flight: 40, damage: 4, precise: true, role: "Small loitering drone. Hits a revealed building." }),
     a({ id: "grad", name: "BM-21 Grad", cls: "rocket", unit: 1.5, launcher: 20, perTurn: 1, flight: 20, damage: 3, precise: false, salvo: 40, scatter: 0.5, role: "40-rocket salvo. Unguided; about half land in empty areas." }),
@@ -51,6 +53,31 @@
     turnSecondsCommandHit: 30,
     disconnectSeconds: 60,
     cityHealth: 1e3,
+    // base raids only; the duel is won by killing the chief
+    hideouts: 8,
+    // identical hideouts per city; the chief is in one
+    chiefMove: 30,
+    // $M to move the chief to another hideout (own turn)
+    reconHover: 5,
+    // s a recon drone must hover over a hideout to check it
+    radarRange: 150,
+    // km, fixed in the duel (no upgrades)
+    identifyRange: 60,
+    // km: threat type shown inside this distance; decoys are never marked
+    storage: 10,
+    // protected slots (stock above this is lost if the depot is hit)
+    reloads: 2,
+    // battery reloads from the depot per strike
+    repairTurns: 3,
+    // turns a knocked-out building stays down
+    reconDetect: 6,
+    // km: mini recon drones are only seen this close (small, low)
+    reconHitFactor: 0.6,
+    // defences' hit chance against a mini recon drone, relative to a drone
+    batteryKillDamage: 20,
+    // a hit this strong within batteryHitRadius destroys an air-defence battery
+    batteryHitRadius: 0.3,
+    // km
     startBudget: 600,
     income: 120,
     knockoutDamage: 20,
@@ -93,6 +120,7 @@
     { kind: "factory", name: "Missile factory", effect: "Can't buy missiles or rockets", repairNow: 40 },
     { kind: "airbase", name: "Airbase", effect: "UAVs can't take off", repairNow: 30 },
     { kind: "finance", name: "Financial district", effect: "Income \u221230%", repairNow: 50 },
+    { kind: "hideout", name: "Hideout", effect: "Your chief may be inside. Hit with the chief inside = you lose", repairNow: 0 },
     { kind: "structure", name: "Building", effect: "No special effect", repairNow: 0 }
   ];
   var FINANCE_PENALTY = 0.3;
@@ -205,7 +233,10 @@
       spent: 0,
       conceded: false,
       ready: false,
-      restock: {}
+      restock: {},
+      chief: -1,
+      intel: [],
+      inspected: []
     };
   }
   function createMatch(seed, names, ai = [false, false], opts = {}) {
@@ -223,25 +254,33 @@
       log: [],
       timed: opts.timed !== false
     };
-    for (const p of m.players) for (const b of BUILDINGS) if (b.kind !== "structure") addBuilding(m, p, b.kind);
+    for (const p of m.players) {
+      for (const b of BUILDINGS) if (b.kind !== "structure" && b.kind !== "hideout") addBuilding(m, p, b.kind);
+      for (let i = 0; i < RULES.hideouts; i++) {
+        const h = addBuilding(m, p, "hideout");
+        if (h) h.revealed = true;
+      }
+      const hs = p.buildings.filter((b) => b.kind === "hideout");
+      p.chief = hs[Math.floor(rnd(m) * hs.length) % hs.length].uid;
+    }
     return m;
   }
   var working = (p, kind) => p.buildings.some((b) => b.kind === kind && b.down === 0);
   var powerOn = (p) => working(p, "power");
   function incomeFor(p) {
-    const base2 = RULES.income + ECONOMY.income.values[p.econ.income];
+    const base2 = RULES.income;
     return working(p, "finance") ? base2 : round(base2 * (1 - FINANCE_PENALTY));
   }
-  function radarRange(p) {
+  function radarRange(p, raid = false) {
     if (!working(p, "radar")) return RULES.visualRange;
-    const r = RADAR_LEVELS.range[p.radar.range];
+    const r = raid ? RADAR_LEVELS.range[p.radar.range] : RULES.radarRange;
     return powerOn(p) ? r : r * (1 - POWER_RADAR_PENALTY);
   }
   function launchCap(p, weapon) {
     const w = attack(weapon);
     if (w.reusable) return p.stock[weapon] ?? 0;
-    const cap = (p.offUp[weapon]?.capacity ?? 0) * 0.5 + 1;
-    return Math.floor((p.launchers[weapon] ?? 0) * w.perTurn * cap);
+    if (w.noLauncher) return w.perTurn;
+    return (p.launchers[weapon] ?? 0) * w.perTurn;
   }
   function storedUnits(p) {
     let n = 0;
@@ -253,10 +292,6 @@
     const s = defence(b.sys);
     return Math.round(s.load * (1 + DEF_UPGRADE.loadBonus * (b.level - 1)));
   }
-  function upgradeBatteryCost(b) {
-    if (b.level >= 3) return null;
-    return round(defence(b.sys).price * DEF_UPGRADE.costFactor[b.level + 1]);
-  }
   function spend(p, amount) {
     if (amount > p.budget + 1e-9) return false;
     p.budget = round(p.budget - amount);
@@ -267,6 +302,7 @@
     m.log.push({ time: round(m.time), text });
     if (m.log.length > 60) m.log.shift();
   }
+  var intact = (b) => b.down < 99;
   function canShop(m, p) {
     return m.phase === "setup" || m.phase === "turn" && m.active === p;
   }
@@ -349,6 +385,22 @@
       if (r.n === 0) return fail(r.short ? "Not enough money to top up." : "Everything is already full.");
       return ok;
     }
+    if (cmd.c === "placeChief" || cmd.c === "moveChief") {
+      const h = p.buildings.find((b) => b.uid === cmd.uid && b.kind === "hideout");
+      if (!h || !intact(h)) return fail("Pick one of your standing hideouts.");
+      if (h.uid === p.chief) return fail("Your chief is already there.");
+      if (cmd.c === "placeChief") {
+        if (m.phase !== "setup") return fail("After setup, moving the chief costs money: use Move.");
+        p.chief = h.uid;
+        return ok;
+      }
+      if (m.phase !== "turn" || m.active !== pi) return fail("You can move the chief only on your own turn.");
+      if (!spend(p, RULES.chiefMove)) return fail("Not enough budget.");
+      p.chief = h.uid;
+      p.inspected = [];
+      log(m, `${p.name} moved their chief.`);
+      return ok;
+    }
     if (cmd.c === "setRestock") {
       const s = DEFENCES.find((x) => x.id === cmd.sys);
       if (!s || s.load === 0) return fail("That system needs no missiles.");
@@ -366,16 +418,6 @@
         if (!spend(p, s.price)) return fail("Not enough budget.");
         p.batteries.push({ uid: uid(m), sys: s.id, pad: cmd.pad, level: 1, ammo: s.load, cooldown: 0, reloading: 0, holdFire: false, revealed: false, kills: 0, dwell: 0 });
         if (s.load > 0 && p.restock[s.id] == null) p.restock[s.id] = s.load;
-        return ok;
-      }
-      case "upgradeBattery": {
-        const b = p.batteries.find((x) => x.uid === cmd.uid);
-        if (!b) return fail("No such battery.");
-        const cost = upgradeBatteryCost(b);
-        if (cost == null) return fail("Already at the top level.");
-        if (!spend(p, cost)) return fail("Not enough budget.");
-        b.level++;
-        b.ammo = Math.min(batteryLoad(b), b.ammo + Math.round(defence(b.sys).load * DEF_UPGRADE.loadBonus));
         return ok;
       }
       case "sellBattery": {
@@ -397,7 +439,7 @@
       }
       case "buyLauncher": {
         const w = ATTACKS.find((x) => x.id === cmd.weapon);
-        if (!w || w.reusable) return fail("No launcher needed.");
+        if (!w || w.reusable || w.noLauncher) return fail("No launcher needed.");
         if (!spend(p, w.launcher)) return fail("Not enough budget.");
         p.launchers[w.id] = (p.launchers[w.id] ?? 0) + 1;
         return ok;
@@ -416,32 +458,6 @@
         if (!s) return fail("Unknown UAV.");
         if (!spend(p, s.price)) return fail("Not enough budget.");
         p.scouts[s.id] = (p.scouts[s.id] ?? 0) + 1;
-        return ok;
-      }
-      case "upgradeOffence": {
-        const w = ATTACKS.find((x) => x.id === cmd.weapon);
-        const tr = OFF_UPGRADES[cmd.track];
-        if (!w || !tr) return fail("Unknown upgrade.");
-        const lv = p.offUp[w.id]?.[cmd.track] ?? 0;
-        if (lv >= 3) return fail("Already at the top level.");
-        if (!spend(p, tr.cost[lv])) return fail("Not enough budget.");
-        p.offUp[w.id] = { ...p.offUp[w.id], [cmd.track]: lv + 1 };
-        return ok;
-      }
-      case "upgradeEconomy": {
-        const tr = ECONOMY[cmd.track];
-        if (!tr) return fail("Unknown upgrade.");
-        const lv = p.econ[cmd.track];
-        if (lv >= tr.cost.length) return fail("Already at the top level.");
-        if (!spend(p, tr.cost[lv])) return fail("Not enough budget.");
-        p.econ[cmd.track] = lv + 1;
-        return ok;
-      }
-      case "upgradeRadar": {
-        const lv = p.radar[cmd.track];
-        if (lv >= 3) return fail("Already at the top level.");
-        if (!spend(p, RADAR_LEVELS.cost[lv + 1])) return fail("Not enough budget.");
-        p.radar[cmd.track] = lv + 1;
         return ok;
       }
       case "buyRadarSite": {
@@ -467,7 +483,7 @@
     m.turnNo++;
     m.battle = void 0;
     const p = m.players[who];
-    for (const b of p.buildings) if (b.down > 0) b.down--;
+    for (const b of p.buildings) if (b.down > 0 && b.down < 99) b.down--;
     const commandHit = !working(p, "command");
     p.budget = round(p.budget + incomeFor(p));
     autoRestock(p);
@@ -551,6 +567,7 @@
       if (w.cls === "uav" && !airbase) return fail("Airbase is knocked out: UAVs cannot take off.");
       want[w.id] = (want[w.id] ?? 0) + n;
       if (s.target != null && !def.buildings.some((b) => b.uid === s.target && b.revealed)) return fail("That target has not been revealed.");
+      if (w.recon && !def.buildings.some((b) => b.uid === s.target && b.kind === "hideout" && intact(b))) return fail("Send each recon drone to a standing hideout.");
     }
     for (const id in want) {
       if ((att.stock[id] ?? 0) < want[id]) return fail(`Not enough ${attack(id).name} in stock.`);
@@ -587,7 +604,8 @@
     };
     m.battle = bt;
     m.phase = "battle";
-    def.reloadsLeft = ECONOMY.logistics.values[def.econ.logistics];
+    def.reloadsLeft = m.raid ? ECONOMY.logistics.values[def.econ.logistics] : RULES.reloads;
+    def.inspected = [];
     for (const b of def.batteries) {
       b.cooldown = 0;
       b.reloading = 0;
@@ -634,6 +652,7 @@
     const w = ATTACKS.find((x) => x.id === cmd.weapon);
     if (!w) return fail("Unknown weapon.");
     if ((att.stock[w.id] ?? 0) <= 0) return fail(`No ${w.name} in stock.`);
+    if (w.recon && !def.buildings.some((b) => b.kind === "hideout" && intact(b) && dist(b, cmd.to) <= 0.6)) return fail("Aim the recon drone at a standing hideout.");
     if (w.cls === "uav" && !airbase) return fail("Airbase is knocked out: UAVs cannot take off.");
     if (!w.reusable && (att.launched[w.id] ?? 0) >= launchCap(att, w.id)) return fail(`${w.name}: all launchers have fired this turn.`);
     const munitions = w.munitionCost ? w.munitionCost * (w.munitions ?? 0) : 0;
@@ -709,9 +728,9 @@
   }
   var TERMINAL = 20;
   var MISSILE_START = 2 * TERMINAL;
-  function setSpeeds(t, from, flight) {
+  function setSpeeds(t, from, flight, flies = t.cls) {
     const d2 = Math.hypot(from.x, from.z);
-    if (MISSILE_CLASSES.includes(t.cls)) {
+    if (MISSILE_CLASSES.includes(flies)) {
       t.speed = t.speedIn = d2 / flight;
       return;
     }
@@ -769,13 +788,13 @@
     const extra = Math.max(0, wantDist - Math.hypot(p0.x, p0.z));
     return { x: round(p0.x + dx * extra), z: round(p0.z + dz * extra) };
   }
-  var SPAWN_DIST = { kargu: 30, grad: 40, himars: 80, trg300: 100 };
+  var SPAWN_DIST = { kargu: 30, recon: 25, grad: 40, himars: 80, trg300: 100 };
   var PEAK = { drone: 0.3, decoy: 0.3, uav: 5, rocket: 12, cruise: 0.05, ballistic: 80, hypersonic: 25 };
   function spawnStrike(m, bt, att, def, weapon, target, delay, from, to) {
     const w = attack(weapon);
-    const up = att.offUp[weapon] ?? {};
-    const want = MISSILE_CLASSES.includes(w.cls) ? Math.min(SPAWN_DIST[weapon] ?? MISSILE_START, MISSILE_START) : SPAWN_DIST[weapon] ?? SPAWN_DISTANCE;
-    const via = from ? [] : routeWaypoints(w.cls, bt.route, m);
+    const flies = w.imitates ?? w.cls;
+    const want = MISSILE_CLASSES.includes(flies) ? Math.min(SPAWN_DIST[weapon] ?? MISSILE_START, MISSILE_START) : SPAWN_DIST[weapon] ?? SPAWN_DISTANCE;
+    const via = from ? [] : routeWaypoints(flies, bt.route, m);
     let start;
     if (from) {
       const r = Math.hypot(from.x, from.z) || 1, d2 = Math.max(12, Math.min(want, r));
@@ -787,13 +806,13 @@
     t.looksLike = w.imitates ?? w.cls;
     t.delay = delay;
     t.precise = w.precise;
-    t.low = !!w.low;
-    t.stealth = (up.stealth ?? 0) * 5;
-    t.damage = round(w.damage * (1 + 0.15 * (up.warhead ?? 0)));
-    t.peakAlt = PEAK[w.cls];
+    t.low = !!w.low || flies === "cruise";
+    t.damage = w.damage;
+    t.peakAlt = PEAK[flies];
     let aim;
-    const near = to ? def.buildings.filter((b) => b.revealed && dist(b, to) <= 0.6).sort((a2, b) => dist(a2, to) - dist(b, to))[0] : void 0;
+    const near = to ? def.buildings.filter((b) => b.revealed && intact(b) && dist(b, to) <= 0.6).sort((a2, b) => dist(a2, to) - dist(b, to))[0] : void 0;
     const tb = near ?? (target != null ? def.buildings.find((b) => b.uid === target) : void 0);
+    const nearBat = to && !near && !m.raid ? def.batteries.filter((b) => b.revealed && dist(def.pads[b.pad], to) <= 0.6).sort((a2, b) => dist(def.pads[a2.pad], to) - dist(def.pads[b.pad], to))[0] : void 0;
     const around = (p, r) => {
       const a2 = rnd(m) * Math.PI * 2, d2 = Math.sqrt(rnd(m)) * r;
       return { x: round(p.x + Math.cos(a2) * d2), z: round(p.z + Math.sin(a2) * d2) };
@@ -802,17 +821,20 @@
       aim = to ? around(to, 1) : randomCityPoint(m, true);
       t.landsInCity = false;
     } else if (to && w.precise) {
-      const miss = Math.max(0, 0.1 - 0.1 * (up.guidance ?? 0)) + (w.cls === "cruise" && def.batteries.some((b) => b.sys === "koral") && powerOn(def) ? 0.2 : 0);
+      const miss = (w.recon ? 0 : 0.1) + (w.cls === "cruise" && def.batteries.some((b) => b.sys === "koral") && powerOn(def) ? 0.2 : 0);
       if (rnd(m) < miss) {
         const a2 = rnd(m) * Math.PI * 2, d2 = 1 + rnd(m) * 1.5;
         aim = { x: round(to.x + Math.cos(a2) * d2), z: round(to.z + Math.sin(a2) * d2) };
       } else if (tb) {
         aim = { x: tb.x, z: tb.z };
         t.targetBuilding = tb.uid;
+      } else if (nearBat) {
+        const pd = def.pads[nearBat.pad];
+        aim = { x: pd.x, z: pd.z };
       } else aim = { x: round(to.x), z: round(to.z) };
-    } else if (to) aim = around(to, Math.max(0.15, (w.salvo ? 1.5 : 0.5) - 0.1 * (up.guidance ?? 0)));
+    } else if (to) aim = around(to, w.salvo ? 1.5 : 0.5);
     else if (w.precise) {
-      let miss = Math.max(0, 0.1 - 0.1 * (up.guidance ?? 0));
+      let miss = w.recon ? 0 : 0.1;
       if (w.cls === "cruise" && def.batteries.some((b) => b.sys === "koral") && powerOn(def)) miss += 0.2;
       if (rnd(m) < miss) {
         aim = randomCityPoint(m, rnd(m) < 0.5);
@@ -821,7 +843,7 @@
         t.targetBuilding = tb.uid;
       } else aim = randomCityPoint(m, true);
     } else {
-      const share = Math.min(1, (w.scatter ?? 1) + 0.1 * (up.guidance ?? 0));
+      const share = Math.min(1, w.scatter ?? 1);
       aim = randomCityPoint(m, rnd(m) < share);
     }
     t.landsInCity = w.cls !== "decoy" && Math.hypot(aim.x, aim.z) <= R(m);
@@ -833,8 +855,8 @@
     } else t.path = [start, ...via, aim];
     t.x = start.x;
     t.z = start.z;
-    setSpeeds(t, { x: from ? want : Math.hypot(start.x, start.z), z: 0 }, w.flight);
-    if (MISSILE_CLASSES.includes(w.cls)) t.peakAlt = Math.min(t.peakAlt, Math.hypot(start.x, start.z) * 0.3);
+    setSpeeds(t, { x: from ? want : Math.hypot(start.x, start.z), z: 0 }, w.flight, flies);
+    if (MISSILE_CLASSES.includes(flies)) t.peakAlt = Math.min(t.peakAlt, Math.hypot(start.x, start.z) * 0.3);
     t.total = dist(t.path[0], t.path[1]);
     bt.threats.push(t);
   }
@@ -906,7 +928,8 @@
     if (p === 0) return 0;
     if (s.lowCruisePenalty && t.low) p -= s.lowCruisePenalty;
     if (s.weatherHit && m.weatherBad) p *= 0.5;
-    p += (b.level - 1) * 8 - t.stealth;
+    if (t.weapon === "recon") p *= RULES.reconHitFactor;
+    p += (b.level - 1) * 8;
     return clampHit(p);
   }
   var clampHit = (p) => Math.max(0, Math.min(98, p));
@@ -919,9 +942,10 @@
   function battleStep(m, bt, dt) {
     const att = m.players[bt.attacker], def = m.players[bt.defender];
     bt.time = round(bt.time + dt);
-    const rr = radarRange(def);
-    const idR = working(def, "radar") ? RADAR_LEVELS.identify[def.radar.identify] : 5;
-    const decoyR = working(def, "radar") ? RADAR_LEVELS.decoy[def.radar.decoy] : 0;
+    const rr = radarRange(def, !!m.raid);
+    const radarUp = working(def, "radar");
+    const idR = !radarUp ? 5 : m.raid ? RADAR_LEVELS.identify[def.radar.identify] : RULES.identifyRange;
+    const decoyR = radarUp && m.raid ? RADAR_LEVELS.decoy[def.radar.decoy] : 0;
     for (const t of bt.threats) {
       if (!t.alive) continue;
       if (t.delay > 0) {
@@ -929,9 +953,13 @@
         continue;
       }
       moveThreat(m, bt, att, def, t, dt);
+      if (bt.chiefDown) {
+        finish(m, bt.attacker, "chief");
+        return;
+      }
       if (!t.alive) continue;
       const r = Math.hypot(t.x, t.z);
-      if (!t.detected && r <= rr) t.detected = true;
+      if (!t.detected && r <= (t.weapon === "recon" ? Math.min(rr, RULES.reconDetect) : rr)) t.detected = true;
       if (t.detected && !t.identified && r <= idR) t.identified = true;
       if (t.detected && !t.decoyMarked && (t.cls === "decoy" || t.weapon === "decoy") && decoyR > 0 && r <= decoyR) t.decoyMarked = true;
       if (!t.ewChecked) {
@@ -1009,11 +1037,6 @@
       }
     }
     bt.interceptors = bt.interceptors.filter((i) => i.target >= 0);
-    if (def.health <= 0) {
-      def.health = 0;
-      finish(m, bt.attacker, "destroyed");
-      return;
-    }
     if (bt.open && m.timed !== false && bt.time >= RULES.turnSeconds) bt.open = false;
     if (!bt.open && bt.threats.every((t) => !t.alive) && bt.interceptors.length === 0) endBattle(m, bt);
   }
@@ -1025,6 +1048,11 @@
     t.total = dist(t.path[0], t.path[1]);
   }
   function moveThreat(m, bt, att, def, t, dt) {
+    if (t.hover != null) {
+      t.hover -= dt;
+      if (t.hover <= 0) reconDone(m, bt, att, def, t);
+      return;
+    }
     let move = speedNow(t) * dt;
     while (move > 0 && t.alive) {
       const a3 = t.path[t.leg], b2 = t.path[t.leg + 1];
@@ -1048,7 +1076,7 @@
     t.x = round(a2.x + (b.x - a2.x) * u);
     t.z = round(a2.z + (b.z - a2.z) * u);
     if (t.cls === "rocket" || t.cls === "ballistic" || t.cls === "hypersonic" || t.weapon === "decoy") t.alt = round(t.peakAlt * 4 * u * (1 - u) + (t.cls === "hypersonic" ? 2 * (1 - u) : 0));
-    else if (t.cls === "cruise") t.alt = 0.05;
+    else if (t.cls === "cruise" || t.looksLike === "cruise") t.alt = 0.05;
     else t.alt = t.peakAlt;
     if (t.weapon === "iskander" && !t.spawnedDecoys && u > 0.6) {
       t.spawnedDecoys = true;
@@ -1085,10 +1113,9 @@
         t.dropCooldown = 2;
         t.munitions--;
         const w = attack(t.weapon);
-        const up = att.offUp[t.weapon] ?? {};
         const tb = t.targetBuilding != null ? def.buildings.find((x) => x.uid === t.targetBuilding) : void 0;
         const pt = tb && rnd(m) > 0.1 ? { x: tb.x, z: tb.z } : randomCityPoint(m, true);
-        impact(m, bt, def, pt, round(w.damage * (1 + 0.15 * (up.warhead ?? 0))), tb && pt.x === tb.x && pt.z === tb.z ? tb.uid : void 0);
+        impact(m, bt, def, pt, w.damage, tb && pt.x === tb.x && pt.z === tb.z ? tb.uid : void 0);
         if (t.munitions === 0) {
           t.leg = t.dropLeg;
           t.traveled = 0;
@@ -1111,6 +1138,17 @@
       t.total = dist(a2, b);
       return;
     }
+    if (t.weapon === "recon") {
+      if (!last) {
+        const a2 = t.path[t.leg], b = t.path[t.leg + 1];
+        t.total = dist(a2, b);
+        return;
+      }
+      t.hover = RULES.reconHover;
+      t.alt = 0.15;
+      if (t.targetBuilding != null && !def.inspected.includes(t.targetBuilding)) def.inspected.push(t.targetBuilding);
+      return;
+    }
     t.alive = false;
     t.landed = true;
     if (t.cls === "decoy" || t.weapon === "decoy") return;
@@ -1121,7 +1159,7 @@
     }
     let bUid = t.targetBuilding;
     if (bUid == null) {
-      const near = def.buildings.filter((b) => b.down < 99 && dist(b, pt) <= (b.r ?? RULES.buildingHitRadius)).sort((a2, b) => dist(a2, pt) - dist(b, pt))[0];
+      const near = def.buildings.filter((b) => intact(b) && dist(b, pt) <= (b.r ?? RULES.buildingHitRadius)).sort((a2, b) => dist(a2, pt) - dist(b, pt))[0];
       bUid = near?.uid;
     }
     impact(m, bt, def, pt, t.damage, bUid);
@@ -1131,7 +1169,12 @@
       raidImpact(m, bt, def, pt, damage, buildingUid);
       return;
     }
-    def.health = round(def.health - damage);
+    if (damage >= RULES.batteryKillDamage) {
+      for (const bb of def.batteries.filter((x) => dist(def.pads[x.pad], pt) <= RULES.batteryHitRadius)) {
+        def.batteries = def.batteries.filter((x) => x !== bb);
+        emit(bt, { t: "msg", text: `${defence(bb.sys).name} destroyed.`, tone: "bad" });
+      }
+    }
     def.scars.push({ x: pt.x, z: pt.z, d: damage });
     if (def.scars.length > 300) def.scars.shift();
     bt.stats.hits++;
@@ -1140,13 +1183,17 @@
     if (buildingUid == null) return;
     const b = def.buildings.find((x) => x.uid === buildingUid);
     if (!b) return;
+    if (b.kind === "hideout") {
+      hitHideout(m, bt, def, b);
+      return;
+    }
     if (!b.revealed) {
       b.revealed = true;
       emit(bt, { t: "reveal", building: b.uid });
     }
     b.battleDamage += damage;
     if (b.down === 0 && b.battleDamage >= RULES.knockoutDamage) {
-      b.down = ECONOMY.repair.values[def.econ.repair];
+      b.down = RULES.repairTurns;
       const name = BUILDINGS.find((x) => x.kind === b.kind).name;
       emit(bt, { t: "knockout", building: b.uid, kind: b.kind });
       emit(bt, { t: "msg", text: `${name} knocked out.`, tone: "bad" });
@@ -1180,8 +1227,34 @@
     }
     def.health = def.buildings.reduce((s, b) => s + (b.hp ?? 0), 0);
   }
+  function hitHideout(m, bt, def, h) {
+    if (!intact(h)) return;
+    const att = m.players[bt.attacker], chief = def.chief === h.uid;
+    h.down = 99;
+    emit(bt, { t: "hideout", building: h.uid, chief });
+    if (chief) {
+      bt.chiefDown = true;
+      return;
+    }
+    setIntel(att, h.uid, false, m.turnNo);
+    emit(bt, { t: "msg", text: "A hideout was destroyed. It was empty.", tone: "info" });
+  }
+  function setIntel(p, uid2, found, turn) {
+    p.intel = p.intel.filter((x) => x.uid !== uid2);
+    p.intel.push({ uid: uid2, found, turn });
+  }
+  function reconDone(m, bt, att, def, t) {
+    t.alive = false;
+    t.landed = true;
+    t.hover = void 0;
+    const h = t.targetBuilding != null ? def.buildings.find((b) => b.uid === t.targetBuilding) : void 0;
+    if (!h || !intact(h)) return;
+    const found = def.chief === h.uid;
+    setIntel(att, h.uid, found, m.turnNo);
+    emit(bt, { t: "intel", building: h.uid, found });
+  }
   function loseSurfaceStock(p) {
-    const safe = ECONOMY.storage.values[p.econ.storage];
+    const safe = RULES.storage;
     let extra = storedUnits(p) - safe;
     while (extra > 0) {
       let bestKey = "", bestN = 0, isInt = false;
@@ -1277,8 +1350,8 @@
     m.lastReport = {
       attacker: bt.attacker,
       ...bt.stats,
-      knockedOut: def.buildings.filter((b) => b.battleDamage >= RULES.knockoutDamage && b.down > 0).map((b) => BUILDINGS.find((x) => x.kind === b.kind).name),
-      revealed: def.buildings.filter((b) => b.revealed).length
+      knockedOut: def.buildings.filter((b) => b.kind !== "hideout" && b.battleDamage >= RULES.knockoutDamage && b.down > 0 && b.down < 99).map((b) => BUILDINGS.find((x) => x.kind === b.kind).name),
+      revealed: def.buildings.filter((b) => b.revealed && b.kind !== "hideout").length
     };
     if (m.raid) {
       const max = def.buildings.reduce((s, b) => s + (b.maxHp ?? 0), 0), left = def.buildings.reduce((s, b) => s + (b.hp ?? 0), 0);
@@ -1317,24 +1390,27 @@
       const pad = freePad(p, defence(sys).range < 10);
       if (pad != null) buy(m, pi, { c: "buyBattery", sys, pad });
     }
-    buy(m, pi, { c: "upgradeRadar", track: "range" });
     buy(m, pi, { c: "buyLauncher", weapon: "shahed" });
     buy(m, pi, { c: "buyUnits", weapon: "shahed", n: 10 });
-    buy(m, pi, { c: "buyScout", scout: "tb2s" });
+    buy(m, pi, { c: "buyLauncher", weapon: "gerbera" });
+    buy(m, pi, { c: "buyUnits", weapon: "gerbera", n: 10 });
+    buy(m, pi, { c: "buyUnits", weapon: "recon", n: 4 });
     buy(m, pi, { c: "buyLauncher", weapon: "som" });
     buy(m, pi, { c: "buyUnits", weapon: "som", n: 2 });
     buy(m, pi, { c: "endSetup" });
   }
   function shop(m, pi) {
     const p = m.players[pi];
+    if (p.inspected.includes(p.chief)) {
+      const others = p.buildings.filter((b) => b.kind === "hideout" && b.down < 99 && b.uid !== p.chief);
+      if (others.length) buy(m, pi, { c: "moveChief", uid: others[Math.floor(nextRandom(m) * others.length) % others.length].uid });
+    }
     for (const b of p.batteries) {
       const s = defence(b.sys);
       if (s.load === 0) continue;
       const have = p.interceptors[s.id] ?? 0;
       if (have < s.load && p.budget > s.shot * s.load + 40) buy(m, pi, { c: "buyInterceptors", sys: s.id, n: s.load - have });
     }
-    if (p.econ.income === 0 && p.budget > 260) buy(m, pi, { c: "upgradeEconomy", track: "income" });
-    if (p.radar.decoy === 0 && p.budget > 200) buy(m, pi, { c: "upgradeRadar", track: "decoy" });
     if (p.budget > 450 && p.batteries.length < 8) {
       const choice = ["irist", "hisaro", "davidsling", "siper"][Math.floor(nextRandom(m) * 4)];
       const pad = freePad(p, false);
@@ -1342,33 +1418,34 @@
     }
     if (p.budget > 300 && !(p.launchers.tayfun > 0)) buy(m, pi, { c: "buyLauncher", weapon: "tayfun" });
     for (const w of ATTACKS) {
-      if (w.reusable || !(p.launchers[w.id] > 0)) continue;
+      if (w.reusable || !(w.noLauncher || p.launchers[w.id] > 0)) continue;
       const cap = launchCap(p, w.id), have = p.stock[w.id] ?? 0;
       if (have < cap && p.budget > w.unit * (cap - have) + 60) buy(m, pi, { c: "buyUnits", weapon: w.id, n: cap - have });
     }
   }
   function attackTurn(m, pi) {
     const p = m.players[pi], foe = m.players[pi === 0 ? 1 : 0];
-    const revealed = foe.buildings.filter((b) => b.revealed && b.down === 0);
+    const standing = foe.buildings.filter((b) => b.kind === "hideout" && b.down < 99);
+    const known = (uid2) => p.intel.find((x) => x.uid === uid2);
+    const found = standing.find((h) => known(h.uid)?.found);
+    const toCheck = standing.filter((h) => !known(h.uid)?.found).sort((a2, b) => (known(a2.uid)?.turn ?? -1) - (known(b.uid)?.turn ?? -1));
     const strikes = [];
-    const scouts = [];
-    if (revealed.length < 3 && (p.scouts.tb2s ?? 0) > 0) {
-      const a2 = nextRandom(m) * Math.PI;
-      scouts.push({ scout: "tb2s", path: [{ x: Math.cos(a2) * 4, z: Math.sin(a2) * 4 }, { x: -Math.cos(a2) * 4, z: -Math.sin(a2) * 4 }] });
+    const left = (id) => Math.min(p.stock[id] ?? 0, launchCap(p, id));
+    if (found) {
+      for (const w of ATTACKS) {
+        const n = left(w.id);
+        if (n > 0 && !w.reusable && w.precise && !w.recon) strikes.push({ weapon: w.id, n, target: found.uid });
+      }
+    } else {
+      const n = Math.min(left("recon"), toCheck.length);
+      for (let i = 0; i < n; i++) strikes.push({ weapon: "recon", n: 1, target: toCheck[i].uid });
+      if (toCheck.length && left("tayfun") > 0 && nextRandom(m) < 0.3) strikes.push({ weapon: "tayfun", n: 1, target: toCheck[toCheck.length - 1].uid });
     }
-    const order = ["factory", "command", "power", "radar", "finance", "depot", "airbase"];
-    revealed.sort((x, y) => order.indexOf(x.kind) - order.indexOf(y.kind));
-    let ti = 0;
-    for (const w of ATTACKS) {
-      const n = Math.min(p.stock[w.id] ?? 0, launchCap(p, w.id));
-      if (n <= 0 || w.reusable) continue;
-      if (w.precise && revealed.length) {
-        for (let i = 0; i < n; i++) strikes.push({ weapon: w.id, n: 1, target: revealed[ti++ % revealed.length].uid });
-      } else strikes.push({ weapon: w.id, n });
+    for (const id of ["shahed", "gerbera", "mald"]) {
+      const n = left(id);
+      if (n > 0) strikes.push({ weapon: id, n });
     }
-    if (strikes.length || scouts.length) {
-      if (command(m, pi, { c: "go", strikes, scouts }).ok) return;
-    }
+    if (strikes.length && command(m, pi, { c: "go", strikes, scouts: [] }).ok) return;
     command(m, pi, { c: "wait" });
   }
   function aiStep(m) {
@@ -1397,6 +1474,8 @@
     const iDefend = bt?.defender === pi;
     const caps = {};
     for (const id of Object.keys({ ...me.launchers, ...me.stock })) caps[id] = launchCap(me, id);
+    const hideNo = (p) => new Map(p.buildings.filter((b) => b.kind === "hideout").map((b, i) => [b.uid, i + 1]));
+    const myNo = hideNo(me), foeNo = hideNo(foe);
     return {
       phase: m.phase,
       time: m.time,
@@ -1414,25 +1493,25 @@
       me: {
         name: me.name,
         budget: me.budget,
-        health: me.health,
         income: incomeFor(me),
         ready: me.ready,
+        chief: me.chief,
+        chiefNo: myNo.get(me.chief) ?? 0,
+        inspected: me.inspected,
+        chiefMove: RULES.chiefMove,
+        intel: me.intel.map((x) => ({ ...x, no: foeNo.get(x.uid) ?? 0 })),
         pads: me.pads,
         scars: me.scars,
-        batteries: me.batteries.map((b) => ({ ...b, load: batteryLoad(b), upgradeCost: upgradeBatteryCost(b), name: defence(b.sys).name })),
-        buildings: me.buildings.map((b) => ({ uid: b.uid, kind: b.kind, x: b.x, z: b.z, down: b.down, revealed: b.revealed, name: BUILDINGS.find((x) => x.kind === b.kind).name })),
+        batteries: me.batteries.map((b) => ({ ...b, load: batteryLoad(b), name: defence(b.sys).name })),
+        buildings: me.buildings.map((b) => ({ uid: b.uid, kind: b.kind, x: b.x, z: b.z, down: b.down, revealed: b.revealed, no: myNo.get(b.uid), name: nameOfBuilding(b.kind, myNo.get(b.uid)) })),
         interceptors: me.interceptors,
         launchers: me.launchers,
         stock: me.stock,
         scouts: me.scouts,
         launched: me.launched,
         caps,
-        offUp: me.offUp,
-        econ: me.econ,
-        radar: me.radar,
         radarRange: radarRange(me),
-        radarNames: RADAR_LEVELS.names,
-        storage: { used: storedUnits(me), safe: ECONOMY.storage.values[me.econ.storage] },
+        storage: { used: storedUnits(me), safe: RULES.storage },
         autoFire: me.autoFire,
         reloadsLeft: me.reloadsLeft,
         restock: me.restock,
@@ -1441,9 +1520,9 @@
       },
       enemy: {
         name: foe.name,
-        health: foe.health,
         scars: foe.scars,
-        buildings: foe.buildings.filter((b) => b.revealed).map((b) => ({ uid: b.uid, kind: b.kind, x: b.x, z: b.z, down: b.down, name: BUILDINGS.find((x) => x.kind === b.kind).name })),
+        hideoutsLeft: foe.buildings.filter((b) => b.kind === "hideout" && b.down < 99).length,
+        buildings: foe.buildings.filter((b) => b.revealed).map((b) => ({ uid: b.uid, kind: b.kind, x: b.x, z: b.z, down: b.down, no: foeNo.get(b.uid), name: nameOfBuilding(b.kind, foeNo.get(b.uid)) })),
         batteries: foe.batteries.filter((b) => b.revealed).map((b) => ({ uid: b.uid, sys: b.sys, name: defence(b.sys).name, x: foe.pads[b.pad].x, z: foe.pads[b.pad].z }))
       },
       battle: bt && {
@@ -1471,6 +1550,8 @@
             hold: t.hold,
             engaged: t.engaged,
             scout: t.isScout,
+            recon: !iDefend && t.weapon === "recon",
+            hovering: t.hover != null,
             eta: Math.round(Math.hypot(t.x, t.z) / Math.max(0.01, Math.hypot(t.x, t.z) > 20 ? t.speed : t.speedIn))
           };
         }),
@@ -1482,6 +1563,10 @@
     };
   }
   var threatName = { drone: "Drone", ballistic: "Ballistic", cruise: "Cruise", uav: "UAV", rocket: "Rocket", hypersonic: "Hypersonic" };
+  function nameOfBuilding(kind, no) {
+    const n = BUILDINGS.find((x) => x.kind === kind).name;
+    return kind === "hideout" ? `${n} ${no ?? ""}`.trim() : n;
+  }
   function nameOf(id, isScout) {
     if (isScout) return "Surveillance UAV";
     if (id === "decoy") return "Decoy";
@@ -1885,6 +1970,9 @@
       offUp: {},
       econ: { income: 0, storage: 0, logistics: 1, repair: 0 },
       radar: { range: 0, identify: 0, decoy: 0 },
+      chief: -1,
+      intel: [],
+      inspected: [],
       autoFire: true,
       reloadsLeft: 0,
       spent: 0,
@@ -2131,10 +2219,7 @@
         rules: RULES,
         radar: RADAR_LEVELS,
         extraRadar: EXTRA_RADAR_PRICE,
-        offUpgrades: OFF_UPGRADES,
-        economy: ECONOMY,
         buildings: BUILDINGS,
-        defUpgrade: DEF_UPGRADE,
         cityRadius: CITY_RADIUS,
         longRange: LONG_RANGE_SAMS
       };

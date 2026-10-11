@@ -37,8 +37,7 @@ const api = {
   catalogueRaw() {
     return {
       defences: core.DEFENCES, attacks: core.ATTACKS, scouts: core.SCOUTS, rules: core.RULES, radar: core.RADAR_LEVELS,
-      extraRadar: core.EXTRA_RADAR_PRICE, offUpgrades: core.OFF_UPGRADES, economy: core.ECONOMY, buildings: core.BUILDINGS,
-      defUpgrade: core.DEF_UPGRADE, cityRadius: core.CITY_RADIUS, longRange: core.LONG_RANGE_SAMS,
+      extraRadar: core.EXTRA_RADAR_PRICE, buildings: core.BUILDINGS, cityRadius: core.CITY_RADIUS, longRange: core.LONG_RANGE_SAMS,
     };
   },
   geo() {

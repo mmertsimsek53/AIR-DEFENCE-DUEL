@@ -55,6 +55,9 @@ export interface PlayerState {
   ready: boolean;          // finished setup early
   restock: Record<string, number>;      // standing order: spare interceptors to keep per system (bought at the start of each own turn)
   lastRestock?: { n: number; cost: number; short: boolean };
+  chief: number;                         // uid of the hideout the chief is in (secret)
+  intel: { uid: number; found: boolean; turn: number }[]; // what your recon drones / strikes learned about the enemy hideouts
+  inspected: number[];                   // your hideouts an enemy recon drone checked in the last strike (you saw it hover)
 }
 
 export interface Threat {
@@ -92,6 +95,7 @@ export interface Threat {
   revealRadius: number;
   spawnedDecoys: boolean;
   stealth: number;
+  hover?: number;          // recon drone: seconds left hovering over its hideout
 }
 
 export interface Interceptor {
@@ -112,7 +116,9 @@ export type BattleEvent =
   | { t: 'impact'; x: number; z: number; damage: number; building?: number }
   | { t: 'knockout'; building: number; kind: string }
   | { t: 'reveal'; building: number }
-  | { t: 'msg'; text: string; tone: 'good' | 'bad' | 'info' };
+  | { t: 'msg'; text: string; tone: 'good' | 'bad' | 'info' }
+  | { t: 'intel'; building: number; found: boolean } // a recon drone finished checking a hideout
+  | { t: 'hideout'; building: number; chief: boolean }; // a hideout was hit
 
 export interface Battle {
   attacker: PlayerIndex;
@@ -127,6 +133,7 @@ export interface Battle {
   events: BattleEvent[];   // since the last drain
   stats: { launched: number; stopped: number; hits: number; damage: number; interceptorsUsed: number; defenceSpent: number; attackSpent: number };
   over: boolean;
+  chiefDown?: boolean;     // the defender's chief was killed during this strike
 }
 
 export type Phase = 'setup' | 'turn' | 'battle' | 'report' | 'over';
@@ -147,7 +154,7 @@ export interface Match {
   battle?: Battle;
   lastReport?: BattleReport;
   winner?: PlayerIndex;
-  endReason?: 'destroyed' | 'conceded' | 'disconnected';
+  endReason?: 'destroyed' | 'conceded' | 'disconnected' | 'chief';
   nextUid: number;
   log: { time: number; text: string }[];
 }
@@ -164,7 +171,6 @@ export interface BattleReport {
 // Commands a player sends. The engine checks every one.
 export type Command =
   | { c: 'buyBattery'; sys: string; pad: number }
-  | { c: 'upgradeBattery'; uid: number }
   | { c: 'sellBattery'; uid: number }
   | { c: 'buyInterceptors'; sys: string; n: number }
   | { c: 'setRestock'; sys: string; n: number }
@@ -172,9 +178,8 @@ export type Command =
   | { c: 'buyLauncher'; weapon: string }
   | { c: 'buyUnits'; weapon: string; n: number }
   | { c: 'buyScout'; scout: string }
-  | { c: 'upgradeOffence'; weapon: string; track: OffUpgradeId }
-  | { c: 'upgradeEconomy'; track: EconomyId }
-  | { c: 'upgradeRadar'; track: 'range' | 'identify' | 'decoy' }
+  | { c: 'placeChief'; uid: number }   // setup: choose the chief's hideout (free)
+  | { c: 'moveChief'; uid: number }    // own turn: move the chief ($30M)
   | { c: 'buyRadarSite' }
   | { c: 'repairNow'; uid: number }
   | { c: 'go'; strikes: { weapon: string; n: number; target?: number }[]; scouts: { scout: string; path: Point[] }[]; bearing?: number; route?: Point[]; live?: boolean }

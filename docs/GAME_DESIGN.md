@@ -105,3 +105,13 @@ Status: first outline from Mert, 9 Oct 2026. Everything below "Open questions" i
 ## Open questions
 - How much XP for a win / loss / concession?
 - Starting budget, money per turn, prices of each missile / defence / upgrade.
+
+## Chief duel (decided 11 Oct 2026, Mert) — replaces the city health bar; base mode paused
+- **Goal:** kill the enemy chief. Each city has **8 identical hideouts**, visible to both sides; the chief is secretly in one. Any weapon that lands on the chief's hideout wins the match. A hit on an empty hideout destroys it and both sides know it was empty.
+- **Chief:** placed free during setup (random by default); moved on your own turn for **$30M**, as often as you like. The enemy is not told.
+- **Mini recon drones** ($0.5M, up to 4 per turn, no launcher): fly to a hideout, hover 5 s, report whether the chief is inside. Can be sent any time; defences shoot at them. They are small and low: radar sees them only within 6 km and hit chances against them are 60% of a normal drone's. The defender sees which hideout was checked.
+- **Taking down the defence:** a battery reveals itself when it fires; a hit of 20+ damage within 0.3 km destroys it (precise weapons aimed near a revealed battery lock onto it).
+- **Decoys:** the defender sees only what a contact looks like (drone-like / missile-like), never whether it is a decoy; only the attacker knows. Gerbera (drone-like) and the new MALD missile decoy ($0.3M, cruise-like; launcher $30M, 4 per turn). Radar decoy detection is gone.
+- **No upgrades** (battery levels, offence, economy, radar). Fixed: radar 150 km, threat type at 60 km, 10 protected storage slots, 2 reloads per strike, buildings down 3 turns.
+- Unchanged: $600M start, +$120M per turn, every weapon costs its price, live attack, critical buildings and their effects, surveillance UAVs reveal critical buildings.
+- The duel city uses the Blender building models (lite versions packed into `web/models.js`): HQ L7 = command centre, Radar L4, Power L4, Treasury L8 = financial district, TNT Plant L7 = ammunition depot, and a new hideout model. Factory and airbase keep their old models for now.
