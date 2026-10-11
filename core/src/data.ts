@@ -139,10 +139,10 @@ export const RULES = {
   surveyHitFactor: 0.3,    // defences' hit chance against a survey TB2, relative to a UAV (≈3–4 shots to bring it down)
   patrolPrice: 40,         // $M: Akıncı air patrol over your own city (stays all match)
   patrolMax: 2,
-  patrolRange: 1.2,          // km: an enemy survey UAV this close to a patrol can be engaged
+  patrolRange: 2.5,          // km: an enemy survey UAV this close to a patrol is engaged (what looks 'nearby' on screen)
   patrolShot: 1,           // $M per air-to-air missile (Bozdoğan)
-  patrolHit: 60,           // % per missile
-  patrolMissiles: 1,       // per patrol per strike (tuned: one patrol downs an Aksungur ~28% of the time, two ~45%)
+  patrolHit: 40,           // % per missile
+  patrolMissiles: 1,       // per patrol per strike (tuned: one patrol downs an Aksungur ~33% of the time, two ~57%)
   draftPicks: [0, 2, 2, 2, 1] as number[], // duel: systems each player picks per level (index = tier), free, setup only
   bigSamRange: 40,         // km: missile systems with this range or more can be switched to manual fire
   startBudget: 600,

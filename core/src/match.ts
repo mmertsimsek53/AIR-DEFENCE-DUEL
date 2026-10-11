@@ -766,6 +766,7 @@ function patrolStep(m: Match, bt: Battle, def: PlayerState, dt: number) {
     const k = rnd(m) * 100 < RULES.patrolHit;
     emit(bt, { t: 'aam', fx: pa.x, fz: pa.z, falt: pa.alt, tx: t.x, tz: t.z, talt: t.alt, kill: k });
     if (k) { kill(bt, t, def); emit(bt, { t: 'msg', text: 'Akıncı air patrol shot down a survey UAV.', tone: 'good' }); }
+    else emit(bt, { t: 'msg', text: 'Akıncı air patrol fired at a survey UAV and missed.', tone: 'info' });
   }
 }
 

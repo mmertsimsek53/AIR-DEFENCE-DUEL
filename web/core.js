@@ -97,14 +97,14 @@
     patrolPrice: 40,
     // $M: Akıncı air patrol over your own city (stays all match)
     patrolMax: 2,
-    patrolRange: 1.2,
-    // km: an enemy survey UAV this close to a patrol can be engaged
+    patrolRange: 2.5,
+    // km: an enemy survey UAV this close to a patrol is engaged (what looks 'nearby' on screen)
     patrolShot: 1,
     // $M per air-to-air missile (Bozdoğan)
-    patrolHit: 60,
+    patrolHit: 40,
     // % per missile
     patrolMissiles: 1,
-    // per patrol per strike (tuned: one patrol downs an Aksungur ~28% of the time, two ~45%)
+    // per patrol per strike (tuned: one patrol downs an Aksungur ~33% of the time, two ~57%)
     draftPicks: [0, 2, 2, 2, 1],
     // duel: systems each player picks per level (index = tier), free, setup only
     bigSamRange: 40,
@@ -1175,7 +1175,7 @@
       if (k) {
         kill(bt, t, def);
         emit(bt, { t: "msg", text: "Ak\u0131nc\u0131 air patrol shot down a survey UAV.", tone: "good" });
-      }
+      } else emit(bt, { t: "msg", text: "Ak\u0131nc\u0131 air patrol fired at a survey UAV and missed.", tone: "info" });
     }
   }
   function turnBack(t) {

@@ -197,3 +197,6 @@ Every weapon flies at one steady speed (no slowing in the last 20 km). Drones, d
 
 ## 14. Shorter approach (11 Oct 2026, Mert: drones took ages to reach the city)
 Drones, decoys and UAVs start 20–25 km out instead of 60 km, at about the same speed (~1 km/s): Shahed and Gerbera 25 s, Kargu and recon drones 20 s, armed TB2 30 s, Aksungur 25 s to the city. A survey strike now takes about half a minute. Air patrol figures re-measured: one patrol 33%, two 49%.
+
+## 15. Air patrol re-tuned (11 Oct 2026, Mert: the Akıncı did nothing when the Aksungur passed nearby)
+Engagement range 2.5 km (was 1.2 km, too short for what looks close on screen), hit 40% (was 60%), 1 missile per strike; a miss is now announced. Measured: one patrol downs an Aksungur 33% of the time, two 57%.
