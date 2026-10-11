@@ -52,16 +52,28 @@ scene.add(new THREE.Mesh(new THREE.SphereGeometry(2000,32,16),new THREE.ShaderMa
   vertexShader:'varying vec3 vP;void main(){vP=normalize(position);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
   fragmentShader:'uniform vec3 sd;varying vec3 vP;void main(){float h=vP.y;vec3 top=vec3(0.13,0.36,0.76);vec3 hor=vec3(0.60,0.75,0.90);vec3 c=mix(hor,top,smoothstep(0.0,0.55,h));float s=max(dot(vP,sd),0.0);c+=vec3(1.0,0.92,0.75)*pow(s,600.0)*1.6+vec3(1.0,0.85,0.6)*pow(s,12.0)*0.18;if(h<0.0)c=hor*0.9;gl_FragColor=vec4(c,1.0);}'
 })));
-scene.add(new THREE.HemisphereLight(0xcfe3ff,0x4a4232,0.5));
-const sun=new THREE.DirectionalLight(0xfff0d6,1.6);
-sun.position.copy(SUN).multiplyScalar(300);sun.castShadow=true;sun.shadow.mapSize.set(MOBILE?1536:2048,MOBILE?1536:2048);
+scene.add(new THREE.HemisphereLight(0xbfd8ff,0x3c3424,0.55));
+const sun=new THREE.DirectionalLight(0xffe4bd,1.7); // warm afternoon sun
+sun.position.copy(SUN).multiplyScalar(300);sun.castShadow=true;sun.shadow.mapSize.set(MOBILE?1536:3072,MOBILE?1536:3072);
 {const c=sun.shadow.camera;c.left=-125;c.right=125;c.top=125;c.bottom=-125;c.near=50;c.far=700;}
 sun.shadow.bias=-0.0006;sun.shadow.normalBias=0.4;scene.add(sun);scene.add(sun.target);
 const flashes=[0,1,2,3].map(()=>{const l=new THREE.PointLight(0xffa04a,0,140,1.5);scene.add(l);return l;});
 let flashIdx=0;
-const HILLS=[];
-// Ground height under (x,z): hills are cones (apex h−3, base radius w). Low flyers lift over them.
-function terrainH(x,z){let y=0;for(const c of HILLS){const d=Math.hypot(x-c.x,z-c.z);if(d<c.w){const hh=c.h*(1-d/c.w)-3;if(hh>y)y=hh;}}return y;}
+// Landscape: flat where the city stands, rolling hills beyond, a ring of ridged mountains further out,
+// a valley where the river runs. Same function shapes the ground mesh and lifts low flyers over it.
+const NZ=(()=>{const P=new Uint8Array(512),g=mulberry(77);for(let i=0;i<256;i++)P[i]=i;for(let i=255;i>0;i--){const j=(g()*(i+1))|0;[P[i],P[j]]=[P[j],P[i]];}for(let i=0;i<256;i++)P[i+256]=P[i];
+  const f=t=>t*t*(3-2*t),h=(i,j)=>P[(P[i&255]+j)&511]/255;
+  return (x,z)=>{const i=Math.floor(x),j=Math.floor(z),u=f(x-i),v=f(z-j);const a=h(i,j),b=h(i+1,j),c=h(i,j+1),d=h(i+1,j+1);return a+(b-a)*u+(c-a)*v+(a-b-c+d)*u*v;};})();
+const fbm=(x,z,o)=>{let s=0,a=.5,f=1;for(let k=0;k<o;k++){s+=a*NZ(x*f,z*f);a*=.5;f*=2.03;}return s;};
+const ridged=(x,z)=>{let s=0,a=.55,f=1;for(let k=0;k<4;k++){s+=a*(1-Math.abs(NZ(x*f,z*f)*2-1))**2;a*=.5;f*=2.1;}return s;};
+const sstep=(a,b,t)=>{t=Math.min(1,Math.max(0,(t-a)/(b-a)));return t*t*(3-2*t);};
+function terrainH(x,z){
+  const r=Math.hypot(x,z);if(r<120)return 0;
+  const hills=sstep(120,210,r)*fbm(x/140,z/140,4)*38;
+  const mtn=sstep(230,430,r)*(ridged(x/230+3.1,z/230-1.7)*230+fbm(x/90,z/90,3)*30);
+  const rv=Math.abs((x+16)*Math.cos(.38)-z*Math.sin(.38)),valley=1-sstep(14,70,rv)*1;      // the river's valley
+  return Math.max(0,(hills+mtn)*(.25+.75*(1-valley))-1);
+}
 
 function canvasTex(w,h,draw,rep){const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;if(rep)t.repeat.set(rep[0],rep[1]);t.anisotropy=4;return t;}
 function noise(x,w,h,base,vars,n){x.fillStyle=base;x.fillRect(0,0,w,h);for(let i=0;i<n;i++){x.fillStyle=vars[(rand()*vars.length)|0];x.globalAlpha=.25+rand()*.35;const s=1+rand()*4;x.fillRect(rand()*w,rand()*h,s,s);}x.globalAlpha=1;}
@@ -72,12 +84,29 @@ const roadTex=canvasTex(64,64,(x,w,h)=>{noise(x,w,h,'#41454b',['#3a3e44','#484c5
 const runwayTex=canvasTex(32,128,(x,w,h)=>{noise(x,w,h,'#3c4046',['#35393f','#44484e'],300);x.fillStyle='#f0f0e8';for(let y=6;y<128;y+=20)x.fillRect(15,y,2,10);x.fillRect(2,0,2,128);x.fillRect(28,0,2,128);});
 {const ct=canvasTex(128,128,(x,w,h)=>{for(let i=0;i<14;i++){const cx=24+rand()*80,cy=44+rand()*40,r=14+rand()*22;const g=x.createRadialGradient(cx,cy,0,cx,cy,r);g.addColorStop(0,'rgba(255,255,255,.9)');g.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=g;x.fillRect(0,0,w,h);}});
  for(let i=0;i<26;i++){const s=new THREE.Sprite(new THREE.SpriteMaterial({map:ct,transparent:true,opacity:.85,fog:false,depthWrite:false}));const a=rand()*TAU,r=350+rand()*900;s.position.set(Math.cos(a)*r,240+rand()*160,Math.sin(a)*r);const k=180+rand()*220;s.scale.set(k,k*.45,1);scene.add(s);}}
-{const g=new THREE.Mesh(new THREE.PlaneGeometry(4000,4000).rotateX(-Math.PI/2),new THREE.MeshLambertMaterial({map:grassTex}));g.receiveShadow=true;scene.add(g);
- const hill=new THREE.MeshLambertMaterial({color:0x557a33}),hill2=new THREE.MeshLambertMaterial({color:0x7d6e55}),snow=new THREE.MeshLambertMaterial({color:0xf2f5f8});
- for(let i=0;i<40;i++){const a=rand()*TAU,r=200+rand()*230,h=20+rand()*70,w=50+rand()*80,rock=rand()<.45;const m=new THREE.Mesh(new THREE.ConeGeometry(w,h,8),rock?hill2:hill);m.position.set(Math.cos(a)*r,h/2-3,Math.sin(a)*r);m.rotation.y=rand()*TAU;scene.add(m);HILLS.push({x:m.position.x,z:m.position.z,h,w});
-   if(h>62){const k=.24,cap=new THREE.Mesh(new THREE.ConeGeometry(w*k,h*k,8),snow);cap.position.set(m.position.x,h-3-h*k/2+.4,m.position.z);cap.rotation.y=m.rotation.y;scene.add(cap);}} // snow on the tallest peaks
- const inst=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(2.2,0),new THREE.MeshLambertMaterial({color:0x34602a}),500);const d=new THREE.Object3D();
- for(let i=0;i<500;i++){const a=rand()*TAU,r=112+rand()*80;d.position.set(Math.cos(a)*r,2,Math.sin(a)*r);d.scale.setScalar(.7+rand()*.8);d.rotation.y=rand()*3;d.updateMatrix();inst.setMatrixAt(i,d.matrix);}
+{// Ground: one large mesh, heights from terrainH, coloured by height and slope (grass, forest green, rock, snow).
+ const N=220,S=3200,geo=new THREE.PlaneGeometry(S,S,N,N).rotateX(-Math.PI/2),pos=geo.attributes.position;
+ for(let i=0;i<pos.count;i++)pos.setY(i,terrainH(pos.getX(i),pos.getZ(i)));
+ geo.computeVertexNormals();const nrm=geo.attributes.normal,col=new Float32Array(pos.count*3),c=new THREE.Color();
+ for(let i=0;i<pos.count;i++){const x=pos.getX(i),z=pos.getZ(i),y=pos.getY(i),slope=1-nrm.getY(i),n=fbm(x/40,z/40,2);
+   if(y>150+n*40&&slope<.55)c.setRGB(.93,.95,.97);                                        // snow
+   else if(slope>.32||y>120+n*30)c.setRGB(.42+n*.12,.39+n*.1,.34+n*.08);                   // rock
+   else if(y>12)c.setRGB(.19+n*.08,.36+n*.1,.13+n*.05);                                    // forested hills
+   else c.setRGB(.33+n*.1,.52+n*.1,.2+n*.06);                                              // meadow
+   col[i*3]=c.r;col[i*3+1]=c.g;col[i*3+2]=c.b;}
+ geo.setAttribute('color',new THREE.BufferAttribute(col,3));
+ const detail=canvasTex(128,128,(x,w,h)=>noise(x,w,h,'#d8d8d8',['#c4c4c4','#e6e6e6','#cfcfcf','#b9b9b9'],2600),[90,90]);
+ const g=new THREE.Mesh(geo,new THREE.MeshLambertMaterial({vertexColors:true,map:detail}));g.receiveShadow=true;scene.add(g);
+ // Forest: conifers on the hills and lower mountain slopes, kept off rock, snow and the river.
+ const NT=1400,crowns=new THREE.InstancedMesh(new THREE.ConeGeometry(2.2,6.5,6).translate(0,4.6,0),new THREE.MeshLambertMaterial({color:0xffffff}),NT);
+ const trunks=new THREE.InstancedMesh(new THREE.CylinderGeometry(.3,.4,1.6,5).translate(0,.8,0),new THREE.MeshLambertMaterial({color:0x5a4330}),NT);
+ const d=new THREE.Object3D(),tc=new THREE.Color();let n=0;
+ for(let k=0;k<NT*4&&n<NT;k++){const a=rand()*TAU,r=114+rand()*rand()*360,x=Math.cos(a)*r,z=Math.sin(a)*r,y=terrainH(x,z);
+   if(y>105||Math.abs((x+16)*Math.cos(.38)-z*Math.sin(.38))<12)continue;
+   const sl=Math.abs(terrainH(x+3,z)-y)+Math.abs(terrainH(x,z+3)-y);if(sl>4.5)continue;
+   d.position.set(x,y-.3,z);const sc=.7+rand()*.9;d.scale.set(sc,sc*(.85+rand()*.4),sc);d.rotation.y=rand()*3;d.updateMatrix();crowns.setMatrixAt(n,d.matrix);trunks.setMatrixAt(n,d.matrix);
+   tc.setHSL(.27+rand()*.06,.45+rand()*.15,.17+rand()*.1);crowns.setColorAt(n,tc);n++;}
+ crowns.count=trunks.count=n;const inst=crowns;scene.add(trunks);
  inst.castShadow=true;scene.add(inst);}
 
 /* ======================= PARTICLES ======================= */
@@ -117,6 +146,18 @@ function updPS(s,dt){
 /* ======================= MATERIALS & BUILDING PARTS ======================= */
 const WX=GEO.river.x,WZ=GEO.river.z,WA=GEO.river.angle,WC=Math.cos(WA),WS=Math.sin(WA);
 const wdist=(x,z)=>Math.abs((x-WX)*WC-(z-WZ)*WS);
+function aptTex(base){ // Turkish apartment block: shop row at street level, balconies on every floor, darker at the foot
+  return canvasTex(64,128,(x)=>{
+    x.fillStyle=base;x.fillRect(0,0,64,128);
+    for(let r=0;r<15;r++)for(let k=0;k<4;k++){const lit=rand()<.12;
+      x.fillStyle=lit?'#f4dfa0':'#3b4650';x.fillRect(k*16+3,r*8+1,10,5);                    // window / balcony door
+      x.fillStyle='rgba(255,255,255,.55)';x.fillRect(k*16+1,r*8+6,14,1);                     // balcony rail
+      x.fillStyle='rgba(0,0,0,.22)';x.fillRect(k*16+1,r*8+7,14,1);}                          // balcony slab shadow
+    x.fillStyle='#4a4f55';x.fillRect(0,120,64,8);                                            // shop row
+    for(let k=0;k<4;k++){x.fillStyle=['#c0392b','#2e86c1','#d4a017','#27ae60'][(rand()*4)|0];x.fillRect(k*16+1,119,14,2);x.fillStyle='#9fc3d6';x.fillRect(k*16+3,122,10,5);}
+    const g=x.createLinearGradient(0,96,0,128);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(0,0,0,.25)');x.fillStyle=g;x.fillRect(0,96,64,32);
+  });
+}
 function facTex(style){
   return canvasTex(64,128,(x)=>{
     const fac=style==='office'?['#a9b3bc','#9aa6b0','#b8bfc4']:style==='glass'?['#5f86a6','#6e93b0','#557a99']:['#d7c6a8','#cdb89a','#e2d6bf','#c9a98a','#d9cfc0','#e6d9c2'];
@@ -127,10 +168,14 @@ function facTex(style){
       else{x.fillStyle=rand()<.12?'#8fa9bd':'#3a3f45';x.fillRect(k*16+4,r*8+2,8,4);if(r%2===0){x.fillStyle='rgba(0,0,0,.18)';x.fillRect(k*16+2,r*8+6,12,1);}}}
   });
 }
-const roofMat=new THREE.MeshLambertMaterial({color:0x8a8b8f});
+const roofMat=new THREE.MeshLambertMaterial({color:0xa79f90});
 const tileMat=new THREE.MeshLambertMaterial({color:0xb5563b});
 const MATS={};
 for(const st of ['res','office','glass'])MATS[st]=[0,1].map(()=>{const m=new THREE.MeshLambertMaterial({map:facTex(st)});return [m,m,roofMat,roofMat,m,m];});
+MATS.apt=['#e8c98e','#eda877','#d77a52','#f1e8d8','#e9c94f','#a9cf98','#cf8f86','#d9b98f'].map(c=>{const m=new THREE.MeshLambertMaterial({map:aptTex(c)});return [m,m,roofMat,roofMat,m,m];});
+// Rooftop kit: solar water heaters (panel + white tank) and AC units, as on Turkish rooftops.
+const solarGeo=new THREE.BoxGeometry(1.6,.08,1.1),tankGeo=new THREE.CylinderGeometry(.35,.35,1.6,10).rotateZ(Math.PI/2),acGeo=new THREE.BoxGeometry(.8,.5,.6);
+const solarMat=new THREE.MeshLambertMaterial({color:0x1d3557}),tankMat=new THREE.MeshLambertMaterial({color:0xf2f2f2});
 const burnt=new THREE.MeshLambertMaterial({color:0x1a1715,emissive:0x220a02});
 const burntMats=[burnt,burnt,burnt,burnt,burnt,burnt];
 const steel=new THREE.MeshLambertMaterial({color:0x6a7581});
@@ -168,10 +213,13 @@ function addGeneric(S,x,z,w,d,h){
   if(h<8&&rng()<.55){const mats=MATS.res[(rng()*2)|0];parts.push(boxPart(g,w,h,d,0,mats));
     const roof=shadowy(new THREE.Mesh(new THREE.ConeGeometry(Math.max(w,d)*.74,2.2,4).rotateY(Math.PI/4),tileMat));roof.scale.set(w/Math.max(w,d),1,d/Math.max(w,d));roof.position.y=h+1.1;g.add(roof);parts.push(roof);top=h+2.2;}
   else{
-    const style=h>26?(rng()<.5?'office':'glass'):(rng()<.72?'res':'office'),mats=MATS[style][(rng()*2)|0];
+    const style=h>26?(rng()<.5?'office':'glass'):(rng()<.93?'apt':'office'),mats=style==='apt'?MATS.apt[(rng()*MATS.apt.length)|0]:MATS[style][(rng()*2)|0];
     if(h>30&&rng()<.3)parts.push(cylPart(g,Math.min(w,d)*.55,h,0,mats));else parts.push(boxPart(g,w,h,d,0,mats));
     if(h>26&&rng()<.7){const h2=h*(.16+rng()*.2);parts.push(boxPart(g,w*.62,h2,d*.62,h,mats));top=h+h2;}
-    if(h<26&&h>=8){for(let i=0;i<2;i++){const t=shadowy(new THREE.Mesh(new THREE.CylinderGeometry(.5,.5,1.2,8),steel));t.position.set((rng()-.5)*w*.6,h+.6,(rng()-.5)*d*.6);g.add(t);parts.push(t);}}
+    if(h<26&&h>=6&&style==='apt'&&rng()<.6){ // solar water heater: tilted panel with its tank above
+      const px=(rng()-.5)*w*.4,pz=(rng()-.5)*d*.4,pan=new THREE.Mesh(solarGeo,solarMat);pan.position.set(px,h+.45,pz);pan.rotation.x=-.5;g.add(pan);parts.push(pan);
+      const tk=new THREE.Mesh(tankGeo,tankMat);tk.position.set(px,h+.95,pz-.55);g.add(tk);parts.push(tk);}
+    else if(h<26&&h>=8){const t=new THREE.Mesh(acGeo,steel);t.position.set((rng()-.5)*w*.5,h+.25,(rng()-.5)*d*.5);g.add(t);parts.push(t);}
     if(h>22&&rng()<.6){const len=3+rng()*5;const a=new THREE.Mesh(new THREE.CylinderGeometry(.12,.18,len,5),steel);a.position.y=top+len/2;g.add(a);parts.push(a);}
   }
   S.root.add(g);
