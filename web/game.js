@@ -458,7 +458,7 @@ let viewSide=0,choice=0,tab=null,placing=null,selected=null,plan=newPlan(),upSeg
 let liveSel=null,liveFrom=null; // live attack: chosen weapon/scout and start point
 const liveGfx=new THREE.Group();scene.add(liveGfx);
 function newPlan(){return {counts:{},target:null,scouts:{},scoutPath:{},scoutPathU:{},bearing:null,route:null,routeU:null};}
-let drawMode=null,showAllDef=false,showAllAtk=false,draftOpen=null; // draftOpen: defence level open in setup (null = the next one to fill)
+let drawMode=null,showAllDef=false,showAllAtk=false,draftOpen=null,draftTab=0,draftPage=0; // draftTab: defence level page in setup (0 = the next one to fill) // draftOpen: defence level open in setup (null = the next one to fill)
 let lastTurnKey='',sheetSig='',sheetT=0,useShadows=true;
 const TV=new Map(),IV=new Map(),PV=new Map();   // threat, interceptor and air-patrol visuals by uid
 const patrolMat=new THREE.MeshLambertMaterial({color:0x5b6470});
@@ -474,7 +474,7 @@ function startGame(demo){
   ADD.newSandbox((Math.random()*1e9)|0,name,!!demo);
   view=ADD.viewRaw();
   buildCity(SIDES[0],0);buildCity(SIDES[1],1);
-  clearBattle();choice=0;tab=demo?null:'build';placing=null;selected=null;plan=newPlan();lastTurnKey='';sheetSig='';
+  clearBattle();choice=0;tab=demo?null:'build';placing=null;selected=null;plan=newPlan();lastTurnKey='';sheetSig='';draftTab=0;draftPage=0;
   $('menu').hidden=true;$('report').hidden=true;running=true;
   cam.theta=0.7;cam.phi=1.05;
   refreshUI();
@@ -729,7 +729,7 @@ function launch(){
 }
 
 function vsChips(hit,col){return '<div class="vs">'+CLS_ORDER.filter(k=>hit[k]).map(k=>'<i class="y" style="--c:'+CLS_CSS[k]+'">'+CLS_LABEL[k]+' '+Math.round(hit[k])+'%</i>').join('')+'</div>';}
-function sig(){const v=view,m=v.me;return [v.phase,v.myTurn,tab,upSeg,m.budget,JSON.stringify(m.stock),JSON.stringify(m.launchers),JSON.stringify(m.scouts),JSON.stringify(m.interceptors),m.patrols,draftOpen,m.chief,JSON.stringify(m.intel),m.surveyed.length,m.batteries.map(b=>b.manual?1:0).join(''),v.enemy.buildings.length,
+function sig(){const v=view,m=v.me;return [v.phase,v.myTurn,tab,upSeg,m.budget,JSON.stringify(m.stock),JSON.stringify(m.launchers),JSON.stringify(m.scouts),JSON.stringify(m.interceptors),m.patrols,draftOpen,draftTab,draftPage,m.chief,JSON.stringify(m.intel),m.surveyed.length,m.batteries.map(b=>b.manual?1:0).join(''),v.enemy.buildings.length,
   m.batteries.map(b=>b.uid+':'+b.ammo).join(','),m.buildings.map(b=>b.down).join(','),v.enemy.buildings.map(b=>b.uid+':'+b.down).join(','),JSON.stringify(plan),placing].join('|');}
 
 function hideSheet(){$('sheet').hidden=true;document.body.classList.remove('sheet-open');}
@@ -746,6 +746,7 @@ function sheetHTML(){
   const v=view,m=v.me,B=m.budget;
   if(tab==='build'){
     let h='';
+    if(v.phase==='setup')return draftHTML();
     if(m.batteries.length){
       h+='<h3>Your defences'+(v.maxBatteries?' · '+m.batteries.length+' / '+v.maxBatteries:'')+' <span class="small">· spare missiles are re-bought automatically at the start of each of your turns</span></h3><div class="items">'+m.batteries.map(b=>{const s=DEF[b.sys],spare=m.interceptors[b.sys]||0,rc=s.shot*s.load;
         const count=s.load?'<b class="big'+(b.ammo===0?' bad':'')+'">'+b.ammo+'</b><span> loaded</span> <b class="big">'+spare+'</b><span> spare</span>':'<b class="big">∞</b><span> '+(s.kind==='gun'?fmt(s.shot)+'/burst':'no ammo')+'</span>';
@@ -825,6 +826,8 @@ $('sheet').addEventListener('click',e=>{
     case 'launcher':if(cmd({c:'buyLauncher',weapon:k}))msg(ATK[k].name+' launcher bought','money');break;
     case 'units':cmd({c:'buyUnits',weapon:k,n:+b.dataset.n});break;
     case 'scout':if(cmd({c:'buyScout',scout:k}))msg(SCT[k].name+' ready','money');break;
+    case 'dtab':draftTab=+k;draftPage=0;break;
+    case 'dpage':draftPage=Math.max(0,draftPage+ +k);break;
     case 'tier':{const P=CAT.rules.draftPicks,cur=draftOpen!=null?draftOpen:[1,2,3,4].find(t=>view.me.batteries.filter(b=>DEF[b.sys].tier===t).length<P[t]);
       draftOpen=cur===+k?-1:+k;}break; // tapping the open level closes it (-1: all closed until the next pick)
     case 'patrol':if(cmd({c:'buyPatrol'}))msg('Akıncı air patrol added','money');break;
@@ -848,6 +851,29 @@ $('sheet').addEventListener('change',e=>{const s=e.target.closest('select');if(!
   if(s.dataset.act==='target')plan.target=s.value===''?null:+s.value;
   sheetSig='';});
 
+/* Defence picking in setup: small pages, one level at a time, 3 cards per page, no scrolling. */
+const DRAFT_PER_PAGE=3;
+function draftHTML(){
+  const v=view,m=v.me,B=m.budget,P=CAT.rules.draftPicks;
+  const picked=t=>m.batteries.filter(b=>DEF[b.sys].tier===t).length;
+  const first=[1,2,3,4].find(t=>picked(t)<P[t])||5;
+  const t=draftTab||first;
+  const tabsH='<div class="seg" style="margin-bottom:6px">'+[1,2,3,4].map(i=>'<button class="mini'+(i===t?' on':'')+'" data-act="dtab" data-k="'+i+'">'+CAT.tierNames[i]+' '+picked(i)+'/'+P[i]+(picked(i)>=P[i]?' ✓':'')+'</button>').join('')+
+    '<button class="mini'+(t===5?' on':'')+'" data-act="dtab" data-k="5">Air patrol '+(m.patrols||0)+'/'+CAT.rules.patrolMax+'</button></div>';
+  if(t===5){const n=m.patrols||0,PP=CAT.rules.patrolPrice;
+    return tabsH+'<div class="tiles"><div class="tile" style="--c:#c48bff;cursor:default"><span class="role">Turkish</span><b class="tn">Akıncı air patrol</b><span class="meta"><b>'+fmt(PP)+'</b> · circles over your city all match</span><span class="meta" style="white-space:normal">Shoots at enemy survey UAVs passing within '+CAT.rules.patrolRange+' km: '+CAT.rules.patrolMissiles+' missile per strike, '+CAT.rules.patrolHit+'% hit.</span>'+
+      (n<CAT.rules.patrolMax?'<button class="mini" data-act="patrol"'+(B<PP?' disabled':'')+'>Add · '+fmt(PP)+'</button>':'<span class="small">Max reached</span>')+'</div></div>';}
+  const list=CAT.defences.filter(d=>d.tier===t).sort((x,y)=>x.price-y.price),pages=Math.ceil(list.length/DRAFT_PER_PAGE);
+  const pg=Math.min(draftPage,pages-1),full=picked(t)>=P[t];
+  const ORIGIN_OF={};for(const [o,ids] of ORIGINS)for(const id of ids)ORIGIN_OF[id]=o;
+  const mine=m.batteries.filter(b=>DEF[b.sys].tier===t).map(b=>DEF[b.sys].name);
+  const card=s=>{const col=css(SYS_COL[s.id]),best=CLS_ORDER.filter(k=>s.hit[k]&&k!=='decoy').sort((x,y)=>s.hit[y]-s.hit[x]).slice(0,3);
+    return '<button class="tile'+(placing===s.id?' sel':'')+'" type="button" data-act="place" data-k="'+s.id+'" style="--c:'+col+'"'+(full?' disabled':'')+'><span class="role">'+(ORIGIN_OF[s.id]||'')+'</span><b class="tn">'+esc(s.name)+'</b>'+
+      '<span class="meta"><b>free</b> · '+s.range+' km'+(s.load?' · '+s.load+' missiles':'')+'</span><span class="hits">'+best.map(k=>'<i style="--k:'+CLS_CSS[k]+'">'+CLS_LABEL[k]+' '+Math.round(s.hit[k])+'</i>').join('')+'</span></button>';};
+  return tabsH+'<div class="liverow" style="margin-bottom:6px"><span class="step-txt">'+(full?'<b>'+CAT.tierNames[t]+' full</b>: '+esc(mine.join(', '))+' · tap one in your city to remove it':'Pick '+(P[t]-picked(t))+' more · tap a card, then a glowing + in your city'+(mine.length?' · picked: '+esc(mine.join(', ')):''))+'</span>'+
+    '<span><button class="mini" data-act="dpage" data-k="-1"'+(pg<=0?' disabled':'')+'>‹</button> <span class="small">'+(pg+1)+' / '+pages+'</span> <button class="mini" data-act="dpage" data-k="1"'+(pg>=pages-1?' disabled':'')+'>›</button></span></div>'+
+    '<div class="tiles">'+list.slice(pg*DRAFT_PER_PAGE,pg*DRAFT_PER_PAGE+DRAFT_PER_PAGE).map(card).join('')+'</div>';
+}
 function setPlacing(k){placing=k;if(k)$('placing').hidden=false;if(k&&choice!==0){choice=0;}if(k){drawMode=null;$('placeText').innerHTML='Tap a glowing <b>+</b> to deploy <b>'+esc(DEF[k].name)+'</b> · free<br><span class="small">'+esc(DEF[k].role)+(DEF[k].load?' · '+DEF[k].load+' missiles, '+fmt(DEF[k].shot)+' each':'')+'</span>';$('placing').style.borderColor=css(SYS_COL[k]);closeInfo();padMat.color.set(SYS_COL[k]);padBeamMat.color.set(SYS_COL[k]);
     cam.r=Math.max(cam.r,215);cam.phi=Math.min(cam.phi,.8);cam.tx=0;cam.tz=0;}else{padMat.color.set(0x6fe3ff);padBeamMat.color.set(0x6fe3ff);if(!drawMode)$('placing').hidden=true;}sheetSig='';}
 $('cancelPlace').onclick=()=>{if(drawMode)setDraw(null);else setPlacing(null);};
@@ -990,7 +1016,7 @@ cv.addEventListener('contextmenu',e=>e.preventDefault());cv.addEventListener('po
 cv.addEventListener('wheel',e=>{e.preventDefault();cam.r=Math.min(380,Math.max(40,cam.r*(1+e.deltaY*0.001)));},{passive:false});
 function project(p){_c.copy(p).project(camera);return _c.z<1&&_c.z>-1?{x:(_c.x*.5+.5)*innerWidth,y:(-_c.y*.5+.5)*innerHeight}:null;}
 function nearestThreat(x,y){let best=null,bd=56;for(const [uid,tv] of TV){const s=project(tv.pos);if(!s)continue;const d=Math.hypot(s.x-x,s.y-y);if(d<bd){bd=d;best=uid;}}return best;}
-function placeAt(padId){const k=placing;if(!k)return;if(cmd({c:'buyBattery',sys:k,pad:padId})){draftOpen=-1;/* back to the list of levels after each pick */msg(DEF[k].name+' deployed','money');setPlacing(null);refreshUI();}}
+function placeAt(padId){const k=placing;if(!k)return;if(cmd({c:'buyBattery',sys:k,pad:padId})){draftOpen=-1;const t=DEF[k].tier;if(view.me.batteries.filter(b=>DEF[b.sys].tier===t).length>=CAT.rules.draftPicks[t]){draftTab=0;draftPage=0;}/* level full: go to the next level to fill */msg(DEF[k].name+' deployed','money');setPlacing(null);refreshUI();}}
 function tap(x,y){
   if(!view)return;
   if(placing&&canShop()&&viewSide===0){const taken=new Set(view.me.batteries.map(b=>b.pad));let best=null,bd=46;
