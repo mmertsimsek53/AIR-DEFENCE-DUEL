@@ -652,7 +652,7 @@ function onPhase(){
     setPlacing(null);tab=null;cam.phi=1.0;cam.r=Math.max(170,Math.min(cam.r,230));cam.tx=0;cam.tz=0;
     if(v.battle.iDefend){banner('INCOMING STRIKE','From the '+compass(v.battle.bearing)+' · tap a contact to fire at it first'+(v.me.batteries.some(b=>b.manual)?' · manual systems fire only at tapped contacts':''),2.8);
       const empty=v.me.batteries.filter(b=>b.load&&b.ammo===0);if(empty.length)setTimeout(()=>msg(empty.map(b=>DEF[b.sys].name).join(', ')+': no missiles loaded!','bad'),2900);}
-    else if(v.battle.open){cam.r=raidMode?190:330;cam.phi=raidMode?.8:.75;banner('ATTACK','Pick a weapon, tap its start, then its target',2.2);}
+    else if(v.battle.open){cam.r=raidMode?190:(innerHeight<500?185:215);cam.phi=raidMode?.8:.92;cam.tx=0;cam.tz=0;banner('ATTACK','Pick a weapon, tap its start, then its target',2.2);}
     else banner('STRIKE LAUNCHED','Watching '+v.enemy.name+"'s city",2.2);
   }else if(v.phase==='report'){showReport();}
   else if(v.phase==='over'){if(!raidMode)showOver();}
@@ -999,6 +999,9 @@ function liveRemaining(){const m=view.me,out=[];
   return out;}
 function liveHTML(){const list=liveRemaining();
   if(liveSel&&!list.some(x=>x.k===liveSel)){liveSel=null;liveFrom=null;}
+  // Weapon picked: shrink to one slim line so the map is free for tapping start and target.
+  if(liveSel){const x=list.find(q=>q.k===liveSel);
+    return '<div class="liverow"><button class="wchip on" data-live="'+liveSel+'" style="--c:'+x.col+'"><b>'+esc(x.name)+'</b><span>'+x.n+' left · tap to change</span></button><span class="step-txt">'+(!liveFrom?'Tap <b>where it starts</b> (outside the city)':liveSel==='w:recon'?'Tap <b>a hideout</b>':liveSel==='w:akbaba'||liveSel==='w:harop'?'Tap <b>their city</b>':liveSel.startsWith('s:')?'Tap <b>their city</b>':'Tap <b>the target</b>')+'</span><button class="btn" data-live="end" type="button">End attack</button></div>';}
   let h='<div class="chips2">'+list.map(x=>'<button class="wchip'+(liveSel===x.k?' on':'')+'" data-live="'+x.k+'" style="--c:'+x.col+'"><b>'+esc(x.name)+'</b><span>'+(x.scout?'scout · ':'')+x.n+' left</span></button>').join('')+'</div>';
   if(!list.length)h='<div class="small">Everything for this turn has been launched.</div>';
   h+='<div class="liverow"><span class="step-txt">'+(!liveSel?(list.length?'1. Pick a weapon':''):!liveFrom?'2. Tap on the map <b>where it starts</b> (outside the city)':liveSel==='w:recon'?'3. Tap <b>a hideout</b> to check':liveSel==='w:akbaba'||liveSel==='w:harop'?'3. Tap <b>their city</b>: it homes on the first defence that fires':liveSel&&liveSel.startsWith('s:')?'3. Tap <b>their city</b>: the Aksungur flies a lap and photographs it':'3. Tap <b>where it should hit</b>')+'</span><button class="btn" data-live="end" type="button">End attack</button></div>';
@@ -1053,7 +1056,8 @@ function refreshUI(){
   const liveOn=v&&v.phase==='battle'&&v.battle&&!v.battle.iDefend&&v.battle.open;$('liveBar').hidden=!liveOn;
   if(liveOn){const lh=liveHTML();if($('liveBar').dataset.h!==lh){$('liveBar').dataset.h=lh;$('liveBar').innerHTML=lh;}}
   rebuildLiveGfx();
-  const showAmmo=v&&v.phase!=='over'&&v.me.batteries.some(b=>DEF[b.sys].load);$('ammoBox').hidden=!showAmmo;
+  const attacking=v&&v.phase==='battle'&&v.battle&&!v.battle.iDefend;
+  const showAmmo=v&&v.phase!=='over'&&!attacking&&v.me.batteries.some(b=>DEF[b.sys].load);$('ammoBox').hidden=!showAmmo;
   if(showAmmo){const a=ammoHTML();if($('ammoBox').dataset.h!==a){$('ammoBox').dataset.h=a;$('ammoBox').innerHTML=a;}
     const tl=document.querySelector('.tl').getBoundingClientRect();$('ammoBox').style.top=(tl.bottom+6)+'px';}
   $('tabs').hidden=!plan_;$('actions').hidden=!plan_;
@@ -1062,7 +1066,7 @@ function refreshUI(){
   if(v&&v.phase==='setup'){$('endBtn').textContent=v.me.ready?'Waiting…':(v.timed?'Ready':"I'm done");$('endBtn').disabled=v.me.ready;$('endBtn').className='btn primary';}
   else{$('endBtn').textContent='START ATTACK';$('endBtn').disabled=false;$('endBtn').className='btn go';}
   for(const t of document.querySelectorAll('.tab'))t.classList.toggle('on',t.dataset.tab===tab);
-  $('status').hidden=!(v&&v.phase==='battle');
+  $('status').hidden=!(v&&v.phase==='battle')||(attacking&&!!liveSel);
   const S=SIDES[0];if(S.padRings&&v){const taken=new Set(v.me.batteries.map(b=>b.pad));for(const id in S.padRings)S.padRings[id].visible=!!placing&&!taken.has(+id)&&viewSide===0;}
   $('cityBtn').textContent=choice?'My city':'Enemy city';$('cityTab').textContent=choice?'My city':'Enemy city';$('cityTab').classList.toggle('primary',!!choice);
   renderSheet();updHud();
