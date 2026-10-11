@@ -652,7 +652,7 @@ function onPhase(){
     setPlacing(null);tab=null;cam.phi=1.0;cam.r=Math.max(170,Math.min(cam.r,230));cam.tx=0;cam.tz=0;
     if(v.battle.iDefend){banner('INCOMING STRIKE','From the '+compass(v.battle.bearing)+' · tap a contact to fire at it first'+(v.me.batteries.some(b=>b.manual)?' · manual systems fire only at tapped contacts':''),2.8);
       const empty=v.me.batteries.filter(b=>b.load&&b.ammo===0);if(empty.length)setTimeout(()=>msg(empty.map(b=>DEF[b.sys].name).join(', ')+': no missiles loaded!','bad'),2900);}
-    else if(v.battle.open){cam.r=raidMode?190:(innerHeight<500?185:215);cam.phi=raidMode?.8:.92;cam.tx=0;cam.tz=0;banner('ATTACK','Pick a weapon, tap its start, then its target',2.2);}
+    else if(v.battle.open){cam.r=raidMode?190:(innerHeight<500?185:215);cam.phi=raidMode?.8:.92;cam.tx=0;cam.tz=0;banner('ATTACK','Pick a weapon, then drag from its start to the target',2.2);}
     else banner('STRIKE LAUNCHED','Watching '+v.enemy.name+"'s city",2.2);
   }else if(v.phase==='report'){showReport();}
   else if(v.phase==='over'){if(!raidMode)showOver();}
@@ -1001,7 +1001,7 @@ function liveHTML(){const list=liveRemaining();
   if(liveSel&&!list.some(x=>x.k===liveSel)){liveSel=null;liveFrom=null;}
   // Weapon picked: shrink to one slim line so the map is free for tapping start and target.
   if(liveSel){const x=list.find(q=>q.k===liveSel);
-    return '<div class="liverow"><button class="wchip on" data-live="'+liveSel+'" style="--c:'+x.col+'"><b>'+esc(x.name)+'</b><span>'+x.n+' left · tap to change</span></button><span class="step-txt">'+(!liveFrom?'Tap <b>where it starts</b> (outside the city)':liveSel==='w:recon'?'Tap <b>a hideout</b>':liveSel==='w:akbaba'||liveSel==='w:harop'?'Tap <b>their city</b>':liveSel.startsWith('s:')?'Tap <b>their city</b>':'Tap <b>the target</b>')+'</span><button class="btn" data-live="end" type="button">End attack</button></div>';}
+    return '<div class="liverow"><button class="wchip on" data-live="'+liveSel+'" style="--c:'+x.col+'"><b>'+esc(x.name)+'</b><span>'+x.n+' left · tap to change</span></button><span class="step-txt">Drag from the side it should come from, lift on '+(liveSel==='w:recon'?'<b>a hideout</b>':liveSel==='w:akbaba'||liveSel==='w:harop'||liveSel.startsWith('s:')?'<b>their city</b>':'<b>the target</b>')+'</span><button class="btn" data-live="end" type="button">End attack</button></div>';}
   let h='<div class="chips2">'+list.map(x=>'<button class="wchip'+(liveSel===x.k?' on':'')+'" data-live="'+x.k+'" style="--c:'+x.col+'"><b>'+esc(x.name)+'</b><span>'+(x.scout?'scout · ':'')+x.n+' left</span></button>').join('')+'</div>';
   if(!list.length)h='<div class="small">Everything for this turn has been launched.</div>';
   h+='<div class="liverow"><span class="step-txt">'+(!liveSel?(list.length?'1. Pick a weapon':''):!liveFrom?'2. Tap on the map <b>where it starts</b> (outside the city)':liveSel==='w:recon'?'3. Tap <b>a hideout</b> to check':liveSel==='w:akbaba'||liveSel==='w:harop'?'3. Tap <b>their city</b>: it homes on the first defence that fires':liveSel&&liveSel.startsWith('s:')?'3. Tap <b>their city</b>: the Aksungur flies a lap and photographs it':'3. Tap <b>where it should hit</b>')+'</span><button class="btn" data-live="end" type="button">End attack</button></div>';
@@ -1084,16 +1084,21 @@ function pan(dx,dy){ // finger right → map follows right; finger down → map 
 const ptrs=new Map();let downX=0,downY=0,dragged=false,pinch=0,pressT=null;
 const pinchDist=()=>{const p=[...ptrs.values()];return Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y)||1;};
 cv.addEventListener('pointerdown',e=>{initAudio();try{cv.setPointerCapture(e.pointerId);}catch(_){}ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(aimReady()&&ptrs.size===1){aim={x0:e.clientX,y0:e.clientY,x:e.clientX,y:e.clientY};dragged=true;clearTimeout(pressT);drawAim();return;}
+  if(aim&&ptrs.size===2){aim=null;drawAim();}
   if(window.BASE&&BASE.active&&BASE.pointer('down',e,ptrs.size)){dragged=true;return;}
   if(drawMode&&ptrs.size===1){drawPts=null;drawAdd(e.clientX,e.clientY);dragged=true;return;}
   if(ptrs.size===1){downX=e.clientX;downY=e.clientY;dragged=false;clearTimeout(pressT);pressT=setTimeout(()=>{if(!dragged&&ptrs.size===1){dragged=true;longPress(downX,downY);}},520);}
   if(ptrs.size===2){pinch=pinchDist();pmid=midPt();dragged=true;clearTimeout(pressT);}});
 cv.addEventListener('pointermove',e=>{const p=ptrs.get(e.pointerId);if(!p)return;const dx=e.clientX-p.x,dy=e.clientY-p.y;p.x=e.clientX;p.y=e.clientY;
+  if(aim&&ptrs.size===1){aim.x=e.clientX;aim.y=e.clientY;drawAim();return;}
   if(window.BASE&&BASE.active&&BASE.pointer('move',e,ptrs.size))return;
   if(drawMode&&drawPts&&ptrs.size===1){drawAdd(e.clientX,e.clientY);rebuildPlanGfx();return;}
   if(ptrs.size===1){if(Math.hypot(e.clientX-downX,e.clientY-downY)>8){dragged=true;clearTimeout(pressT);}if(dragged){if(e.shiftKey||(e.buttons&2))pan(dx,dy);else{cam.theta-=dx*0.006;cam.phi=Math.min(1.42,Math.max(0.42,cam.phi-dy*0.005));}}}
   else if(ptrs.size===2){const d=pinchDist();cam.r=Math.min(380,Math.max(40,cam.r*pinch/d));pinch=d;const mp=midPt();if(pmid)pan(mp.x-pmid.x,mp.y-pmid.y);pmid=mp;}});
 function up(e){clearTimeout(pressT);pmid=null;
+  if(aim&&ptrs.size===1&&e.type==='pointerup'){ptrs.delete(e.pointerId);const a=aim;aim=null;drawAim();launchDrag(a);return;}
+  if(aim&&e.type==='pointercancel'){aim=null;drawAim();}
   if(window.BASE&&BASE.active&&BASE.pointer('up',e,ptrs.size)){ptrs.delete(e.pointerId);return;}
   if(window.BASE&&BASE.active&&ptrs.has(e.pointerId)&&ptrs.size===1&&!dragged&&e.type==='pointerup'){ptrs.delete(e.pointerId);BASE.tap(e.clientX,e.clientY);return;}if(drawMode&&drawPts&&ptrs.size===1&&e.type==='pointerup'){ptrs.delete(e.pointerId);finishDraw();return;}if(ptrs.has(e.pointerId)&&ptrs.size===1&&!dragged&&e.type==='pointerup')tap(e.clientX,e.clientY);ptrs.delete(e.pointerId);}
 cv.addEventListener('contextmenu',e=>e.preventDefault());cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
@@ -1127,6 +1132,30 @@ function snapTarget(x,y){
   if(S.bats)for(const id in S.bats){const b=S.bats[id];near(_a.copy(b.pos).setY(2),b.pos.x/U,b.pos.z/U);}
   return best&&{x:Math.round(best.x*1000)/1000,z:Math.round(best.z*1000)/1000};
 }
+// Drag to launch (Mert): finger down where the weapon should come from, drag, lift on the target.
+let aim=null;
+const aimReady=()=>!!(view&&view.phase==='battle'&&view.battle&&!view.battle.iDefend&&view.battle.open&&liveSel);
+function aimStartKm(a){ // the start point: where the finger went down, pushed out past the city edge if it was inside
+  const R=(view.radius||6)+2.5,g=groundAt(a.x0,a.y0),t=groundAt(a.x,a.y);
+  let k=g?toKm(g):null;const tk=t?toKm(t):{x:0,z:0};
+  if(!k||Math.hypot(a.x-a.x0,a.y-a.y0)<12){ // no drag: come in from the camera's side
+    const cx=camera.position.x,cz=camera.position.z,l=Math.hypot(cx,cz)||1;return {x:cx/l*R*1.6,z:cz/l*R*1.6};}
+  let dx=k.x-tk.x,dz=k.z-tk.z,l=Math.hypot(dx,dz);
+  if(Math.hypot(k.x,k.z)>R)return k;
+  if(l<.5){dx=k.x;dz=k.z;l=Math.hypot(dx,dz)||1;}
+  // walk from the target through the start point until clear of the city
+  let s=1;while(Math.hypot(tk.x+dx/l*s,tk.z+dz/l*s)<R&&s<60)s+=.5;
+  return {x:tk.x+dx/l*s,z:tk.z+dz/l*s};
+}
+function drawAim(){while(liveGfx.children.length)liveGfx.remove(liveGfx.children[0]);
+  if(!aim)return;const from=aimStartKm(aim),t=groundAt(aim.x,aim.y);if(!t)return;
+  const k=RAD(Math.hypot(from.x,from.z))/Math.max(1e-6,Math.hypot(from.x,from.z));
+  liveGfx.add(polyMesh([{x:from.x*k,z:from.z*k},{x:t.x,z:t.z}],0xff5a4e,true));}
+function launchDrag(a){
+  const t=groundAt(a.x,a.y);if(!t)return;const to=snapTarget(a.x,a.y)||toKm(t),from=aimStartKm(a);
+  const [kind,id]=liveSel.split(':');const c={c:'fire',from,to};if(kind==='s')c.scout=id;else c.weapon=id;
+  if(cmd(c)){msg((kind==='s'?SCT[id].name:ATK[id].name)+' launched','good');sfx('launch');}
+  liveFrom=null;refreshUI();}
 function longPress(x,y){
   if(!view||view.phase!=='battle'||!view.battle.iDefend)return;
   const uid=nearestThreat(x,y);if(uid==null)return;const t=view.battle.threats.find(q=>q.uid===uid);
