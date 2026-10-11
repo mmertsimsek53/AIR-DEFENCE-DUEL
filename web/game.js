@@ -852,7 +852,37 @@ $('sheet').addEventListener('change',e=>{const s=e.target.closest('select');if(!
   if(s.dataset.act==='target')plan.target=s.value===''?null:+s.value;
   sheetSig='';});
 
-/* Defence picking in setup: small pages, one level at a time, 3 cards per page, no scrolling. */
+/* Why you would pick each system (shown on its card in the defence draft). */
+const PICK_WHY={zu23:'Cheapest gun. Drones close in only; bursts cost almost nothing.',
+  korkut:'Airburst gun: shreds drone swarms around one key spot.',
+  phalanx:'Last-line gun that also kills rockets. Put it beside your chief.',
+  stinger:'Light missile post against drones and UAVs.',
+  igla:'Like Stinger, slightly weaker. The cheapest missile post.',
+  sungur:'Best short-range missile against drones and UAVs (8 km).',
+  avenger:'8 Stingers ready: lasts longer in a big drone wave.',
+  alka:'Laser: free shots at drones, but only 1 km. Needs power.',
+  gokberk:'Laser, 3 km, free shots. Best against drones and recon drones. Needs power.',
+  ihtar:'Jammer: downs 40% of drones entering 10 km, no ammo. Needs power.',
+  pantsir:'Gun + missiles, 20 km: all-rounder against drones, UAVs and cruise.',
+  tunguska:'A cheaper Pantsir with 8 km reach.',
+  gurz:'Gun + missiles, 15 km. Strong against drones and rockets.',
+  tor:'16 missiles: holds out against big mixed waves.',
+  hisara:'Low-altitude missile: the best answer to cruise missiles.',
+  irondome:'Rocket killer, 70 km, 20 cheap missiles; ignores rockets that will miss.',
+  ironbeam:'Laser, 8 km: near-free shots at drones and rockets. Bad weather halves it.',
+  koral:'Jammer over 150 km: turns UAVs back, spoils cruise missile aim. Needs power.',
+  hisaro:'40 km: kills UAVs and cruise missiles before they arrive.',
+  nasams:'40 km, very good against cruise missiles and UAVs.',
+  buk:'70 km reach, with a small chance against ballistic missiles.',
+  davidsling:'150 km: stops rockets, cruise and 60% of ballistic missiles.',
+  siper:'150 km cover against UAVs and cruise; weak against ballistic.',
+  s300:'150 km, 50% against ballistic. Low cruise missiles slip under it.',
+  patriot:'Best against ballistic missiles (90%), some chance against hypersonic.',
+  s400:'250 km reach; 65% against ballistic, little against hypersonic.',
+  s500:'The best answer to hypersonic (50%) and ballistic (90%) missiles.',
+  thaad:'Ballistic missiles only, but 95%: your shield against Tayfun and Iskander.'};
+
+/* Defence picking in setup: one level at a time, small cards 5 per row, scrolling inside the level. */
 const DRAFT_PER_PAGE=99; // all systems of a level on one page, small cards, 5 per row
 function draftHTML(){
   const v=view,m=v.me,B=m.budget,P=CAT.rules.draftPicks;
@@ -870,10 +900,10 @@ function draftHTML(){
   const mine=m.batteries.filter(b=>DEF[b.sys].tier===t).map(b=>DEF[b.sys].name);
   const card=s=>{const col=css(SYS_COL[s.id]),best=CLS_ORDER.filter(k=>s.hit[k]&&k!=='decoy').sort((x,y)=>s.hit[y]-s.hit[x]).slice(0,3);
     return '<button class="tile" type="button" data-act="place" data-k="'+s.id+'" style="--c:'+col+';padding:4px 5px;font-size:11px"'+(full?' disabled':'')+'><b class="tn" style="font-size:12px">'+esc(s.name)+'</b>'+
-      '<span class="meta">'+(ORIGIN_OF[s.id]||'').slice(0,2).toUpperCase()+' · '+s.range+' km'+(s.load?' · '+s.load+'×':'')+'</span><span class="hits">'+best.slice(0,2).map(k=>'<i style="--k:'+CLS_CSS[k]+'">'+CLS_LABEL[k]+' '+Math.round(s.hit[k])+'</i>').join('')+'</span></button>';};
+      '<span class="meta">'+(ORIGIN_OF[s.id]||'').slice(0,2).toUpperCase()+' · '+s.range+' km'+(s.load?' · '+s.load+'×':'')+'</span><span class="hits">'+best.slice(0,2).map(k=>'<i style="--k:'+CLS_CSS[k]+'">'+CLS_LABEL[k]+' '+Math.round(s.hit[k])+'</i>').join('')+'</span><span class="meta" style="white-space:normal;line-height:1.25;color:var(--fg);opacity:.85">'+esc(PICK_WHY[s.id]||s.role)+'</span></button>';};
   return tabsH+'<div class="liverow" style="margin-bottom:6px"><span class="step-txt">'+(full?'<b>'+CAT.tierNames[t]+' full</b>: '+esc(mine.join(', '))+' · tap one in your city to remove it':'Pick '+(P[t]-picked(t))+' more · tap a card, then a glowing + in your city'+(mine.length?' · picked: '+esc(mine.join(', ')):''))+'</span>'+
     '</div>'+
-    '<div class="tiles" style="grid-template-columns:repeat(5,minmax(0,1fr))">'+list.slice(pg*DRAFT_PER_PAGE,pg*DRAFT_PER_PAGE+DRAFT_PER_PAGE).map(card).join('')+'</div>';
+    '<div class="tiles" style="grid-template-columns:repeat(5,minmax(0,1fr));max-height:min(42vh,260px);overflow-y:auto;padding-right:2px">'+list.slice(pg*DRAFT_PER_PAGE,pg*DRAFT_PER_PAGE+DRAFT_PER_PAGE).map(card).join('')+'</div>';
 }
 function setPlacing(k){placing=k;if(k)$('placing').hidden=false;if(k&&choice!==0){choice=0;}if(k){drawMode=null;$('placeText').innerHTML='Tap a glowing <b>+</b> to deploy <b>'+esc(DEF[k].name)+'</b> · free<br><span class="small">'+esc(DEF[k].role)+(DEF[k].load?' · '+DEF[k].load+' missiles, '+fmt(DEF[k].shot)+' each':'')+'</span>';$('placing').style.borderColor=css(SYS_COL[k]);closeInfo();padMat.color.set(SYS_COL[k]);padBeamMat.color.set(SYS_COL[k]);
     cam.r=Math.max(cam.r,215);cam.phi=Math.min(cam.phi,.8);cam.tx=0;cam.tz=0;}else{padMat.color.set(0x6fe3ff);padBeamMat.color.set(0x6fe3ff);if(!drawMode)$('placing').hidden=true;}sheetSig='';}
