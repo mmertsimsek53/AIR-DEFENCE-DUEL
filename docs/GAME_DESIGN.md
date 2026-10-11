@@ -137,3 +137,6 @@ Status: first outline from Mert, 9 Oct 2026. Everything below "Open questions" i
 
 ## Defence limit (decided 11 Oct 2026, Mert)
 - Before a match the player chooses a **defence limit per player: 4 / 6 / 8 / no limit** (default 6). It applies to both sides (the AI too) and counts ground defence systems; Akıncı air patrols keep their own maximum of 2. Selling a system frees a slot.
+
+## No cloud (11 Oct 2026, Mert)
+- The enemy city itself is always visible (streets, river, houses). Hideouts, critical buildings and defences stay hidden until an Aksungur survey photographs their sector.

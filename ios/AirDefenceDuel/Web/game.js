@@ -223,10 +223,8 @@ function buildCity(S,side){
   for(let i=0;i<NC;i++){const k=Math.round((rng()-.5)*16),off=k*11+5.5,len=2*Math.sqrt(Math.max(0,106*106-off*off));
     S.cars.push({ax:rng()<.5?0:1,off:off+(rng()<.5?-.6:.6),len,s:(rng()-.5)*len,v:(6+rng()*6)*(rng()<.5?-1:1)});col.setHex(palette[(rng()*palette.length)|0]);cars.setColorAt(i,col);}
   S.carMesh=cars;root.add(cars);
-  // Enemy city: cloud over every sector your survey UAVs have not photographed yet.
-  S.fog=[];if(side===1){const fm=new THREE.MeshLambertMaterial({color:0xdfe4ea,transparent:true,opacity:.93,side:THREE.DoubleSide,depthWrite:false});
-    for(let s=0;s<12;s++){const inner=s<4,a0=inner?s*Math.PI/2:(s-4)*Math.PI/4,len=inner?Math.PI/2:Math.PI/4;
-      const f=new THREE.Mesh(new THREE.RingGeometry(inner?0:3*U,inner?3*U:118,40,1,a0,len).rotateX(Math.PI/2),fm);f.position.y=64;f.renderOrder=5;root.add(f);S.fog.push(f);}}
+  // No cloud (Mert, 11 Oct): their city is visible; only hideouts, buildings and defences stay hidden until surveyed.
+  S.fog=[];
   rng=Math.random;
 }
 
