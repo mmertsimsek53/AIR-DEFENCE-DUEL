@@ -933,7 +933,7 @@ function intelHTML(){
 function refreshUI(){
   const v=view,plan_=canShop();
   $('intel').hidden=true;
-  const hint=v&&v.phase!=='over'&&v.phase!=='report'?hintHTML():'';$('hint').hidden=!hint;if(hint&&$('hint').innerHTML!==hint)$('hint').innerHTML=hint;
+  const hint=v&&v.phase!=='over'&&v.phase!=='report'&&!(v.phase==='battle'&&v.battle&&!v.battle.iDefend&&v.battle.open)?hintHTML():''; // during your attack the bar shows the steps$('hint').hidden=!hint;if(hint&&$('hint').innerHTML!==hint)$('hint').innerHTML=hint;
   $('quickBtn').hidden=!myTurn();
   const liveOn=v&&v.phase==='battle'&&v.battle&&!v.battle.iDefend&&v.battle.open;$('liveBar').hidden=!liveOn;
   if(liveOn){const lh=liveHTML();if($('liveBar').dataset.h!==lh){$('liveBar').dataset.h=lh;$('liveBar').innerHTML=lh;}}
@@ -991,13 +991,22 @@ function tap(x,y){
   if(drawMode)return;
   if(view.phase==='battle'&&!view.battle.iDefend&&view.battle.open&&liveSel){const g=groundAt(x,y);if(!g)return;const km=toKm(g);
     if(!liveFrom){if(Math.hypot(km.x,km.z)<view.radius+0.6){msg(view.raid?'Start outside the base · tap further out':'Start outside the city · tap further out','warn');return;}liveFrom=km;refreshUI();return;}
-    const [kind,id]=liveSel.split(':');const c={c:'fire',from:liveFrom,to:km};if(kind==='s')c.scout=id;else c.weapon=id;
+    const snap=snapTarget(x,y);const [kind,id]=liveSel.split(':');const c={c:'fire',from:liveFrom,to:snap||km};if(kind==='s')c.scout=id;else c.weapon=id;
     if(cmd(c)){const nm=kind==='s'?SCT[id].name:ATK[id].name;msg(nm+' launched','good');sfx('launch');}
     liveFrom=null;refreshUI();return;}
   if(view.phase==='battle'&&view.battle.iDefend){const uid=nearestThreat(x,y);if(uid!=null){const t=view.battle.threats.find(q=>q.uid===uid);if(cmd({c:'priority',uid}))msg(t&&t.priority?'Priority cleared':'Priority target · batteries engage it first','good');return;}}
   if(viewSide===0){let best=null,bd=44;for(const id in SIDES[0].bats){const b=SIDES[0].bats[id];const s=project(_b.copy(b.pos).setY(2));if(!s)continue;const d=Math.hypot(s.x-x,s.y-y);if(d<bd){bd=d;best=+id;}}
     if(best!=null){openInfo(best);return;}}
   if(selected!=null)closeInfo();
+}
+// Aiming: a tap on (or near) a known enemy building, its label, or a known battery locks onto it,
+// instead of the ground point behind it (labels float above the buildings).
+function snapTarget(x,y){
+  const S=SIDES[1];let best=null,bd=60;
+  const near=(p,kmx,kmz)=>{const s=project(p);if(!s)return;const d=Math.hypot(s.x-x,s.y-y);if(d<bd){bd=d;best={x:kmx,z:kmz};}};
+  if(S.crit)for(const id in S.crit){const c=S.crit[id];near(_a.set(c.x,2,c.z),c.x/U,c.z/U);near(_a.set(c.x,22,c.z),c.x/U,c.z/U);}
+  if(S.bats)for(const id in S.bats){const b=S.bats[id];near(_a.copy(b.pos).setY(2),b.pos.x/U,b.pos.z/U);}
+  return best&&{x:Math.round(best.x*1000)/1000,z:Math.round(best.z*1000)/1000};
 }
 function longPress(x,y){
   if(!view||view.phase!=='battle'||!view.battle.iDefend)return;

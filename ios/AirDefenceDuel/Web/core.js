@@ -749,7 +749,7 @@
     const w = ATTACKS.find((x) => x.id === cmd.weapon);
     if (!w) return fail("Unknown weapon.");
     if ((att.stock[w.id] ?? 0) <= 0) return fail(`No ${w.name} in stock.`);
-    if (w.recon && !def.buildings.some((b) => b.kind === "hideout" && b.revealed && intact(b) && dist(b, cmd.to) <= 0.6)) return fail("Aim the recon drone at a hideout you have found (survey with a TB2 first).");
+    if (w.recon && !def.buildings.some((b) => b.kind === "hideout" && b.revealed && intact(b) && dist(b, cmd.to) <= 0.6)) return fail("Aim the recon drone at a hideout you have found (survey their city with the Aksungur first).");
     if (w.cls === "uav" && !airbase) return fail("Airbase is knocked out: UAVs cannot take off.");
     if (!w.reusable && (att.launched[w.id] ?? 0) >= launchCap(att, w.id)) return fail(`${w.name}: all launchers have fired this turn.`);
     const munitions = w.munitionCost ? w.munitionCost * (w.munitions ?? 0) : 0;
