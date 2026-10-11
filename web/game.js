@@ -702,7 +702,7 @@ const ORIGINS=[['Turkish',['korkut','sungur','alka','koral','hisara','hisaro','s
   ['Russian',['igla','zu23','tunguska','pantsir','tor','buk','s300','s400','s500']],['Israeli',['irondome','ironbeam','davidsling']]];
 const REC_DEF=[['vs drones',['korkut','gurz']],['vs missiles',['hisara','irondome']],['vs ballistic',['patriot','s400']]];
 const DUEL_SCOUTS=CAT.scouts.filter(s=>s.id==='aksungur'); // the duel uses the Aksungur for surveys
-const REC_ATK=['recon','shahed','gerbera','mald','som','tayfun','aksungur'];
+const REC_ATK=['aksungur','recon','shahed','gerbera','mald','som','tayfun','kinzhal'];
 const TARGET_ORDER=['factory','command','power','radar','finance','depot','airbase'];
 // Auto attack: send everything ready to fire at the best known target, in one go.
 function quickStrike(){
