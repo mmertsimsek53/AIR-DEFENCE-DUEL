@@ -53,11 +53,12 @@ function newPlayer(index: PlayerIndex, name: string, isAI: boolean): PlayerState
   };
 }
 
-export function createMatch(seed: number, names: [string, string], ai: [boolean, boolean] = [false, false], opts: { timed?: boolean } = {}): Match {
+export function createMatch(seed: number, names: [string, string], ai: [boolean, boolean] = [false, false], opts: { timed?: boolean; maxBatteries?: number } = {}): Match {
   const m: Match = {
     version: 1, rng: seed | 0, time: 0, phase: 'setup', phaseEndsAt: RULES.setupSeconds, active: 0, turnNo: 0,
     weatherBad: false, players: [newPlayer(0, names[0], ai[0]), newPlayer(1, names[1], ai[1])], nextUid: 1, log: [], timed: opts.timed !== false,
   };
+  if (opts.maxBatteries && opts.maxBatteries > 0) m.maxBatteries = Math.floor(opts.maxBatteries);
   for (const p of m.players) {
     // One of the 20 layouts, its spots shuffled: 7 critical buildings, then 8 identical hideouts. All hidden until surveyed.
     p.layout = Math.floor(rnd(m) * LAYOUT_COUNT) % LAYOUT_COUNT;
@@ -223,6 +224,7 @@ export function command(m: Match, pi: PlayerIndex, cmd: Command): CommandResult 
       const s = DEFENCES.find(x => x.id === cmd.sys); if (!s) return fail('Unknown system.');
       if (!p.pads.some(x => x.id === cmd.pad)) return fail('No such pad.');
       if (p.batteries.some(b => b.pad === cmd.pad)) return fail('That pad is taken.');
+      if (m.maxBatteries && p.batteries.length >= m.maxBatteries) return fail(`Defence limit reached: ${m.maxBatteries} systems per player in this match. Sell one to place another.`);
       if (!spend(p, s.price)) return fail('Not enough budget.');
       p.batteries.push({ uid: uid(m), sys: s.id, pad: cmd.pad, level: 1, ammo: s.load, cooldown: 0, reloading: 0, holdFire: false, revealed: false, kills: 0, dwell: 0 });
       if (s.load > 0 && p.restock[s.id] == null) p.restock[s.id] = s.load; // default: keep one full reload spare

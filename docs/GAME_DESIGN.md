@@ -134,3 +134,6 @@ Status: first outline from Mert, 9 Oct 2026. Everything below "Open questions" i
 - The survey UAV is the **TAI Aksungur** ($25M, reusable): one lap photographs half the enemy city. Ground defences cannot reach it.
 - The defender can add up to 2 **Akıncı air patrols** ($40M each, stay all match) circling over their own city at a random radius, height and direction each strike. An enemy survey UAV that comes within 1.2 km may be shot down: 1 Bozdoğan air-to-air missile per patrol per strike, $1M, 60% hit. Measured: one patrol downs an Aksungur about 28% of the time, two about 45%.
 - The Akıncı is no longer an attack weapon (Mert: "akinci no need for attacking").
+
+## Defence limit (decided 11 Oct 2026, Mert)
+- Before a match the player chooses a **defence limit per player: 4 / 6 / 8 / no limit** (default 6). It applies to both sides (the AI too) and counts ground defence systems; Akıncı air patrols keep their own maximum of 2. Selling a system frees a slot.

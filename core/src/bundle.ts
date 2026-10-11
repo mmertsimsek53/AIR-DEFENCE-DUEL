@@ -8,8 +8,8 @@ let rival: core.Base | undefined;
 const HUMAN = 0;
 
 const api = {
-  newSandbox(seed: number, name: string, demo?: boolean): void {
-    match = core.createMatch(seed, [name || 'You', 'Training AI'], [!!demo, true], { timed: false }); // sandbox: no clock, you end each phase yourself
+  newSandbox(seed: number, name: string, demo?: boolean, maxBatteries?: number): void {
+    match = core.createMatch(seed, [name || 'You', 'Training AI'], [!!demo, true], { timed: false, maxBatteries }); // sandbox: no clock, you end each phase yourself
   },
   cmd(json: string): string {
     if (!match) return JSON.stringify({ ok: false, error: 'No match.' });

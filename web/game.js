@@ -473,7 +473,7 @@ function startGame(demo){
   initAudio();
   const name=($('nameIn').value||'').trim()||'You';
   try{localStorage.setItem('add.name',name);}catch(e){}
-  ADD.newSandbox((Math.random()*1e9)|0,name,!!demo);
+  ADD.newSandbox((Math.random()*1e9)|0,name,!!demo,limitChoice||undefined);
   view=ADD.viewRaw();
   buildCity(SIDES[0],0);buildCity(SIDES[1],1);
   clearBattle();choice=0;tab=demo?null:'build';placing=null;selected=null;plan=newPlan();lastTurnKey='';sheetSig='';
@@ -482,6 +482,10 @@ function startGame(demo){
   refreshUI();
 }
 $('startBtn').onclick=()=>startGame(false);
+// Defence limit per player for the next match (remembered on this device).
+let limitChoice=6;try{const v=localStorage.getItem('add.limit');if(v!=null)limitChoice=+v;}catch(e){}
+function showLimit(){for(const b of document.querySelectorAll('#limitSeg [data-lim]'))b.classList.toggle('on',+b.dataset.lim===limitChoice);}
+document.querySelectorAll('#limitSeg [data-lim]').forEach(b=>b.onclick=()=>{limitChoice=+b.dataset.lim;try{localStorage.setItem('add.limit',String(limitChoice));}catch(e){}showLimit();});showLimit();
 try{$('nameIn').value=localStorage.getItem('add.name')||'';}catch(e){}
 
 function showSide(i){if(i!==viewSide){cam.tx=0;cam.tz=0;}viewSide=i;SIDES[0].root&&(SIDES[0].root.visible=i===0);SIDES[1].root&&(SIDES[1].root.visible=i===1);for(const S of SIDES)for(const el of S.labelEls||[])el.hidden=true;}
@@ -749,7 +753,7 @@ function sheetHTML(){
   if(tab==='build'){
     let h='';
     if(m.batteries.length){
-      h+='<h3>Your defences <span class="small">· spare missiles are re-bought automatically at the start of each of your turns</span></h3><div class="items">'+m.batteries.map(b=>{const s=DEF[b.sys],spare=m.interceptors[b.sys]||0,rc=s.shot*s.load;
+      h+='<h3>Your defences'+(v.maxBatteries?' · '+m.batteries.length+' / '+v.maxBatteries:'')+' <span class="small">· spare missiles are re-bought automatically at the start of each of your turns</span></h3><div class="items">'+m.batteries.map(b=>{const s=DEF[b.sys],spare=m.interceptors[b.sys]||0,rc=s.shot*s.load;
         const count=s.load?'<b class="big'+(b.ammo===0?' bad':'')+'">'+b.ammo+'</b><span> loaded</span> <b class="big">'+spare+'</b><span> spare</span>':'<b class="big">∞</b><span> '+(s.kind==='gun'?fmt(s.shot)+'/burst':'no ammo')+'</span>';
         return '<div class="item" style="--c:'+css(SYS_COL[b.sys])+'"><div class="nm"><b>'+esc(s.name)+'</b><span>Range '+s.range+' km · '+(manualOK(b.sys)?'<a data-act="manual" data-k="'+b.uid+'" style="color:var(--accent);text-decoration:underline">'+(b.manual?'manual fire':'automatic fire')+'</a>':'automatic')+'</span></div><div class="cnt">'+count+'</div><div class="acts">'+
           (s.load?'<div class="stepper"><span class="small">Keep spare</span><button class="step" data-act="rsdec" data-k="'+b.sys+'"'+((m.restock[b.sys]||0)<=0?' disabled':'')+'>−</button><output>'+(m.restock[b.sys]||0)+'</output><button class="step" data-act="rsinc" data-k="'+b.sys+'">+</button></div>'+
@@ -760,7 +764,8 @@ function sheetHTML(){
         '<span class="meta"><b>'+fmt(s.price)+'</b> · '+s.range+' km</span><span class="hits">'+best.map(k=>'<i style="--k:'+CLS_CSS[k]+'">'+CLS_LABEL[k]+' '+Math.round(s.hit[k])+'</i>').join('')+'</span></button>';};
     {const n=m.patrols||0,P=CAT.rules.patrolPrice;
       h+='<h3>Air patrol <span class="small">· Akıncı circling over your city; shoots down enemy survey UAVs that pass close</span></h3><div class="items"><div class="item" style="--c:#c48bff"><div class="nm"><b>Akıncı air patrol</b><span>Stays all match · '+CAT.rules.patrolMissiles+' air-to-air missile per strike, '+fmt(CAT.rules.patrolShot)+' each · '+CAT.rules.patrolHit+'% hit</span></div><div class="cnt"><b class="big">'+n+'</b><span> / '+CAT.rules.patrolMax+'</span></div><div class="acts">'+(n<CAT.rules.patrolMax?'<button class="mini" data-act="patrol"'+(B<P?' disabled':'')+'>Add · '+fmt(P)+'</button>':'<span class="small">Max</span>')+'</div></div></div>';}
-    h+='<h3>Buy a defence <span class="small">· tap one, then a glowing + in your city</span></h3>';
+    const full=v.maxBatteries&&m.batteries.length>=v.maxBatteries;
+    h+='<h3>Buy a defence <span class="small">· '+(full?'<span style="color:var(--danger)">limit of '+v.maxBatteries+' reached: sell one to place another</span>':'tap one, then a glowing + in your city'+(v.maxBatteries?' · '+(v.maxBatteries-m.batteries.length)+' left':''))+'</span></h3>';
     if(!showAllDef){h+='<div class="tiles">';for(const [title,ids] of REC_DEF)h+=ids.map(id=>card(DEF[id],title)).join('');h+='</div>';}
     else for(const [title,ids] of ORIGINS){const list=ids.filter(id=>DEF[id]).sort((x,y)=>DEF[x].price-DEF[y].price);h+='<h3>'+title+'</h3><div class="tiles">'+list.map(id=>card(DEF[id])).join('')+'</div>';}
     h+='<button class="mini" data-act="showall" data-k="def">'+(showAllDef?'Show recommended only':'Show all '+CAT.defences.length+' systems')+'</button>';

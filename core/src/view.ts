@@ -20,7 +20,7 @@ export function viewFor(m: Match, pi: PlayerIndex) {
     myTurn: m.phase === 'turn' && m.active === pi,
     active: m.active,
     turnNo: m.turnNo,
-    radius: m.cityRadius ?? CITY_RADIUS, raid: !!m.raid,
+    radius: m.cityRadius ?? CITY_RADIUS, raid: !!m.raid, maxBatteries: m.maxBatteries ?? 0,
     weatherBad: m.weatherBad,
     winner: m.winner, endReason: m.endReason, iWon: m.winner === pi,
     me: {

@@ -157,6 +157,7 @@ export interface Match {
   phase: Phase;
   phaseEndsAt: number;
   timed?: boolean;          // false = no setup/turn clock (sandbox); missing = timed
+  maxBatteries?: number;    // defence limit per player chosen for this match (missing = no limit)
   raid?: { grid: number };  // a single strike on a military base (no turns); grid = the defender's base size in tiles
   cityRadius?: number;      // km; defaults to the old city radius
   active: PlayerIndex;       // whose turn (the attacker in a battle)

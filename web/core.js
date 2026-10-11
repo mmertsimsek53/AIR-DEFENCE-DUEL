@@ -324,6 +324,7 @@
       log: [],
       timed: opts.timed !== false
     };
+    if (opts.maxBatteries && opts.maxBatteries > 0) m.maxBatteries = Math.floor(opts.maxBatteries);
     for (const p of m.players) {
       p.layout = Math.floor(rnd(m) * LAYOUT_COUNT) % LAYOUT_COUNT;
       const spots = cityLayouts()[p.layout].slice();
@@ -500,6 +501,7 @@
         if (!s) return fail("Unknown system.");
         if (!p.pads.some((x) => x.id === cmd.pad)) return fail("No such pad.");
         if (p.batteries.some((b) => b.pad === cmd.pad)) return fail("That pad is taken.");
+        if (m.maxBatteries && p.batteries.length >= m.maxBatteries) return fail(`Defence limit reached: ${m.maxBatteries} systems per player in this match. Sell one to place another.`);
         if (!spend(p, s.price)) return fail("Not enough budget.");
         p.batteries.push({ uid: uid(m), sys: s.id, pad: cmd.pad, level: 1, ammo: s.load, cooldown: 0, reloading: 0, holdFire: false, revealed: false, kills: 0, dwell: 0 });
         if (s.load > 0 && p.restock[s.id] == null) p.restock[s.id] = s.load;
@@ -1654,6 +1656,7 @@
       turnNo: m.turnNo,
       radius: m.cityRadius ?? CITY_RADIUS,
       raid: !!m.raid,
+      maxBatteries: m.maxBatteries ?? 0,
       weatherBad: m.weatherBad,
       winner: m.winner,
       endReason: m.endReason,
@@ -2355,8 +2358,8 @@
   var rival;
   var HUMAN = 0;
   var api = {
-    newSandbox(seed, name, demo) {
-      match = createMatch(seed, [name || "You", "Training AI"], [!!demo, true], { timed: false });
+    newSandbox(seed, name, demo, maxBatteries) {
+      match = createMatch(seed, [name || "You", "Training AI"], [!!demo, true], { timed: false, maxBatteries });
     },
     cmd(json) {
       if (!match) return JSON.stringify({ ok: false, error: "No match." });

@@ -263,6 +263,19 @@ describe('live attack', () => {
   });
 });
 
+describe('defence limit', () => {
+  it('a chosen limit caps batteries for both players; selling frees a slot', () => {
+    const m = createMatch(13, ['A', 'B'], [false, false], { maxBatteries: 2 });
+    expect(command(m, 0, { c: 'buyBattery', sys: 'zu23', pad: 0 }).ok).toBe(true);
+    expect(command(m, 0, { c: 'buyBattery', sys: 'zu23', pad: 1 }).ok).toBe(true);
+    expect(command(m, 0, { c: 'buyBattery', sys: 'zu23', pad: 2 }).ok).toBe(false);
+    expect(command(m, 1, { c: 'buyBattery', sys: 'zu23', pad: 0 }).ok).toBe(true);
+    command(m, 0, { c: 'sellBattery', uid: m.players[0].batteries[0].uid });
+    expect(command(m, 0, { c: 'buyBattery', sys: 'zu23', pad: 2 }).ok).toBe(true);
+    expect(createMatch(14, ['A', 'B']).maxBatteries).toBeUndefined();
+  });
+});
+
 describe('chief, hideouts, recon drones and decoys', () => {
   const ready = (seed: number) => {
     const m = createMatch(seed, ['A', 'B'], [false, false], { timed: false });
