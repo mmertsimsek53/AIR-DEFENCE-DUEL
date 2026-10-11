@@ -159,3 +159,6 @@ Status: first outline from Mert, 9 Oct 2026. Everything below "Open questions" i
 - Passive systems give nothing to home on: Stinger, Igla-S, Sungur, Avenger (infra-red) and ALKA, Gökberk, Iron Beam (lasers). Jammers (Koral, İhtar) give themselves away when they jam.
 - A defence that runs out of missiles with no reloads left announces it ("out of missiles for this strike"); the attacker sees it on known batteries.
 - Measured: 2 Akbabas destroy a lone Pantsir 7 times in 10. AI vs AI median 10 turns (5–14).
+
+## Setup planner (11 Oct 2026, Mert)
+- The match opens in the 3D city. Defence → **Place your defence** opens a top view of your city with the defence list on the left (tabs per level + air patrol). Tap a system, then an empty spot; tap a placed one to remove it; tap a hideout to move the chief there. Range circles show coverage. **Done · start the duel** (all 7 placed) ends setup and returns to 3D for turn 1.

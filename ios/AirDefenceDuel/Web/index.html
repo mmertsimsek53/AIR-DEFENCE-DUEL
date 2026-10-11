@@ -335,6 +335,15 @@ i[style*="--r"]{font-style:normal;white-space:nowrap}i[style*="--r"]::before{con
 .wrow .v{font-size:13px;color:var(--sec);white-space:nowrap}.wrow .chev{color:var(--sec);font-size:14px}
 .stat{display:flex;justify-content:space-between;padding:9px 12px;background:var(--row);border-radius:10px;font-size:14px}.stat span{color:var(--sec)}
 .win .actions{display:flex;gap:8px;flex-wrap:wrap}.win .actions .btn{flex:1;min-width:110px;font-size:15px;padding:11px 14px}
+/* Setup planner: top view of your city, defence list on the left */
+#planner{position:fixed;inset:0;z-index:30;display:grid;grid-template-columns:minmax(250px,36%) minmax(0,1fr);background:#1d2a1d}
+#planner[hidden]{display:none!important}
+.pl-side{overflow-y:auto;padding:10px;padding-left:calc(env(safe-area-inset-left,0px) + 10px);display:grid;align-content:start;gap:6px;background:rgba(28,28,30,.97)}
+.pl-side h2{margin:0;font-size:17px;color:#fff}.pl-side .small{color:var(--sec)}
+.pl-map{position:relative;min-width:0}.pl-map canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+.pl-top{position:absolute;top:calc(env(safe-area-inset-top,0px) + 8px);right:calc(env(safe-area-inset-right,0px) + 8px);left:8px;display:flex;gap:8px;justify-content:space-between;align-items:center;pointer-events:none}
+.pl-top > *{pointer-events:auto}.pl-top .pill{background:rgba(28,28,30,.9);color:#fff;border-radius:12px;padding:6px 10px;font-size:13px}
+.srow.sel{outline:2px solid var(--blue);background:rgba(10,132,255,.22)}.srow.off{opacity:.45}
 /* Attack shop rows */
 .srows{display:grid;gap:5px;max-height:min(52vh,300px);overflow-y:auto}
 .srow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:6px 10px;background:var(--row);border-radius:12px}
@@ -450,6 +459,10 @@ i[style*="--r"]{font-style:normal;white-space:nowrap}i[style*="--r"]::before{con
   </div>
 </div>
 
+<div id="planner" hidden>
+  <div class="pl-side" id="plSide"></div>
+  <div class="pl-map"><canvas id="plCanvas"></canvas><div class="pl-top" id="plTop"></div></div>
+</div>
 <script src="three.min.js"></script>
 <script src="GLTFLoader.js"></script>
 <script src="models.js"></script>

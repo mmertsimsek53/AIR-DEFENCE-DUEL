@@ -516,6 +516,72 @@ function cmd(c){const r=ADD.cmdRaw(c);view=ADD.viewRaw();if(!r.ok){msg(r.error,'
 const canShop=()=>view&&(view.phase==='setup'||(view.phase==='turn'&&view.myTurn));
 const myTurn=()=>view&&view.phase==='turn'&&view.myTurn;
 
+/* ======================= SETUP PLANNER =======================
+   Setup starts here: a flat top view of your own city with the defence list on the left. Tap a system, then an
+   empty spot; tap a placed system to remove it; tap a hideout to put your chief there. Done → 3D view, duel starts. */
+let plannerOpen=false,plSel=null,plTab=1;
+const plCv=$('plCanvas'),plX=plCv.getContext('2d');
+function openPlanner(){plannerOpen=true;plSel=null;plTab=1;$('planner').hidden=false;renderPlanner();}
+function closePlanner(){plannerOpen=false;$('planner').hidden=true;}
+function plPicked(t){return view.me.batteries.filter(b=>DEF[b.sys].tier===t).length;}
+function renderPlanner(){
+  if(!plannerOpen||!view)return;const m=view.me,P=CAT.rules.draftPicks,total=P[1]+P[2]+P[3]+P[4],n=m.batteries.length;
+  if(plTab<5&&plPicked(plTab)>=P[plTab]){const nx=[1,2,3,4].find(t=>plPicked(t)<P[t]);if(nx)plTab=nx;}
+  let h='<h2>Place your defence</h2><div class="small">'+n+' of '+total+' placed · tap a system, then an empty spot on the map. Tap a placed one to remove it. Tap a hideout to put your chief there.</div>';
+  h+='<div class="seg">'+[1,2,3,4].map(t=>'<button class="mini'+(t===plTab?' on':'')+'" data-pl="tab" data-k="'+t+'">'+CAT.tierNames[t]+' '+plPicked(t)+'/'+P[t]+(plPicked(t)>=P[t]?' ✓':'')+'</button>').join('')+
+    '<button class="mini'+(plTab===5?' on':'')+'" data-pl="tab" data-k="5">Air patrol '+(m.patrols||0)+'/'+CAT.rules.patrolMax+'</button></div>';
+  if(plTab===5){const PP=CAT.rules.patrolPrice;
+    h+='<div class="srow" style="--c:#c48bff"><div class="sname"><b>Akıncı air patrol</b><span>Circles over your city, shoots at enemy survey UAVs</span></div><div class="sbuy"><span>'+(m.patrols||0)+' / '+CAT.rules.patrolMax+' · '+fmt(m.budget)+' left</span>'+
+      ((m.patrols||0)<CAT.rules.patrolMax?'<button class="mini" data-pl="patrol"'+(m.budget<PP?' disabled':'')+'>Add · '+fmt(PP)+'</button>':'')+'</div></div>';}
+  else{const full=plPicked(plTab)>=P[plTab];
+    h+=CAT.defences.filter(d=>d.tier===plTab).sort((a,b)=>a.price-b.price).map(d=>'<div class="srow'+(plSel===d.id?' sel':'')+(full?' off':'')+'" data-pl="sys" data-k="'+d.id+'" style="--c:'+css(SYS_COL[d.id])+'"><div class="sname"><b>'+esc(d.name)+'</b><span>'+esc(PICK_WHY[d.id]||d.role)+'</span></div><div class="sbuy"><span>'+d.range+' km'+(d.load?' · '+d.load+' missiles':'')+'</span></div></div>').join('');}
+  $('plSide').innerHTML=h;
+  $('plTop').innerHTML='<span class="pill">Your chief: Hideout '+m.chiefNo+(plSel?' · placing <b>'+esc(DEF[plSel].name)+'</b>':'')+'</span><button class="btn primary" data-pl="done"'+(n<total?' disabled':'')+'>'+(n<total?'Place '+(total-n)+' more':'Done · start the duel')+'</button>';
+  drawPlanner();
+}
+function plGeom(){const w=plCv.clientWidth,h=plCv.clientHeight,d=devicePixelRatio||1;if(plCv.width!==Math.round(w*d)||plCv.height!==Math.round(h*d)){plCv.width=Math.round(w*d);plCv.height=Math.round(h*d);}
+  const R=view.radius||6,sc=Math.min(w,h)/2*0.9/(R+.4);return {w,h,d,cx:w/2,cy:h/2+8,sc};}
+function drawPlanner(){
+  const g=plGeom(),x=plX,m=view.me,R=view.radius||6,P=(kx,kz)=>[g.cx+kx*g.sc,g.cy+kz*g.sc];
+  x.setTransform(g.d,0,0,g.d,0,0);x.fillStyle='#24331f';x.fillRect(0,0,g.w,g.h);
+  x.fillStyle='#8f8b80';x.beginPath();x.arc(g.cx,g.cy,R*g.sc,0,TAU);x.fill();                                      // city
+  x.save();x.beginPath();x.arc(g.cx,g.cy,R*g.sc,0,TAU);x.clip();
+  x.strokeStyle='rgba(255,255,255,.18)';x.lineWidth=1;const st=11/U*g.sc;                                           // streets
+  for(let k=-12;k<=12;k++){const o=(k*11+5.5)/U*g.sc;x.beginPath();x.moveTo(g.cx+o,g.cy-R*g.sc);x.lineTo(g.cx+o,g.cy+R*g.sc);x.moveTo(g.cx-R*g.sc,g.cy+o);x.lineTo(g.cx+R*g.sc,g.cy+o);x.stroke();}void st;
+  const rx=GEO.river.x/U,rz=GEO.river.z/U,ra=GEO.river.angle;x.strokeStyle='#3f7fa6';x.lineWidth=16/U*g.sc;          // river
+  x.beginPath();const L=12;x.moveTo(...P(rx+Math.sin(ra)*L,rz+Math.cos(ra)*L));x.lineTo(...P(rx-Math.sin(ra)*L,rz-Math.cos(ra)*L));x.stroke();
+  x.restore();
+  const taken=new Set(m.batteries.map(b=>b.pad));
+  for(const b of m.batteries){const p=m.pads[b.pad],[px,py]=P(p.x,p.z),s=DEF[b.sys];                                  // ranges
+    x.strokeStyle=css(SYS_COL[b.sys]);x.globalAlpha=.55;x.lineWidth=1.5;x.beginPath();x.arc(px,py,Math.min(s.range,R*3)*g.sc,0,TAU);x.stroke();x.globalAlpha=1;}
+  for(const b of m.buildings){const [px,py]=P(b.x,b.z);                                                               // buildings
+    if(b.kind==='hideout'){const chief=b.uid===m.chief;x.fillStyle=chief?'#e8b830':'#5f8f45';x.beginPath();x.roundRect?x.roundRect(px-9,py-9,18,18,5):x.rect(px-9,py-9,18,18);x.fill();
+      x.fillStyle=chief?'#1a1a1a':'#fff';x.font='bold 11px -apple-system,system-ui,sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(chief?'★':String(b.no),px,py+.5);}
+    else{x.fillStyle=css(BLD_COL[b.kind]||0x999999);x.fillRect(px-6,py-6,12,12);x.fillStyle='rgba(255,255,255,.9)';x.font='10px -apple-system,system-ui,sans-serif';x.textAlign='center';x.textBaseline='top';x.fillText(b.name,px,py+8);}}
+  for(const p of m.pads){const [px,py]=P(p.x,p.z);                                                                     // spots
+    if(taken.has(p.id)){const b=m.batteries.find(q=>q.pad===p.id);x.fillStyle=css(SYS_COL[b.sys]);x.beginPath();x.arc(px,py,8,0,TAU);x.fill();
+      x.fillStyle='#fff';x.font='bold 10px -apple-system,system-ui,sans-serif';x.textAlign='center';x.textBaseline='bottom';x.fillText(DEF[b.sys].name,px,py-10);}
+    else{x.strokeStyle=plSel?'#4fd1ff':'rgba(255,255,255,.55)';x.setLineDash([3,3]);x.lineWidth=plSel?2:1.2;x.beginPath();x.arc(px,py,8,0,TAU);x.stroke();x.setLineDash([]);
+      if(plSel){x.fillStyle='#4fd1ff';x.font='bold 12px system-ui';x.textAlign='center';x.textBaseline='middle';x.fillText('+',px,py+.5);}}}
+}
+$('planner').addEventListener('click',e=>{const b=e.target.closest('[data-pl]');if(!b||b.disabled||!view)return;const a=b.dataset.pl,k=b.dataset.k;
+  if(a==='tab'){plTab=+k;plSel=null;}
+  else if(a==='sys'){if(!b.classList.contains('off'))plSel=plSel===k?null:k;}
+  else if(a==='patrol'){if(cmd({c:'buyPatrol'}))msg('Akıncı air patrol added','money');}
+  else if(a==='done'){if(cmd({c:'endSetup'})){closePlanner();msg('Defence ready · the duel starts','good');}}
+  renderPlanner();});
+plCv.addEventListener('pointerup',e=>{if(!plannerOpen||!view)return;const g=plGeom(),r=plCv.getBoundingClientRect(),kx=(e.clientX-r.left-g.cx)/g.sc,kz=(e.clientY-r.top-g.cy)/g.sc,m=view.me;
+  const near=(x,z)=>Math.hypot(x-kx,z-kz)*g.sc;
+  let pad=null,pd=22;for(const p of m.pads){const d=near(p.x,p.z);if(d<pd){pd=d;pad=p;}}
+  let hid=null,hd=16;for(const b of m.buildings)if(b.kind==='hideout'&&b.down<99){const d=near(b.x,b.z);if(d<hd){hd=d;hid=b;}}
+  if(hid&&(!pad||hd<pd)){if(hid.uid!==m.chief&&cmd({c:'placeChief',uid:hid.uid}))msg('Chief placed in '+hid.name,'money');renderPlanner();return;}
+  if(!pad)return;const bat=m.batteries.find(b=>b.pad===pad.id);
+  if(bat){if(cmd({c:'sellBattery',uid:bat.uid}))msg(DEF[bat.sys].name+' removed','money');}
+  else if(plSel){if(cmd({c:'buyBattery',sys:plSel,pad:pad.id})){msg(DEF[plSel].name+' placed','money');plSel=null;}}
+  else msg('Pick a system on the left first','');
+  renderPlanner();});
+addEventListener('resize',()=>{if(plannerOpen)drawPlanner();});
+
 function startGame(demo){
   initAudio();
   const name=($('nameIn').value||'').trim()||'You';
@@ -688,7 +754,7 @@ function showOver(){
 $('repBtn').onclick=()=>{if(raidMode){$('report').hidden=true;cmd({c:'continue'});const res=ADD.raidFinish();raidMode=false;running=false;view=null;clearBattle();refreshUI();BASE.raidEnd(res);return;}
   if(view&&view.phase==='over'){startGame(false);return;}$('report').hidden=true;cmd({c:'continue'});};
 $('repMenu').onclick=()=>{toMenu();};
-function toMenu(){running=false;ADD.quit();view=null;clearBattle();for(const S of SIDES)if(S.root){scene.remove(S.root);for(const el of S.labelEls)el.remove();S.root=null;}
+function toMenu(){closePlanner();running=false;ADD.quit();view=null;clearBattle();for(const S of SIDES)if(S.root){scene.remove(S.root);for(const el of S.labelEls)el.remove();S.root=null;}
   $('report').hidden=true;$('gameMenu').hidden=true;$('menu').hidden=false;tab=null;setPlacing(null);closeInfo();
   buildCity(SIDES[0],0);showSide(0);SIDES[0].root.visible=true;refreshUI();}
 
@@ -796,7 +862,8 @@ function sheetHTML(){
   const v=view,m=v.me,B=m.budget;
   if(tab==='build'){
     let h='';
-    if(v.phase==='setup')return draftHTML();
+    if(v.phase==='setup'){const P=CAT.rules.draftPicks,total=P[1]+P[2]+P[3]+P[4],n=m.batteries.length;
+      return '<div class="srow" style="--c:#4fd1ff"><div class="sname"><b>Your defence · '+n+' / '+total+' placed</b><span>2 short, 2 medium, 2 long range and 1 top-level system, free · place them on a top view of your city</span></div><div class="sbuy"><button class="btn primary" type="button" data-act="openplanner">'+(n?'Change your defence':'Place your defence')+'</button></div></div>';}
     if(m.batteries.length){
       h+='<h3>Your defences'+(v.maxBatteries?' · '+m.batteries.length+' / '+v.maxBatteries:'')+' <span class="small">· spare missiles are re-bought automatically at the start of each of your turns</span></h3><div class="items">'+m.batteries.map(b=>{const s=DEF[b.sys],spare=m.interceptors[b.sys]||0,rc=s.shot*s.load;
         const count=s.load?'<b class="big'+(b.ammo===0?' bad':'')+'">'+b.ammo+'</b><span> loaded</span> <b class="big">'+spare+'</b><span> spare</span>':'<b class="big">∞</b><span> '+(s.kind==='gun'?fmt(s.shot)+'/burst':'no ammo')+'</span>';
@@ -872,6 +939,7 @@ $('sheet').addEventListener('click',e=>{
     case 'launcher':if(cmd({c:'buyLauncher',weapon:k}))msg(ATK[k].name+' launcher bought','money');break;
     case 'units':cmd({c:'buyUnits',weapon:k,n:+b.dataset.n});break;
     case 'scout':if(cmd({c:'buyScout',scout:k}))msg(SCT[k].name+' ready','money');break;
+    case 'openplanner':openPlanner();return;
     case 'atab':atkTab=+k;break;
     case 'dtab':draftTab=+k;draftPage=0;break;
     case 'dpage':draftPage=Math.max(0,draftPage+ +k);break;
@@ -1027,7 +1095,7 @@ function hintHTML(){
   if(placing)return '<b>NEXT</b> Tap a glowing <b>+</b> in your city';
   if(drawMode)return '<b>NEXT</b> Draw with your finger on the enemy city';
   if(v.phase==='setup'){
-    if(m.batteries.length<7)return '<b>NEXT</b> Pick your defence in <b>Defence</b>: 2 short, 2 medium, 2 long range, 1 top level ('+m.batteries.length+'/7) · your chief hides in Hideout '+m.chiefNo;
+    if(m.batteries.length<7)return '<b>NEXT</b> Tap <b>Defence</b> → <b>Place your defence</b> ('+m.batteries.length+'/7 placed) · your chief hides in Hideout '+m.chiefNo;
     if(!Object.values(m.launchers).some(n=>n>0)&&!hasAtk)return '<b>NEXT</b> Tap <b>Attack</b> and buy a launcher, e.g. Shahed-136 drones';
     if(!(m.scouts.aksungur>0))return '<b>NEXT</b> Buy an <b>Aksungur</b> in Attack: their city is hidden until you photograph it';
     if(!(m.stock.recon>0))return '<b>NEXT</b> Buy <b>Mini recon drones</b> in Attack: they find the enemy chief';
