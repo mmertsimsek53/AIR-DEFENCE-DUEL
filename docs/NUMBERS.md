@@ -156,9 +156,10 @@ A hit of 20+ damage on a revealed building knocks it out until repaired. Every h
 | Item | Value |
 |---|---|
 | Hideouts per city | 8 (visible to both sides) |
-| Move the chief | $30M, own turn only |
-| Mini recon drone | $0.5M each, no launcher, 4 per turn, hovers 5 s, seen by radar only within 6 km, hit chance × 0.6 |
+| Move the chief | $50M, own turn only |
+| Mini recon drone | $0.5M each, no launcher, 4 per turn, hovers 5 s, seen by radar only within 4 km, hit chance × 0.5 |
 | Missile decoy (MALD) | $0.3M each, launcher $30M, 4 per turn, looks like a cruise missile |
-| Battery destroyed by | a hit of 20+ damage within 0.3 km |
+| Battery destroyed by | 20 damage in total from hits within 0.3 km |
+| TB2 survey | $15M, reusable; one lap photographs 6 of 12 sectors; each battery one automatic shot at 30% of its UAV hit chance |
 | Radar (fixed) | 150 km range, threat type at 60 km, decoys never marked |
 | Storage / reloads / repair | 10 protected slots · 2 reloads per strike · 3 turns |

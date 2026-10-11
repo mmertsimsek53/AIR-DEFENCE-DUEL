@@ -19,6 +19,7 @@ export interface Battery {
   dwellTarget?: number;   // lasers
   dwell: number;
   manual?: boolean;       // big systems only: fire only at contacts the player taps
+  damage?: number;        // duel: damage taken so far (destroyed at RULES.batteryKillDamage)
 }
 
 export interface Building extends Point {

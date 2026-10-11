@@ -27,6 +27,8 @@ function setup(m: Match, pi: PlayerIndex) {
   buy(m, pi, { c: 'buyUnits', weapon: 'gerbera', n: 10 });
   buy(m, pi, { c: 'buyUnits', weapon: 'recon', n: 4 });
   buy(m, pi, { c: 'buyScout', scout: 'tb2s' });
+  buy(m, pi, { c: 'buyLauncher', weapon: 'kargu' });
+  buy(m, pi, { c: 'buyUnits', weapon: 'kargu', n: 8 });
   buy(m, pi, { c: 'buyLauncher', weapon: 'som' });
   buy(m, pi, { c: 'buyUnits', weapon: 'som', n: 2 });
   buy(m, pi, { c: 'endSetup' });
@@ -82,8 +84,9 @@ function attackTurn(m: Match, pi: PlayerIndex) {
   // Too many known defences: spend this turn's precise weapons taking them down (recon drones would just be shot).
   const bats = foe.batteries.filter(b => b.revealed).map(b => foe.pads[b.pad]);
   if (bats.length > 2) {
+    // Precise weapons and drone swarms on the known batteries (damage adds up: about 3 Shaheds or 5 Kargus kill one).
     let k = 0;
-    for (const w of ATTACKS) if (w.precise && !w.recon && !w.reusable) for (let n = left(w.id); n > 0; n--) fire(w.id, bats[k++ % bats.length]);
+    for (const w of ATTACKS) if ((w.precise || w.id === 'shahed') && !w.recon && !w.reusable) for (let n = left(w.id); n > 0; n--) fire(w.id, bats[Math.floor(k++ / 3) % bats.length]);
   } else for (let i = 0; i < Math.min(left('recon'), toCheck.length); i++) fire('recon', toCheck[i]);
   // Cheap drones and decoys keep the defence busy (aimed into the city).
   // Cheap drones and decoys wait for a find; with no recon flying they go now to keep the defence busy.

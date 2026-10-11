@@ -579,7 +579,7 @@ function spawnStrike(m: Match, bt: Battle, att: PlayerState, def: PlayerState, w
   bt.threats.push(t);
 }
 
-const SURVEY_LAP = 24; // orbit points per lap
+const SURVEY_LAP = 24; // orbit points per lap (a multiple of RULES.surveyPerPass)
 
 function spawnScout(m: Match, bt: Battle, id: string, path: Point[]) {
   const s = scout(id);
@@ -785,7 +785,8 @@ function moveThreat(m: Match, bt: Battle, att: PlayerState, def: PlayerState, t:
       t.munitions--;
       const w = attack(t.weapon);
       const tb = t.targetBuilding != null ? def.buildings.find(x => x.uid === t.targetBuilding) : undefined;
-      const pt = tb && rnd(m) > 0.1 ? { x: tb.x, z: tb.z } : randomCityPoint(m, true);
+      const aimAt = t.path[t.dropLeg] ?? { x: 0, z: 0 }; // the point the UAV was sent to
+      const pt = tb && rnd(m) > 0.1 ? { x: tb.x, z: tb.z } : { x: round(aimAt.x + (rnd(m) - 0.5) * 0.2), z: round(aimAt.z + (rnd(m) - 0.5) * 0.2) };
       impact(m, bt, def, pt, w.damage, tb && pt.x === tb.x && pt.z === tb.z ? tb.uid : undefined);
       if (t.munitions === 0) { t.leg = t.dropLeg; t.traveled = 0; }
     }
@@ -795,7 +796,7 @@ function moveThreat(m: Match, bt: Battle, att: PlayerState, def: PlayerState, t:
 
 function arrive(m: Match, bt: Battle, att: PlayerState, def: PlayerState, t: Threat) {
   const last = t.leg >= t.path.length - 1;
-  // Survey photos: one on arriving over the city, then one every quarter lap after that (4 per lap).
+  // Survey photos: one on arriving over the city, then evenly round the lap (RULES.surveyPerPass per lap).
   if (t.isScout && !m.raid && t.leg >= 1 && (t.leg - 1) % (SURVEY_LAP / RULES.surveyPerPass) === 0 && t.leg - 1 < SURVEY_LAP) surveySector(m, bt, att, def);
   if (t.cls === 'uav' || t.isScout) {
     if (last) {
@@ -823,8 +824,9 @@ function arrive(m: Match, bt: Battle, att: PlayerState, def: PlayerState, t: Thr
 
 function impact(m: Match, bt: Battle, def: PlayerState, pt: Point, damage: number, buildingUid?: number) {
   if (m.raid) { raidImpact(m, bt, def, pt, damage, buildingUid); return; }
-  if (damage >= RULES.batteryKillDamage) {
-    for (const bb of def.batteries.filter(x => dist(def.pads[x.pad], pt) <= RULES.batteryHitRadius)) {
+  for (const bb of def.batteries.filter(x => dist(def.pads[x.pad], pt) <= RULES.batteryHitRadius)) {
+    bb.damage = (bb.damage ?? 0) + damage;
+    if (bb.damage >= RULES.batteryKillDamage) {
       def.batteries = def.batteries.filter(x => x !== bb);
       emit(bt, { t: 'msg', text: `${defence(bb.sys).name} destroyed.`, tone: 'bad' });
     }

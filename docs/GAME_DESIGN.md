@@ -122,3 +122,10 @@ Status: first outline from Mert, 9 Oct 2026. Everything below "Open questions" i
 - **TB2 survey** (the duel's only scout): flies one lap round the enemy city and photographs a sector on arrival and every quarter lap (4 of 12 sectors ≈ a third of the city). Everything standing in a photographed sector becomes known (hideouts, buildings, batteries). Defences fire at it, but on automatic fire each battery takes only one shot per flight, at 30% of its normal UAV hit chance, and only when nothing else is coming; a defender who taps the TB2 makes every battery keep firing. Reusable if it gets home.
 - **Fire control:** small systems (guns, MANPADS, lasers, EW, missiles under 40 km) always fire automatically. Big missile systems (40 km+) have an Auto / Manual switch; on Manual they fire only at contacts the defender taps.
 - **German systems removed** (Gepard, IRIS-T SLM). New Turkish / American / Russian systems will be added after Mert approves their numbers.
+
+## Shorter matches, a job for every weapon (11 Oct 2026, Mert: "150 rounds is too much")
+- Batteries take cumulative damage: 20 within 0.3 km destroys one (≈3 Shahed or 5 Kargu hits, one hit from any rocket/missile).
+- TB2 survey lap photographs half the city (6 of 12 sectors). Recon drones: seen within 4 km, hit chance × 0.5. Moving the chief: $50M.
+- Armed UAVs drop on the point they are sent to (not random), so they can hit batteries and hideouts.
+- Every weapon's job is written in its card in the Attack tab.
+- AI vs AI: median about 31 turns in total (≈15 each), 6–80 over 16 games (was up to 150+).

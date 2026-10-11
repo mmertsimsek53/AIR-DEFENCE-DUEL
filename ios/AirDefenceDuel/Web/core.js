@@ -21,24 +21,24 @@
   ];
   var a = (s) => s;
   var ATTACKS = [
-    a({ id: "gerbera", name: "Gerbera decoy", cls: "decoy", unit: 0.05, launcher: 10, perTurn: 10, flight: 70, damage: 0, precise: false, imitates: "drone", role: "Looks like a drone. Wastes enemy interceptors." }),
-    a({ id: "mald", name: "Missile decoy (MALD)", cls: "decoy", unit: 0.3, launcher: 30, perTurn: 4, flight: 35, damage: 0, precise: false, imitates: "cruise", role: "Flies like a cruise missile. The enemy cannot tell it from a real one." }),
-    a({ id: "recon", name: "Mini recon drone", cls: "drone", unit: 0.5, launcher: 0, perTurn: 4, flight: 40, damage: 0, precise: true, noLauncher: true, recon: true, role: "Flies to a hideout, hovers 5 s and tells you if the chief is inside. Defences shoot at it." }),
-    a({ id: "shahed", name: "Shahed-136", cls: "drone", unit: 0.1, launcher: 15, perTurn: 10, flight: 70, damage: 8, precise: false, scatter: 0.9, role: "Cheap swarm drone. Drains interceptors." }),
-    a({ id: "kargu", name: "Kargu-2", cls: "drone", unit: 0.08, launcher: 10, perTurn: 8, flight: 40, damage: 4, precise: true, role: "Small loitering drone. Hits a revealed building." }),
-    a({ id: "grad", name: "BM-21 Grad", cls: "rocket", unit: 1.5, launcher: 20, perTurn: 1, flight: 20, damage: 3, precise: false, salvo: 40, scatter: 0.5, role: "40-rocket salvo. Unguided; about half land in empty areas." }),
-    a({ id: "trg300", name: "TRG-300", cls: "rocket", unit: 0.6, launcher: 40, perTurn: 4, flight: 18, damage: 25, precise: true, role: "Guided 300 mm rocket." }),
-    a({ id: "himars", name: "HIMARS GMLRS", cls: "rocket", unit: 0.3, launcher: 60, perTurn: 6, flight: 18, damage: 20, precise: true, role: "GPS-guided rockets, six per pod." }),
-    a({ id: "tb2", name: "Bayraktar TB2", cls: "uav", unit: 15, launcher: 0, perTurn: 99, flight: 60, damage: 10, precise: true, reusable: true, munitions: 4, munitionCost: 0.1, role: "Armed UAV, 4 MAM-L. Comes back if it survives." }),
-    a({ id: "akinci", name: "Bayraktar Ak\u0131nc\u0131", cls: "uav", unit: 40, launcher: 0, perTurn: 99, flight: 45, damage: 45, precise: true, reusable: true, munitions: 2, munitionCost: 1, role: "Heavy UAV, 2 SOM-J. Comes back if it survives." }),
-    a({ id: "som", name: "SOM", cls: "cruise", unit: 1.2, launcher: 50, perTurn: 2, flight: 35, damage: 50, precise: true, low: true, role: "Low-flying Turkish cruise missile." }),
-    a({ id: "tomahawk", name: "Tomahawk", cls: "cruise", unit: 2, launcher: 60, perTurn: 2, flight: 35, damage: 60, precise: true, low: true, role: "Low-flying cruise missile." }),
-    a({ id: "tayfun", name: "Tayfun", cls: "ballistic", unit: 3.5, launcher: 90, perTurn: 2, flight: 12, damage: 80, precise: true, role: "Turkish ballistic missile." }),
-    a({ id: "iskander", name: "Iskander-M", cls: "ballistic", unit: 3, launcher: 90, perTurn: 2, flight: 12, damage: 80, precise: true, decoysAtEnd: 2, role: "Ballistic; releases two decoys near the end." }),
-    a({ id: "kinzhal", name: "Kinzhal", cls: "hypersonic", unit: 8, launcher: 150, perTurn: 1, flight: 6, damage: 100, precise: true, role: "Hypersonic. Only Patriot has a real chance." })
+    a({ id: "gerbera", name: "Gerbera decoy", cls: "decoy", unit: 0.05, launcher: 10, perTurn: 10, flight: 70, damage: 0, precise: false, imitates: "drone", role: "Drone decoy. Draws gun and short-range fire away from your recon drones and real drones." }),
+    a({ id: "mald", name: "Missile decoy (MALD)", cls: "decoy", unit: 0.3, launcher: 30, perTurn: 4, flight: 35, damage: 0, precise: false, imitates: "cruise", role: "Missile decoy. Looks like a cruise missile, so the enemy spends expensive interceptors on it." }),
+    a({ id: "recon", name: "Mini recon drone", cls: "drone", unit: 0.5, launcher: 0, perTurn: 4, flight: 40, damage: 0, precise: true, noLauncher: true, recon: true, role: "Finds the chief: flies to a hideout, hovers 5 s and tells you if the chief is inside. Defences shoot at it." }),
+    a({ id: "shahed", name: "Shahed-136", cls: "drone", unit: 0.1, launcher: 15, perTurn: 10, flight: 70, damage: 8, precise: false, scatter: 0.9, role: "Cheap swarm drone. Damage adds up: about 3 hits destroy a battery. Any hit on the chief's hideout wins." }),
+    a({ id: "kargu", name: "Kargu-2", cls: "drone", unit: 0.08, launcher: 10, perTurn: 8, flight: 40, damage: 4, precise: true, role: "Small precise drone. 5 hits destroy a battery; cheap way to pick off guns and short-range defences." }),
+    a({ id: "grad", name: "BM-21 Grad", cls: "rocket", unit: 1.5, launcher: 20, perTurn: 1, flight: 20, damage: 3, precise: false, salvo: 40, scatter: 0.5, role: "40-rocket barrage over a 1.5 km area. Saturates the defence; can catch batteries or a hideout in the area." }),
+    a({ id: "trg300", name: "TRG-300", cls: "rocket", unit: 0.6, launcher: 40, perTurn: 4, flight: 18, damage: 25, precise: true, role: "Fast guided rocket. One hit destroys a battery or a hideout; hard for guns and lasers to stop." }),
+    a({ id: "himars", name: "HIMARS GMLRS", cls: "rocket", unit: 0.3, launcher: 60, perTurn: 6, flight: 18, damage: 20, precise: true, role: "Fast GPS-guided rockets, six per pod. Kills batteries one per hit." }),
+    a({ id: "tb2", name: "Bayraktar TB2", cls: "uav", unit: 15, launcher: 0, perTurn: 99, flight: 60, damage: 10, precise: true, reusable: true, munitions: 4, munitionCost: 0.1, role: "Armed UAV with 4 bombs: loiters over the point you choose and drops them one by one. Comes back if it survives." }),
+    a({ id: "akinci", name: "Bayraktar Ak\u0131nc\u0131", cls: "uav", unit: 40, launcher: 0, perTurn: 99, flight: 45, damage: 45, precise: true, reusable: true, munitions: 2, munitionCost: 1, role: "Heavy armed UAV with 2 big bombs. Comes back if it survives." }),
+    a({ id: "som", name: "SOM", cls: "cruise", unit: 1.2, launcher: 50, perTurn: 2, flight: 35, damage: 50, precise: true, low: true, role: "Low-flying cruise missile. Long-range SAMs struggle against it; one hit destroys a battery or a hideout." }),
+    a({ id: "tomahawk", name: "Tomahawk", cls: "cruise", unit: 2, launcher: 60, perTurn: 2, flight: 35, damage: 60, precise: true, low: true, role: "Low-flying cruise missile with a bigger warhead. One hit destroys a battery or a hideout." }),
+    a({ id: "tayfun", name: "Tayfun", cls: "ballistic", unit: 3.5, launcher: 90, perTurn: 2, flight: 12, damage: 80, precise: true, role: "Ballistic missile: very fast, only Patriot and the long-range SAMs can stop it. The sure blow on a found chief." }),
+    a({ id: "iskander", name: "Iskander-M", cls: "ballistic", unit: 3, launcher: 90, perTurn: 2, flight: 12, damage: 80, precise: true, decoysAtEnd: 2, role: "Ballistic missile that releases 2 decoys near the end to confuse the defence." }),
+    a({ id: "kinzhal", name: "Kinzhal", cls: "hypersonic", unit: 8, launcher: 150, perTurn: 1, flight: 6, damage: 100, precise: true, role: "Hypersonic. Almost nothing stops it. The most expensive sure kill." })
   ];
   var SCOUTS = [
-    { id: "tb2s", name: "Bayraktar TB2 (scout)", price: 15, altitude: "medium", reveal: 1.5, flight: 60, role: "Reveals buildings close to its path. Easy to shoot down." },
+    { id: "tb2s", name: "Bayraktar TB2 (survey)", price: 15, altitude: "medium", reveal: 1.5, flight: 60, role: "Maps their city: one lap photographs half of it (hideouts, buildings, defences). Reusable if it gets home." },
     { id: "anka", name: "TAI Anka", price: 30, altitude: "high", reveal: 3, flight: 50, role: "Wider view, harder to hit." },
     { id: "globalhawk", name: "RQ-4 Global Hawk", price: 90, altitude: "very high", reveal: 8, flight: 45, onlyLongRange: true, role: "Sees almost everything. Only long-range SAMs reach it." }
   ];
@@ -54,7 +54,7 @@
     // base raids only; the duel is won by killing the chief
     hideouts: 8,
     // identical hideouts per city; the chief is in one
-    chiefMove: 30,
+    chiefMove: 50,
     // $M to move the chief to another hideout (own turn)
     reconHover: 5,
     // s a recon drone must hover over a hideout to check it
@@ -68,16 +68,16 @@
     // battery reloads from the depot per strike
     repairTurns: 3,
     // turns a knocked-out building stays down
-    reconDetect: 6,
+    reconDetect: 4,
     // km: mini recon drones are only seen this close (small, low)
-    reconHitFactor: 0.6,
+    reconHitFactor: 0.5,
     // defences' hit chance against a mini recon drone, relative to a drone
     batteryKillDamage: 20,
-    // a hit this strong within batteryHitRadius destroys an air-defence battery
+    // damage (added up over hits within batteryHitRadius) that destroys an air-defence battery
     batteryHitRadius: 0.3,
     // km
-    surveyPerPass: 4,
-    // survey sectors (of 12) a TB2 photographs per pass that gets round the city
+    surveyPerPass: 6,
+    // survey sectors (of 12) a TB2 photographs per lap: half the city
     surveyHitFactor: 0.3,
     // defences' hit chance against a survey TB2, relative to a UAV (≈3–4 shots to bring it down)
     bigSamRange: 40,
@@ -1183,7 +1183,8 @@
         t.munitions--;
         const w = attack(t.weapon);
         const tb = t.targetBuilding != null ? def.buildings.find((x) => x.uid === t.targetBuilding) : void 0;
-        const pt2 = tb && rnd(m) > 0.1 ? { x: tb.x, z: tb.z } : randomCityPoint(m, true);
+        const aimAt = t.path[t.dropLeg] ?? { x: 0, z: 0 };
+        const pt2 = tb && rnd(m) > 0.1 ? { x: tb.x, z: tb.z } : { x: round(aimAt.x + (rnd(m) - 0.5) * 0.2), z: round(aimAt.z + (rnd(m) - 0.5) * 0.2) };
         impact(m, bt, def, pt2, w.damage, tb && pt2.x === tb.x && pt2.z === tb.z ? tb.uid : void 0);
         if (t.munitions === 0) {
           t.leg = t.dropLeg;
@@ -1239,8 +1240,9 @@
       raidImpact(m, bt, def, pt2, damage, buildingUid);
       return;
     }
-    if (damage >= RULES.batteryKillDamage) {
-      for (const bb of def.batteries.filter((x) => dist(def.pads[x.pad], pt2) <= RULES.batteryHitRadius)) {
+    for (const bb of def.batteries.filter((x) => dist(def.pads[x.pad], pt2) <= RULES.batteryHitRadius)) {
+      bb.damage = (bb.damage ?? 0) + damage;
+      if (bb.damage >= RULES.batteryKillDamage) {
         def.batteries = def.batteries.filter((x) => x !== bb);
         emit(bt, { t: "msg", text: `${defence(bb.sys).name} destroyed.`, tone: "bad" });
       }
@@ -1481,6 +1483,8 @@
     buy(m, pi, { c: "buyUnits", weapon: "gerbera", n: 10 });
     buy(m, pi, { c: "buyUnits", weapon: "recon", n: 4 });
     buy(m, pi, { c: "buyScout", scout: "tb2s" });
+    buy(m, pi, { c: "buyLauncher", weapon: "kargu" });
+    buy(m, pi, { c: "buyUnits", weapon: "kargu", n: 8 });
     buy(m, pi, { c: "buyLauncher", weapon: "som" });
     buy(m, pi, { c: "buyUnits", weapon: "som", n: 2 });
     buy(m, pi, { c: "endSetup" });
@@ -1533,7 +1537,7 @@
     const bats = foe.batteries.filter((b) => b.revealed).map((b) => foe.pads[b.pad]);
     if (bats.length > 2) {
       let k = 0;
-      for (const w of ATTACKS) if (w.precise && !w.recon && !w.reusable) for (let n = left(w.id); n > 0; n--) fire2(w.id, bats[k++ % bats.length]);
+      for (const w of ATTACKS) if ((w.precise || w.id === "shahed") && !w.recon && !w.reusable) for (let n = left(w.id); n > 0; n--) fire2(w.id, bats[Math.floor(k++ / 3) % bats.length]);
     } else for (let i = 0; i < Math.min(left("recon"), toCheck.length); i++) fire2("recon", toCheck[i]);
     if (!(p.stock.recon > 0) || !standing.length) for (const id of ["shahed", "gerbera", "mald"]) for (let n = left(id); n > 0; n--) fire2(id, standing[n % Math.max(1, standing.length)] ?? pt(0, 0));
     if (p.surveyed.length < 12 && (p.scouts.tb2s ?? 0) > 0) command(m, pi, { c: "fire", scout: "tb2s", from: outside(m), to: pt(0, 0) });

@@ -733,7 +733,7 @@ function sheetHTML(){
     if(owned.length||ownedS.length){
       h+='<h3>Your weapons'+(mine?' <span class="small">· tap START ATTACK, then send them one by one on the map</span>':'')+'</h3><div class="items">';
       for(const w of owned){const st=m.stock[w.id]||0,cap=w.reusable?st:w.noLauncher?w.perTurn:(m.caps[w.id]||0),fire=Math.min(st,cap),buyN=w.reusable?1:Math.max(1,cap-st),q=Math.min(plan.counts[w.id]||0,fire);plan.counts[w.id]=q;
-        h+='<div class="item" style="--c:'+CLS_CSS[w.cls]+'"><div class="nm"><b>'+esc(w.name)+'</b><span>'+(w.reusable?'reusable UAV':w.recon?'finds the chief · up to '+cap+'/turn':w.noLauncher?'up to '+cap+'/turn':(m.launchers[w.id]||0)+' launcher · fires '+cap+'/turn')+(w.recon?'':' · '+(w.cls==='decoy'?'decoy':w.precise?'precise':'unguided'))+'</span></div>'+
+        h+='<div class="item" style="--c:'+CLS_CSS[w.cls]+'"><div class="nm"><b>'+esc(w.name)+'</b><span>'+(w.reusable?'reusable UAV':w.recon?'finds the chief · up to '+cap+'/turn':w.noLauncher?'up to '+cap+'/turn':(m.launchers[w.id]||0)+' launcher · fires '+cap+'/turn')+(w.recon?'':' · '+(w.cls==='decoy'?'decoy':w.precise?'precise':'unguided'))+'<br>'+esc(w.role)+'</span></div>'+
           '<div class="cnt"><b class="big'+(st===0?' bad':'')+'">'+st+'</b><span> in stock</span></div><div class="acts">'+
           '<button class="mini" data-act="units" data-k="'+w.id+'" data-n="'+buyN+'"'+(B<w.unit*buyN?' disabled':'')+'>Buy '+buyN+' · '+fmt(w.unit*buyN)+'</button>'+
           '</div></div>';}
@@ -743,7 +743,7 @@ function sheetHTML(){
       h+='</div>';
     }else h+='<div class="note">You have no weapons yet. Pick some below.</div>';
     const rest=CAT.attacks.filter(w=>!owned.includes(w)&&(showAllAtk||REC_ATK.includes(w.id))),restS=DUEL_SCOUTS.filter(s=>!ownedS.includes(s));
-    const wt=(id,name,col,meta,act,price,n)=>'<button class="tile" type="button" data-act="'+act+'" data-k="'+id+'"'+(n?' data-n="'+n+'"':'')+' style="--c:'+col+'"'+(B<price?' disabled':'')+'><b class="tn">'+esc(name)+'</b><span class="meta">'+meta+'</span><span class="meta"><b>'+fmt(price)+'</b></span></button>';
+    const wt=(id,name,col,meta,act,price,n)=>{const role=(ATK[id]||SCT[id]||{}).role;return '<button class="tile" type="button" data-act="'+act+'" data-k="'+id+'"'+(n?' data-n="'+n+'"':'')+' style="--c:'+col+'"'+(B<price?' disabled':'')+'><b class="tn">'+esc(name)+'</b><span class="meta">'+meta+'</span><span class="meta"><b>'+fmt(price)+'</b></span>'+(role?'<span class="meta" style="white-space:normal;opacity:.8">'+esc(role)+'</span>':'')+'</button>';};
     h+='<h3>Add a weapon <span class="small">· tap to buy its launcher (or the UAV)</span></h3><div class="tiles">'+
       rest.map(w=>w.reusable?wt(w.id,w.name,CLS_CSS[w.cls],'armed UAV · reusable','units',w.unit,1):w.noLauncher?wt(w.id,w.name,CLS_CSS[w.cls],(w.recon?'finds the chief · ':'')+'no launcher · '+fmt(w.unit)+' each','units',w.unit*w.perTurn,w.perTurn):wt(w.id,w.name,CLS_CSS[w.cls],threatLabel(w.cls)+' · '+fmt(w.unit)+' each · '+w.perTurn+'/turn','launcher',w.launcher)).join('')+
       restS.map(sc=>wt(sc.id,sc.name,CLS_CSS.uav,'survey UAV · photographs their city · reusable','scout',sc.price)).join('')+'</div>';
