@@ -19,13 +19,14 @@ function freePad(p: PlayerState, inner: boolean): number | undefined {
 function setup(m: Match, pi: PlayerIndex) {
   const p = m.players[pi];
   const r = nextRandom(m);
-  const layers = r < 0.5 ? ['korkut', 'pantsir', 'irondome', 'hisara'] : ['gepard', 'sungur', 'hisaro', 'irondome'];
+  const layers = r < 0.5 ? ['korkut', 'pantsir', 'irondome', 'hisara'] : ['zu23', 'sungur', 'hisaro', 'irondome'];
   for (const sys of layers) { const pad = freePad(p, defence(sys).range < 10); if (pad != null) buy(m, pi, { c: 'buyBattery', sys, pad }); }
   buy(m, pi, { c: 'buyLauncher', weapon: 'shahed' });
   buy(m, pi, { c: 'buyUnits', weapon: 'shahed', n: 10 });
   buy(m, pi, { c: 'buyLauncher', weapon: 'gerbera' });
   buy(m, pi, { c: 'buyUnits', weapon: 'gerbera', n: 10 });
   buy(m, pi, { c: 'buyUnits', weapon: 'recon', n: 4 });
+  buy(m, pi, { c: 'buyScout', scout: 'tb2s' });
   buy(m, pi, { c: 'buyLauncher', weapon: 'som' });
   buy(m, pi, { c: 'buyUnits', weapon: 'som', n: 2 });
   buy(m, pi, { c: 'endSetup' });
@@ -46,10 +47,15 @@ function shop(m: Match, pi: PlayerIndex) {
   }
   // Grow the defence once rich.
   if (p.budget > 450 && p.batteries.length < 8) {
-    const choice = ['irist', 'hisaro', 'davidsling', 'siper'][Math.floor(nextRandom(m) * 4)];
+    const choice = ['hisaro', 'hisaro', 'davidsling', 'siper'][Math.floor(nextRandom(m) * 4)];
     const pad = freePad(p, false); if (pad != null) buy(m, pi, { c: 'buyBattery', sys: choice, pad });
   }
+  if (!(p.scouts.tb2s > 0) && p.surveyed.length < 12 && p.budget > 80) buy(m, pi, { c: 'buyScout', scout: 'tb2s' });
   if (p.budget > 300 && !(p.launchers.tayfun > 0)) buy(m, pi, { c: 'buyLauncher', weapon: 'tayfun' });
+  // Spend savings on more strike capacity, so a found chief can be hit hard.
+  if (p.budget > 400 && (p.launchers.som ?? 0) < 3) buy(m, pi, { c: 'buyLauncher', weapon: 'som' });
+  if (p.budget > 500 && (p.launchers.tayfun ?? 0) < 2) buy(m, pi, { c: 'buyLauncher', weapon: 'tayfun' });
+  if (p.budget > 450 && (p.launchers.mald ?? 0) < 1) buy(m, pi, { c: 'buyLauncher', weapon: 'mald' });
   // Restock attack weapons (recon drones need no launcher).
   for (const w of ATTACKS) {
     if (w.reusable || !(w.noLauncher || p.launchers[w.id] > 0)) continue;
@@ -58,28 +64,50 @@ function shop(m: Match, pi: PlayerIndex) {
   }
 }
 
+const pt = (x: number, z: number) => ({ x, z });
+/** A launch point out to one side, beyond the city. */
+const outside = (m: Match) => { const a = nextRandom(m) * Math.PI * 2; return pt(Math.cos(a) * 30, Math.sin(a) * 30); };
+
+/** Live attack, like a player: recon drones first; if one finds the chief, the precise weapons follow in the same attack. */
 function attackTurn(m: Match, pi: PlayerIndex) {
   const p = m.players[pi], foe = m.players[pi === 0 ? 1 : 0];
-  const standing = foe.buildings.filter(b => b.kind === 'hideout' && b.down < 99);
+  const standing = foe.buildings.filter(b => b.kind === 'hideout' && b.revealed && b.down < 99);
   const known = (uid: number) => p.intel.find(x => x.uid === uid);
-  const found = standing.find(h => known(h.uid)?.found);
   // Unchecked first, then the ones checked longest ago (the chief may have moved).
-  const toCheck = standing.filter(h => !known(h.uid)?.found)
-    .sort((a, b) => (known(a.uid)?.turn ?? -1) - (known(b.uid)?.turn ?? -1));
-  const strikes: { weapon: string; n: number; target?: number }[] = [];
-  const left = (id: string) => Math.min(p.stock[id] ?? 0, launchCap(p, id));
+  const toCheck = standing.slice().sort((a, b) => (known(a.uid)?.turn ?? -1) - (known(b.uid)?.turn ?? -1));
+  const left = (id: string) => Math.min(p.stock[id] ?? 0, launchCap(p, id) - (p.launched[id] ?? 0));
+  const anything = ATTACKS.some(w => left(w.id) > 0) || (p.scouts.tb2s ?? 0) > 0;
+  if (!anything || !command(m, pi, { c: 'go', strikes: [], scouts: [], live: true }).ok) { command(m, pi, { c: 'wait' }); return; }
+  const fire = (weapon: string, to: { x: number; z: number }) => command(m, pi, { c: 'fire', weapon, from: outside(m), to }).ok;
+  // Too many known defences: spend this turn's precise weapons taking them down (recon drones would just be shot).
+  const bats = foe.batteries.filter(b => b.revealed).map(b => foe.pads[b.pad]);
+  if (bats.length > 2) {
+    let k = 0;
+    for (const w of ATTACKS) if (w.precise && !w.recon && !w.reusable) for (let n = left(w.id); n > 0; n--) fire(w.id, bats[k++ % bats.length]);
+  } else for (let i = 0; i < Math.min(left('recon'), toCheck.length); i++) fire('recon', toCheck[i]);
+  // Cheap drones and decoys keep the defence busy (aimed into the city).
+  // Cheap drones and decoys wait for a find; with no recon flying they go now to keep the defence busy.
+  if (!(p.stock.recon > 0) || !standing.length) for (const id of ['shahed', 'gerbera', 'mald']) for (let n = left(id); n > 0; n--) fire(id, standing[n % Math.max(1, standing.length)] ?? pt(0, 0));
+  if (p.surveyed.length < 12 && (p.scouts.tb2s ?? 0) > 0) command(m, pi, { c: 'fire', scout: 'tb2s', from: outside(m), to: pt(0, 0) });
+  liveTurn = m.turnNo;
+}
+
+let liveTurn = -1;
+/** While its own live attack is open: strike a hideout the moment a recon drone finds the chief; end when recon is done. */
+function liveStep(m: Match, pi: PlayerIndex) {
+  const bt = m.battle!, p = m.players[pi], foe = m.players[pi === 0 ? 1 : 0];
+  const found = foe.buildings.find(b => b.kind === 'hideout' && b.down < 99 && p.intel.some(x => x.uid === b.uid && x.found && x.turn === m.turnNo));
   if (found) {
-    // Everything precise goes at the chief's hideout; cheap drones and decoys soak up the defence.
-    for (const w of ATTACKS) { const n = left(w.id); if (n > 0 && !w.reusable && w.precise && !w.recon) strikes.push({ weapon: w.id, n, target: found.uid }); }
-  } else {
-    const n = Math.min(left('recon'), toCheck.length);
-    for (let i = 0; i < n; i++) strikes.push({ weapon: 'recon', n: 1, target: toCheck[i].uid });
-    // A ballistic gamble on an unchecked hideout now and then.
-    if (toCheck.length && left('tayfun') > 0 && nextRandom(m) < 0.3) strikes.push({ weapon: 'tayfun', n: 1, target: toCheck[toCheck.length - 1].uid });
+    for (const w of ATTACKS) {
+      if (w.recon || w.reusable) continue; // everything left goes at the chief: precise weapons, plus drones and decoys to soak up the defence
+      for (let n = Math.min(p.stock[w.id] ?? 0, launchCap(p, w.id) - (p.launched[w.id] ?? 0)); n > 0; n--) {
+        const a = nextRandom(m) * Math.PI * 2;
+        command(m, pi, { c: 'fire', weapon: w.id, from: pt(Math.cos(a) * 30, Math.sin(a) * 30), to: pt(found.x, found.z) });
+      }
+    }
   }
-  for (const id of ['shahed', 'gerbera', 'mald']) { const n = left(id); if (n > 0) strikes.push({ weapon: id, n }); }
-  if (strikes.length && command(m, pi, { c: 'go', strikes, scouts: [] }).ok) return;
-  command(m, pi, { c: 'wait' });
+  const reconFlying = bt.threats.some(t => t.alive && t.weapon === 'recon');
+  if ((!reconFlying && bt.time > 3) || bt.time > 90 || liveTurn !== m.turnNo) command(m, pi, { c: 'endAttack' });
 }
 
 /** Call every frame from the host. Acts for every AI player when it is its move. */
@@ -89,6 +117,7 @@ export function aiStep(m: Match) {
     if (!p.isAI) return;
     if (m.phase === 'setup' && !p.ready) setup(m, pi);
     if (m.phase === 'battle' && m.battle?.defender === pi) p.autoFire = true;
+    if (m.phase === 'battle' && m.battle?.attacker === pi && m.battle.open) liveStep(m, pi);
     if (m.phase === 'turn' && m.active === pi) {
       if (turnSeen !== m.turnNo) { turnSeen = m.turnNo; turnSeenAt = m.time; }
       if (m.time - turnSeenAt >= THINK_SECONDS) { shop(m, pi); attackTurn(m, pi); }

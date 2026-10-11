@@ -18,6 +18,7 @@ export interface Battery {
   kills: number;
   dwellTarget?: number;   // lasers
   dwell: number;
+  manual?: boolean;       // big systems only: fire only at contacts the player taps
 }
 
 export interface Building extends Point {
@@ -58,6 +59,8 @@ export interface PlayerState {
   chief: number;                         // uid of the hideout the chief is in (secret)
   intel: { uid: number; found: boolean; turn: number }[]; // what your recon drones / strikes learned about the enemy hideouts
   inspected: number[];                   // your hideouts an enemy recon drone checked in the last strike (you saw it hover)
+  layout: number;                        // which of the city layouts this player's city uses
+  surveyed: number[];                    // enemy city sectors your TB2s have photographed
 }
 
 export interface Threat {
@@ -96,6 +99,7 @@ export interface Threat {
   spawnedDecoys: boolean;
   stealth: number;
   hover?: number;          // recon drone: seconds left hovering over its hideout
+  firedBy?: number[];      // survey TB2: batteries that already took their one automatic shot at it
 }
 
 export interface Interceptor {
@@ -117,6 +121,7 @@ export type BattleEvent =
   | { t: 'knockout'; building: number; kind: string }
   | { t: 'reveal'; building: number }
   | { t: 'msg'; text: string; tone: 'good' | 'bad' | 'info' }
+  | { t: 'survey'; sector: number }                    // a TB2 photographed a sector of the enemy city
   | { t: 'intel'; building: number; found: boolean } // a recon drone finished checking a hideout
   | { t: 'hideout'; building: number; chief: boolean }; // a hideout was hit
 
@@ -191,6 +196,7 @@ export type Command =
   | { c: 'priority'; uid: number }
   | { c: 'holdThreat'; uid: number }
   | { c: 'holdBattery'; uid: number }
+  | { c: 'setManual'; uid: number; on: boolean } // big systems: manual (only tapped contacts) or automatic fire
   | { c: 'endSetup' }
   | { c: 'continue' };
 

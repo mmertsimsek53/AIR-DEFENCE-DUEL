@@ -4,7 +4,7 @@ import {
   attack, defence, scout, type BuildingKind, type ThreatClass,
 } from './data';
 import { nextRandom } from './rng';
-import { buildingSlots, padLayout } from './geometry';
+import { LAYOUT_COUNT, SURVEY_SECTORS, cityLayouts, padLayout, sectorOf } from './geometry';
 import type {
   Battery, Battle, BattleEvent, Building, Command, CommandResult, Interceptor, Match, Pad, PlayerIndex,
   PlayerState, Point, Threat,
@@ -27,16 +27,16 @@ const other = (p: PlayerIndex): PlayerIndex => (p === 0 ? 1 : 0);
 
 // ---------- creation ----------
 
-const SLOTS = buildingSlots();
+const SPOTS = cityLayouts().flat(); // every spot of every layout: room for extra buildings (radar sites)
 
 function freeSpot(m: Match, p: PlayerState): Point | undefined {
-  const free = SLOTS.filter(s => !p.buildings.some(b => dist(b, s) < 0.05));
+  const free = SPOTS.filter(s => !p.buildings.some(b => dist(b, s) < 1));
   if (!free.length) return undefined;
   return free[Math.floor(rnd(m) * free.length) % free.length];
 }
 
-function addBuilding(m: Match, p: PlayerState, kind: BuildingKind): Building | undefined {
-  const spot = freeSpot(m, p);
+function addBuilding(m: Match, p: PlayerState, kind: BuildingKind, at?: Point): Building | undefined {
+  const spot = at ?? freeSpot(m, p);
   if (!spot) return undefined;
   const b: Building = { uid: uid(m), kind, x: spot.x, z: spot.z, down: 0, revealed: false, battleDamage: 0 };
   p.buildings.push(b);
@@ -49,7 +49,7 @@ function newPlayer(index: PlayerIndex, name: string, isAI: boolean): PlayerState
     pads: padLayout(), scars: [], batteries: [], buildings: [], interceptors: {}, launchers: {}, stock: {}, scouts: {},
     launched: {}, offUp: {}, econ: { income: 0, storage: 0, logistics: 0, repair: 0 },
     radar: { range: 0, identify: 0, decoy: 0 }, autoFire: true, reloadsLeft: 0, spent: 0, conceded: false, ready: false, restock: {},
-    chief: -1, intel: [], inspected: [],
+    chief: -1, intel: [], inspected: [], layout: 0, surveyed: [],
   };
 }
 
@@ -59,9 +59,13 @@ export function createMatch(seed: number, names: [string, string], ai: [boolean,
     weatherBad: false, players: [newPlayer(0, names[0], ai[0]), newPlayer(1, names[1], ai[1])], nextUid: 1, log: [], timed: opts.timed !== false,
   };
   for (const p of m.players) {
-    for (const b of BUILDINGS) if (b.kind !== 'structure' && b.kind !== 'hideout') addBuilding(m, p, b.kind);
-    // Hideouts: identical, visible to the enemy from the start; the chief starts in a random one.
-    for (let i = 0; i < RULES.hideouts; i++) { const h = addBuilding(m, p, 'hideout'); if (h) h.revealed = true; }
+    // One of the 20 layouts, its spots shuffled: 7 critical buildings, then 8 identical hideouts. All hidden until surveyed.
+    p.layout = Math.floor(rnd(m) * LAYOUT_COUNT) % LAYOUT_COUNT;
+    const spots = cityLayouts()[p.layout].slice();
+    for (let i = spots.length - 1; i > 0; i--) { const j = Math.floor(rnd(m) * (i + 1)) % (i + 1); [spots[i], spots[j]] = [spots[j], spots[i]]; }
+    let k = 0;
+    for (const b of BUILDINGS) if (b.kind !== 'structure' && b.kind !== 'hideout') addBuilding(m, p, b.kind, spots[k++]);
+    for (let i = 0; i < RULES.hideouts; i++) addBuilding(m, p, 'hideout', spots[k++]);
     const hs = p.buildings.filter(b => b.kind === 'hideout');
     p.chief = hs[Math.floor(rnd(m) * hs.length) % hs.length].uid;
   }
@@ -120,6 +124,9 @@ function log(m: Match, text: string) {
   if (m.log.length > 60) m.log.shift();
 }
 
+/** Big missile systems may be switched to manual fire; small ones always fire automatically. */
+export const canBeManual = (sys: string) => { const s = defence(sys); return !!s && s.kind === 'sam' && s.range >= RULES.bigSamRange; };
+
 const hideouts = (p: PlayerState) => p.buildings.filter(b => b.kind === 'hideout');
 const intact = (b: Building) => b.down < 99;
 
@@ -138,6 +145,11 @@ export function command(m: Match, pi: PlayerIndex, cmd: Command): CommandResult 
   if (cmd.c === 'concede') { p.conceded = true; finish(m, other(pi), 'conceded'); return ok; }
 
   // Battle-time controls (defender only).
+  if (cmd.c === 'setManual') {
+    const b = p.batteries.find(x => x.uid === cmd.uid); if (!b) return fail('No such battery.');
+    if (!canBeManual(b.sys)) return fail('Small systems always fire automatically.');
+    b.manual = !!cmd.on; return ok;
+  }
   if (cmd.c === 'setAutoFire' || cmd.c === 'priority' || cmd.c === 'holdThreat' || cmd.c === 'holdBattery') {
     if (cmd.c === 'setAutoFire') { p.autoFire = cmd.on; return ok; }
     if (cmd.c === 'holdBattery') {
@@ -419,7 +431,7 @@ function fireOne(m: Match, bt: Battle, cmd: { weapon?: string; scout?: string; f
   }
   const w = ATTACKS.find(x => x.id === cmd.weapon); if (!w) return fail('Unknown weapon.');
   if ((att.stock[w.id] ?? 0) <= 0) return fail(`No ${w.name} in stock.`);
-  if (w.recon && !def.buildings.some(b => b.kind === 'hideout' && intact(b) && dist(b, cmd.to) <= 0.6)) return fail('Aim the recon drone at a standing hideout.');
+  if (w.recon && !def.buildings.some(b => b.kind === 'hideout' && b.revealed && intact(b) && dist(b, cmd.to) <= 0.6)) return fail('Aim the recon drone at a hideout you have found (survey with a TB2 first).');
   if (w.cls === 'uav' && !airbase) return fail('Airbase is knocked out: UAVs cannot take off.');
   if (!w.reusable && (att.launched[w.id] ?? 0) >= launchCap(att, w.id)) return fail(`${w.name}: all launchers have fired this turn.`);
   const munitions = w.munitionCost ? w.munitionCost * (w.munitions ?? 0) : 0;
@@ -567,6 +579,8 @@ function spawnStrike(m: Match, bt: Battle, att: PlayerState, def: PlayerState, w
   bt.threats.push(t);
 }
 
+const SURVEY_LAP = 24; // orbit points per lap
+
 function spawnScout(m: Match, bt: Battle, id: string, path: Point[]) {
   const s = scout(id);
   // Enter along the drawn line: come in from far out, beyond its first point.
@@ -577,8 +591,13 @@ function spawnScout(m: Match, bt: Battle, id: string, path: Point[]) {
   const t = baseThreat(m);
   t.weapon = id; t.cls = 'uav'; t.looksLike = 'uav'; t.isScout = true; t.delay = rnd(m) * 3;
   t.peakAlt = s.altitude === 'medium' ? 5 : s.altitude === 'high' ? 9 : 18;
-  t.revealRadius = s.reveal;
-  t.path = [start, ...resample(path.map(p => ({ x: round(p.x), z: round(p.z) })), 0.6), start];
+  t.revealRadius = m.raid ? s.reveal : 0;
+  if (m.raid) t.path = [start, ...resample(path.map(p => ({ x: round(p.x), z: round(p.z) })), 0.6), start];
+  else { // duel survey: one lap around the city at 3.5 km, photographing a sector every quarter lap
+    const a0 = Math.atan2(dz, dx), orbit: Point[] = [];
+    for (let i = 0; i <= SURVEY_LAP; i++) { const a = a0 + (i / SURVEY_LAP) * Math.PI * 2; orbit.push({ x: round(Math.cos(a) * 3.5), z: round(Math.sin(a) * 3.5) }); }
+    t.path = [start, ...orbit, start];
+  }
   t.x = start.x; t.z = start.z;
   setSpeeds(t, start, s.flight);
   t.total = dist(start, t.path[1]);
@@ -617,6 +636,7 @@ function hitChance(m: Match, def: PlayerState, b: Battery, t: Threat): number {
     if (sc.onlyLongRange && !LONG_RANGE_SAMS.includes(s.id)) return 0;
     let p = s.hit.uav ?? 0; if (p === 0) return 0;
     if (sc.altitude === 'high' && s.range < 40) p -= 25;
+    if (!m.raid) p *= RULES.surveyHitFactor;
     return clampHit(p + (b.level - 1) * 8);
   }
   if (t.weapon === 'decoy') cls = 'decoy';
@@ -775,6 +795,8 @@ function moveThreat(m: Match, bt: Battle, att: PlayerState, def: PlayerState, t:
 
 function arrive(m: Match, bt: Battle, att: PlayerState, def: PlayerState, t: Threat) {
   const last = t.leg >= t.path.length - 1;
+  // Survey photos: one on arriving over the city, then one every quarter lap after that (4 per lap).
+  if (t.isScout && !m.raid && t.leg >= 1 && (t.leg - 1) % (SURVEY_LAP / RULES.surveyPerPass) === 0 && t.leg - 1 < SURVEY_LAP) surveySector(m, bt, att, def);
   if (t.cls === 'uav' || t.isScout) {
     if (last) {
       t.alive = false; t.landed = true;
@@ -858,6 +880,18 @@ function hitHideout(m: Match, bt: Battle, def: PlayerState, h: Building) {
   emit(bt, { t: 'msg', text: 'A hideout was destroyed. It was empty.', tone: 'info' });
 }
 
+/** A survey TB2 photographs one more sector of the enemy city: everything standing in it becomes known. */
+function surveySector(m: Match, bt: Battle, att: PlayerState, def: PlayerState) {
+  const hidden: number[] = [];
+  for (let s = 0; s < SURVEY_SECTORS; s++) if (!att.surveyed.includes(s)) hidden.push(s);
+  if (!hidden.length) return;
+  const sec = hidden[Math.floor(rnd(m) * hidden.length) % hidden.length];
+  att.surveyed.push(sec);
+  for (const b of def.buildings) if (!b.revealed && sectorOf(b.x, b.z) === sec) { b.revealed = true; emit(bt, { t: 'reveal', building: b.uid }); }
+  for (const b of def.batteries) if (sectorOf(def.pads[b.pad].x, def.pads[b.pad].z) === sec) b.revealed = true;
+  emit(bt, { t: 'survey', sector: sec });
+}
+
 function setIntel(p: PlayerState, uid: number, found: boolean, turn: number) {
   p.intel = p.intel.filter(x => x.uid !== uid);
   p.intel.push({ uid, found, turn });
@@ -901,7 +935,8 @@ function pickTarget(m: Match, bt: Battle, def: PlayerState, b: Battery, pad: Pad
     if (dist(pad, t) > s.range) continue;
     if (hitChance(m, def, b, t) <= 0) continue;
     if (!t.priority) {
-      if (!def.autoFire) continue;
+      if (t.isScout && !m.raid && t.firedBy?.includes(b.uid)) continue; // automatic fire: one shot per battery at a survey TB2
+      if (!def.autoFire || b.manual) continue;
       if (t.decoyMarked) continue;
       if (s.skipsMisses && !t.landsInCity && MISSILE_CLASSES.includes(t.cls)) continue;
       if (s.shot >= EXPENSIVE_SHOT && CHEAP_THREATS.includes(t.looksLike) && t.identified) continue;
@@ -909,7 +944,7 @@ function pickTarget(m: Match, bt: Battle, def: PlayerState, b: Battery, pad: Pad
     } else if (s.kind === 'sam' && t.engaged >= 2) continue;
     // Soonest to arrive first; priority contacts jump the queue.
     const r = Math.hypot(t.x, t.z);
-    const score = (t.priority ? -1e6 : 0) + r / Math.max(0.01, speedNow(t));
+    const score = (t.priority ? -1e6 : 0) + (t.isScout ? 1e4 : 0) + r / Math.max(0.01, speedNow(t)); // a survey UAV only when nothing else is coming
     if (score < bestScore) { bestScore = score; best = t; }
   }
   return best;
@@ -918,6 +953,7 @@ function pickTarget(m: Match, bt: Battle, def: PlayerState, b: Battery, pad: Pad
 function fire(m: Match, bt: Battle, def: PlayerState, b: Battery, pad: Pad, t: Threat, dt: number) {
   const s = defence(b.sys);
   b.revealed = true;
+  if (t.isScout && s.kind !== 'laser') (t.firedBy ??= []).push(b.uid);
   if (s.kind === 'laser') {
     if (b.dwellTarget !== t.uid) { b.dwellTarget = t.uid; b.dwell = 0; }
     b.dwell += dt;

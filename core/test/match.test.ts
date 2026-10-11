@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RULES, aiStep, command, createMatch, tick, viewFor, incomeFor } from '../src';
+import { RULES, aiStep, command, createMatch, tick, viewFor, incomeFor, sectorOf } from '../src';
 import type { Match, PlayerIndex } from '../src';
 
 const run = (m: ReturnType<typeof createMatch>, seconds: number) => { for (let i = 0; i < seconds * 10; i++) { aiStep(m); tick(m, 0.1); } };
@@ -10,14 +10,13 @@ const hideChiefFrom = (m: Match, pi: PlayerIndex, x: number, z: number) => {
 };
 
 describe('setup and turns', () => {
-  it('starts in setup with seven hidden buildings and eight visible hideouts; the chief is secret', () => {
+  it('starts in setup with seven buildings and eight hideouts, all hidden; the chief is secret', () => {
     const m = createMatch(1, ['A', 'B']);
     expect(m.phase).toBe('setup');
     expect(m.players[0].budget).toBe(RULES.startBudget);
     expect(m.players[0].buildings).toHaveLength(7 + RULES.hideouts);
     const seen = viewFor(m, 1).enemy;
-    expect(seen.buildings).toHaveLength(RULES.hideouts);
-    expect(seen.buildings.every(b => b.kind === 'hideout')).toBe(true);
+    expect(seen.buildings).toHaveLength(0); // everything is hidden until a TB2 surveys it
     expect(JSON.stringify(seen)).not.toContain('chief');
     expect(hideoutsOf(m, 0).some(h => h.uid === m.players[0].chief)).toBe(true);
   });
@@ -97,19 +96,50 @@ describe('strikes', () => {
     expect(stopped).toBeGreaterThan(20); // most of 50 drones
   });
 
-  it('cannot aim precise weapons at hidden buildings; a scout reveals them and they stay revealed', () => {
+  it('cannot aim precise weapons at hidden buildings; a TB2 survey lap photographs a third of the city', () => {
     const m = createMatch(7, ['A', 'B']);
-    command(m, 0, { c: 'buyScout', scout: 'globalhawk' });
+    command(m, 0, { c: 'buyScout', scout: 'tb2s' });
     command(m, 0, { c: 'buyLauncher', weapon: 'som' });
     command(m, 0, { c: 'buyUnits', weapon: 'som', n: 1 });
     command(m, 0, { c: 'endSetup' }); command(m, 1, { c: 'endSetup' });
     const hidden = m.players[1].buildings[0].uid;
     expect(command(m, 0, { c: 'go', strikes: [{ weapon: 'som', n: 1, target: hidden }], scouts: [] }).ok).toBe(false);
-    command(m, 0, { c: 'go', strikes: [], scouts: [{ scout: 'globalhawk', path: [{ x: -4, z: 0 }, { x: 4, z: 0 }] }] });
+    command(m, 0, { c: 'go', strikes: [], scouts: [{ scout: 'tb2s', path: [{ x: -4, z: 0 }, { x: 4, z: 0 }] }] });
     run(m, 200);
-    const seen = viewFor(m, 0).enemy.buildings.length;
-    expect(seen).toBeGreaterThan(3);
-    expect(m.players[0].scouts.globalhawk).toBe(1); // came home
+    expect(m.players[0].surveyed).toHaveLength(RULES.surveyPerPass);
+    const sectors = new Set(m.players[0].surveyed);
+    const known = viewFor(m, 0).enemy.buildings;
+    expect(known.every(b => sectors.has(sectorOf(b.x, b.z)))).toBe(true);
+    expect(m.players[0].scouts.tb2s).toBe(1); // came home
+  });
+
+  it('a survey TB2 takes several shots to bring down', () => {
+    let lost = 0;
+    for (let seed = 300; seed < 320; seed++) {
+      const m = createMatch(seed, ['A', 'B']);
+      command(m, 0, { c: 'buyScout', scout: 'tb2s' });
+      command(m, 1, { c: 'buyBattery', sys: 'hisara', pad: 0 });
+      command(m, 0, { c: 'endSetup' }); command(m, 1, { c: 'endSetup' });
+      command(m, 0, { c: 'go', strikes: [], scouts: [{ scout: 'tb2s', path: [{ x: -4, z: 0 }, { x: 4, z: 0 }] }] });
+      run(m, 200);
+      if (!(m.players[0].scouts.tb2s > 0)) lost++;
+    }
+    expect(lost).toBeGreaterThan(3);   // a single Hisar-A+ (4 shots + reloads) gets some
+    expect(lost).toBeLessThan(18);     // but not all
+  });
+
+  it('big systems can be set to manual fire and then only fire at tapped contacts', () => {
+    const m = createMatch(12, ['A', 'B']);
+    command(m, 1, { c: 'buyBattery', sys: 'korkut', pad: 0 });
+    command(m, 1, { c: 'buyBattery', sys: 'hisaro', pad: 1 });
+    const [gun, sam] = m.players[1].batteries;
+    expect(command(m, 1, { c: 'setManual', uid: gun.uid, on: true }).ok).toBe(false); // small: always automatic
+    expect(command(m, 1, { c: 'setManual', uid: sam.uid, on: true }).ok).toBe(true);
+    command(m, 0, { c: 'buyLauncher', weapon: 'som' }); command(m, 0, { c: 'buyUnits', weapon: 'som', n: 2 });
+    command(m, 0, { c: 'endSetup' }); command(m, 1, { c: 'endSetup' });
+    command(m, 0, { c: 'go', strikes: [{ weapon: 'som', n: 2 }], scouts: [] });
+    run(m, 25);
+    expect(sam.ammo).toBe(6); // manual and nothing tapped: it held fire
   });
 
   it('Patriot stops most ballistic missiles', () => {
@@ -229,6 +259,7 @@ describe('chief, hideouts, recon drones and decoys', () => {
   const ready = (seed: number) => {
     const m = createMatch(seed, ['A', 'B'], [false, false], { timed: false });
     command(m, 0, { c: 'buyUnits', weapon: 'recon', n: 4 });
+    for (const b of m.players[1].buildings) if (b.kind === 'hideout') b.revealed = true; // as if surveyed
     return m;
   };
   const start = (m: Match) => { command(m, 0, { c: 'endSetup' }); command(m, 1, { c: 'endSetup' }); };

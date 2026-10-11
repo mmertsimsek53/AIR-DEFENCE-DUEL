@@ -115,3 +115,10 @@ Status: first outline from Mert, 9 Oct 2026. Everything below "Open questions" i
 - **No upgrades** (battery levels, offence, economy, radar). Fixed: radar 150 km, threat type at 60 km, 10 protected storage slots, 2 reloads per strike, buildings down 3 turns.
 - Unchanged: $600M start, +$120M per turn, every weapon costs its price, live attack, critical buildings and their effects, surveillance UAVs reveal critical buildings.
 - The duel city uses the Blender building models (lite versions packed into `web/models.js`): HQ L7 = command centre, Radar L4, Power L4, Treasury L8 = financial district, TNT Plant L7 = ammunition depot, and a new hideout model. Factory and airbase keep their old models for now.
+
+## Layouts, TB2 survey, fire control (decided 11 Oct 2026, Mert)
+- **20 city layouts**; each match picks one per player at random and shuffles which building stands where (7 critical buildings + 8 hideouts). Nothing sits on fixed plots any more.
+- **Everything starts hidden**, hideouts included. The enemy city is under cloud until surveyed.
+- **TB2 survey** (the duel's only scout): flies one lap round the enemy city and photographs a sector on arrival and every quarter lap (4 of 12 sectors ≈ a third of the city). Everything standing in a photographed sector becomes known (hideouts, buildings, batteries). Defences fire at it, but on automatic fire each battery takes only one shot per flight, at 30% of its normal UAV hit chance, and only when nothing else is coming; a defender who taps the TB2 makes every battery keep firing. Reusable if it gets home.
+- **Fire control:** small systems (guns, MANPADS, lasers, EW, missiles under 40 km) always fire automatically. Big missile systems (40 km+) have an Auto / Manual switch; on Manual they fire only at contacts the defender taps.
+- **German systems removed** (Gepard, IRIS-T SLM). New Turkish / American / Russian systems will be added after Mert approves their numbers.

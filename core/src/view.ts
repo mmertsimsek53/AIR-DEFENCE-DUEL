@@ -26,7 +26,7 @@ export function viewFor(m: Match, pi: PlayerIndex) {
     me: {
       name: me.name, budget: me.budget, income: incomeFor(me), ready: me.ready,
       chief: me.chief, chiefNo: myNo.get(me.chief) ?? 0, inspected: me.inspected, chiefMove: RULES.chiefMove,
-      intel: me.intel.map(x => ({ ...x, no: foeNo.get(x.uid) ?? 0 })),
+      intel: me.intel.map(x => ({ ...x, no: foeNo.get(x.uid) ?? 0 })), surveyed: me.surveyed,
       pads: me.pads, scars: me.scars,
       batteries: me.batteries.map(b => ({ ...b, load: batteryLoad(b), name: defence(b.sys).name })),
       buildings: me.buildings.map(b => ({ uid: b.uid, kind: b.kind, x: b.x, z: b.z, down: b.down, revealed: b.revealed, no: myNo.get(b.uid), name: nameOfBuilding(b.kind, myNo.get(b.uid)) })),

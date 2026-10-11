@@ -52,3 +52,43 @@ export function buildingSlots(): Point[] {
   }
   return out.map(p => ({ x: toKm(p.x), z: toKm(p.z) }));
 }
+
+/** 20 fixed city layouts (km): each is 15 spread-out spots, the first 7 for the critical buildings and the
+ *  last 8 for the hideouts. Every match picks one layout per player at random. */
+export const LAYOUT_COUNT = 20;
+let layoutCache: Point[][] | undefined;
+export function cityLayouts(): Point[][] {
+  if (layoutCache) return layoutCache;
+  const pads = padLayout().map(p => ({ x: p.x * UNITS_PER_KM, z: p.z * UNITS_PER_KM }));
+  const cands: Point[] = [];
+  for (let gx = -16; gx <= 16; gx++) for (let gz = -16; gz <= 16; gz++) {
+    const x = gx * 5.5, z = gz * 5.5, r = Math.hypot(x, z);
+    if (r < 16 || r > 92) continue;
+    if (riverDist(x, z) < 14) continue;
+    if (Math.hypot(x - LANDMARK.x, z - LANDMARK.z) < 16) continue;
+    if (pads.some(p => Math.hypot(p.x - x, p.z - z) < 12)) continue;
+    cands.push({ x, z });
+  }
+  const out: Point[][] = [];
+  for (let k = 0; k < LAYOUT_COUNT; k++) {
+    let a = 9301 + k * 49297; // small deterministic generator per layout
+    const rand = () => { a = (a * 1103515245 + 12345) & 0x7fffffff; return a / 0x7fffffff; };
+    const pick: Point[] = [];
+    let guard = 0;
+    while (pick.length < 15 && guard++ < 5000) {
+      const c = cands[Math.floor(rand() * cands.length)];
+      if (pick.some(p => Math.hypot(p.x - c.x, p.z - c.z) < 20)) continue; // keep spots apart
+      pick.push(c);
+    }
+    out.push(pick.map(p => ({ x: toKm(p.x), z: toKm(p.z) })));
+  }
+  return (layoutCache = out);
+}
+
+/** The city split into 12 survey sectors: 4 inner (within 3 km) and 8 outer. */
+export const SURVEY_SECTORS = 12;
+export const SECTOR_INNER_KM = 3;
+export function sectorOf(x: number, z: number): number {
+  const a = (Math.atan2(z, x) + Math.PI * 2) % (Math.PI * 2);
+  return Math.hypot(x, z) < SECTOR_INNER_KM ? Math.floor(a / (Math.PI / 2)) % 4 : 4 + (Math.floor(a / (Math.PI / 4)) % 8);
+}

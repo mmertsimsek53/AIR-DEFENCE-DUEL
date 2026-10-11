@@ -29,7 +29,6 @@ const d = (s: DefenceSpec) => s;
 
 export const DEFENCES: DefenceSpec[] = [
   d({ id: 'zu23', name: 'ZU-23-2', kind: 'gun', price: 10, shot: 0.01, load: 0, range: 2.5, fireEvery: 0.5, hit: { drone: 35, decoy: 35, uav: 15, cruise: 5 }, role: 'Twin 23 mm gun. Cheapest drone defence.' }),
-  d({ id: 'gepard', name: 'Gepard', kind: 'gun', price: 30, shot: 0.02, load: 0, range: 4, fireEvery: 0.5, hit: { drone: 55, decoy: 55, uav: 30, cruise: 15 }, role: 'Radar-guided twin 35 mm gun.' }),
   d({ id: 'korkut', name: 'Korkut', kind: 'gun', price: 40, shot: 0.03, load: 0, range: 4, fireEvery: 0.5, hit: { drone: 65, decoy: 65, uav: 35, rocket: 10, cruise: 25 }, role: '35 mm airburst gun. Shreds drone swarms.' }),
   d({ id: 'stinger', name: 'Stinger', kind: 'sam', price: 15, shot: 0.4, load: 4, range: 5, fireEvery: 1.5, interceptorSpeed: 0.7, hit: { drone: 70, decoy: 70, uav: 60, cruise: 30 }, role: 'Shoulder-fired IR missile.' }),
   d({ id: 'sungur', name: 'Sungur', kind: 'sam', price: 25, shot: 0.35, load: 4, range: 8, fireEvery: 1.5, interceptorSpeed: 0.75, hit: { drone: 75, decoy: 75, uav: 65, cruise: 35 }, role: 'Vehicle-mounted short-range IR missile.' }),
@@ -39,7 +38,6 @@ export const DEFENCES: DefenceSpec[] = [
   d({ id: 'pantsir', name: 'Pantsir-S1', kind: 'sam', price: 110, shot: 0.15, load: 12, range: 20, fireEvery: 1, interceptorSpeed: 1.0, hit: { drone: 80, decoy: 80, uav: 85, rocket: 40, cruise: 75 }, role: 'Gun + missile short-range system.' }),
   d({ id: 'hisara', name: 'Hisar-A+', kind: 'sam', price: 120, shot: 0.5, load: 4, range: 15, fireEvery: 1.5, interceptorSpeed: 0.9, hit: { drone: 80, decoy: 80, uav: 88, cruise: 85 }, role: 'Low-altitude missile. Workhorse against cruise missiles.' }),
   d({ id: 'irondome', name: 'Iron Dome', kind: 'sam', price: 150, shot: 0.06, load: 20, range: 70, fireEvery: 0.7, interceptorSpeed: 1.2, skipsMisses: true, hit: { drone: 80, decoy: 20, uav: 60, rocket: 90, cruise: 60 }, role: 'Rocket killer. Ignores rockets that will miss the city.' }),
-  d({ id: 'irist', name: 'IRIS-T SLM', kind: 'sam', price: 180, shot: 0.45, load: 8, range: 40, fireEvery: 1.2, interceptorSpeed: 1.3, hit: { drone: 85, decoy: 85, uav: 92, rocket: 40, cruise: 90 }, role: 'Medium range. Excellent against cruise missiles.' }),
   d({ id: 'hisaro', name: 'Hisar-O+', kind: 'sam', price: 200, shot: 0.7, load: 6, range: 40, fireEvery: 1.2, interceptorSpeed: 1.3, hit: { drone: 85, decoy: 85, uav: 92, cruise: 88 }, role: 'Medium-altitude missile. Kills UAVs before they fire.' }),
   d({ id: 'davidsling', name: "David's Sling", kind: 'sam', price: 300, shot: 1.0, load: 8, range: 150, fireEvery: 1.5, interceptorSpeed: 2.0, hit: { decoy: 85, uav: 85, rocket: 85, cruise: 85, ballistic: 60 }, role: 'Heavy rockets, cruise and short-range ballistic.' }),
   d({ id: 'siper', name: 'Siper', kind: 'sam', price: 380, shot: 1.5, load: 8, range: 150, fireEvery: 1.5, interceptorSpeed: 2.0, hit: { decoy: 85, uav: 95, cruise: 88, ballistic: 45 }, role: 'Long-range area defence. Limited ballistic capability.' }),
@@ -122,6 +120,9 @@ export const RULES = {
   reconHitFactor: 0.6,     // defences' hit chance against a mini recon drone, relative to a drone
   batteryKillDamage: 20,   // a hit this strong within batteryHitRadius destroys an air-defence battery
   batteryHitRadius: 0.3,   // km
+  surveyPerPass: 4,        // survey sectors (of 12) a TB2 photographs per pass that gets round the city
+  surveyHitFactor: 0.3,    // defences' hit chance against a survey TB2, relative to a UAV (≈3–4 shots to bring it down)
+  bigSamRange: 40,         // km: missile systems with this range or more can be switched to manual fire
   startBudget: 600,
   income: 120,
   knockoutDamage: 20,
