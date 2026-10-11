@@ -129,3 +129,8 @@ Status: first outline from Mert, 9 Oct 2026. Everything below "Open questions" i
 - Armed UAVs drop on the point they are sent to (not random), so they can hit batteries and hideouts.
 - Every weapon's job is written in its card in the Attack tab.
 - AI vs AI: median about 31 turns in total (≈15 each), 6–80 over 16 games (was up to 150+).
+
+## Aksungur survey and Akıncı air patrol (decided 11 Oct 2026, Mert)
+- The survey UAV is the **TAI Aksungur** ($25M, reusable): one lap photographs half the enemy city. Ground defences cannot reach it.
+- The defender can add up to 2 **Akıncı air patrols** ($40M each, stay all match) circling over their own city at a random radius, height and direction each strike. An enemy survey UAV that comes within 1.2 km may be shot down: 1 Bozdoğan air-to-air missile per patrol per strike, $1M, 60% hit. Measured: one patrol downs an Aksungur about 28% of the time, two about 45%.
+- The Akıncı is no longer an attack weapon (Mert: "akinci no need for attacking").

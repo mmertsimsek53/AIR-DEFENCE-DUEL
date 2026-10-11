@@ -16,7 +16,7 @@ describe('setup and turns', () => {
     expect(m.players[0].budget).toBe(RULES.startBudget);
     expect(m.players[0].buildings).toHaveLength(7 + RULES.hideouts);
     const seen = viewFor(m, 1).enemy;
-    expect(seen.buildings).toHaveLength(0); // everything is hidden until a TB2 surveys it
+    expect(seen.buildings).toHaveLength(0); // everything is hidden until surveyed
     expect(JSON.stringify(seen)).not.toContain('chief');
     expect(hideoutsOf(m, 0).some(h => h.uid === m.players[0].chief)).toBe(true);
   });
@@ -96,36 +96,44 @@ describe('strikes', () => {
     expect(stopped).toBeGreaterThan(20); // most of 50 drones
   });
 
-  it('cannot aim precise weapons at hidden buildings; a TB2 survey lap photographs a third of the city', () => {
+  it('cannot aim precise weapons at hidden buildings; an Aksungur survey lap photographs half the city', () => {
     const m = createMatch(7, ['A', 'B']);
-    command(m, 0, { c: 'buyScout', scout: 'tb2s' });
+    command(m, 0, { c: 'buyScout', scout: 'aksungur' });
     command(m, 0, { c: 'buyLauncher', weapon: 'som' });
     command(m, 0, { c: 'buyUnits', weapon: 'som', n: 1 });
     command(m, 0, { c: 'endSetup' }); command(m, 1, { c: 'endSetup' });
     const hidden = m.players[1].buildings[0].uid;
     expect(command(m, 0, { c: 'go', strikes: [{ weapon: 'som', n: 1, target: hidden }], scouts: [] }).ok).toBe(false);
-    command(m, 0, { c: 'go', strikes: [], scouts: [{ scout: 'tb2s', path: [{ x: -4, z: 0 }, { x: 4, z: 0 }] }] });
+    command(m, 0, { c: 'go', strikes: [], scouts: [{ scout: 'aksungur', path: [{ x: -4, z: 0 }, { x: 4, z: 0 }] }] });
     run(m, 200);
     expect(m.players[0].surveyed).toHaveLength(RULES.surveyPerPass);
     const sectors = new Set(m.players[0].surveyed);
     const known = viewFor(m, 0).enemy.buildings;
     expect(known.every(b => sectors.has(sectorOf(b.x, b.z)))).toBe(true);
-    expect(m.players[0].scouts.tb2s).toBe(1); // came home
+    expect(m.players[0].scouts.aksungur).toBe(1); // came home
   });
 
-  it('a survey TB2 takes several shots to bring down', () => {
-    let lost = 0;
-    for (let seed = 300; seed < 320; seed++) {
+  it('ground defences cannot reach the Aksungur; an Akıncı air patrol sometimes shoots it down', () => {
+    const fly = (seed: number, patrols: number) => {
       const m = createMatch(seed, ['A', 'B']);
-      command(m, 0, { c: 'buyScout', scout: 'tb2s' });
-      command(m, 1, { c: 'buyBattery', sys: 'hisara', pad: 0 });
+      command(m, 0, { c: 'buyScout', scout: 'aksungur' });
+      for (const [sys, pad] of [['siper', 0], ['korkut', 2]] as const) command(m, 1, { c: 'buyBattery', sys, pad });
+      for (let i = 0; i < patrols; i++) command(m, 1, { c: 'buyPatrol' });
       command(m, 0, { c: 'endSetup' }); command(m, 1, { c: 'endSetup' });
-      command(m, 0, { c: 'go', strikes: [], scouts: [{ scout: 'tb2s', path: [{ x: -4, z: 0 }, { x: 4, z: 0 }] }] });
+      command(m, 0, { c: 'go', strikes: [], scouts: [{ scout: 'aksungur', path: [{ x: -4, z: 0 }, { x: 4, z: 0 }] }] });
       run(m, 200);
-      if (!(m.players[0].scouts.tb2s > 0)) lost++;
-    }
-    expect(lost).toBeGreaterThan(3);   // a single Hisar-A+ (4 shots + reloads) gets some
-    expect(lost).toBeLessThan(18);     // but not all
+      return m.players[0].scouts.aksungur > 0;
+    };
+    let lost0 = 0, lost2 = 0;
+    for (let seed = 300; seed < 330; seed++) { if (!fly(seed, 0)) lost0++; if (!fly(seed, 2)) lost2++; }
+    expect(lost0).toBe(0);
+    expect(lost2).toBeGreaterThan(3);
+    expect(lost2).toBeLessThan(27);
+    const m = createMatch(1, ['A', 'B']);
+    expect(command(m, 0, { c: 'buyPatrol' }).ok).toBe(true);
+    expect(command(m, 0, { c: 'buyPatrol' }).ok).toBe(true);
+    expect(command(m, 0, { c: 'buyPatrol' }).ok).toBe(false); // at most 2
+    expect(m.players[0].budget).toBe(RULES.startBudget - 2 * RULES.patrolPrice);
   });
 
   it('big systems can be set to manual fire and then only fire at tapped contacts', () => {

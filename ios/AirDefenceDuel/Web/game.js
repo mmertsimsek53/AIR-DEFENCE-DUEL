@@ -223,7 +223,7 @@ function buildCity(S,side){
   for(let i=0;i<NC;i++){const k=Math.round((rng()-.5)*16),off=k*11+5.5,len=2*Math.sqrt(Math.max(0,106*106-off*off));
     S.cars.push({ax:rng()<.5?0:1,off:off+(rng()<.5?-.6:.6),len,s:(rng()-.5)*len,v:(6+rng()*6)*(rng()<.5?-1:1)});col.setHex(palette[(rng()*palette.length)|0]);cars.setColorAt(i,col);}
   S.carMesh=cars;root.add(cars);
-  // Enemy city: cloud over every sector your TB2s have not photographed yet.
+  // Enemy city: cloud over every sector your survey UAVs have not photographed yet.
   S.fog=[];if(side===1){const fm=new THREE.MeshLambertMaterial({color:0xdfe4ea,transparent:true,opacity:.93,side:THREE.DoubleSide,depthWrite:false});
     for(let s=0;s<12;s++){const inner=s<4,a0=inner?s*Math.PI/2:(s-4)*Math.PI/4,len=inner?Math.PI/2:Math.PI/4;
       const f=new THREE.Mesh(new THREE.RingGeometry(inner?0:3*U,inner?3*U:118,40,1,a0,len).rotateX(Math.PI/2),fm);f.position.y=64;f.renderOrder=5;root.add(f);S.fog.push(f);}}
@@ -462,7 +462,8 @@ const liveGfx=new THREE.Group();scene.add(liveGfx);
 function newPlan(){return {counts:{},target:null,scouts:{},scoutPath:{},scoutPathU:{},bearing:null,route:null,routeU:null};}
 let drawMode=null,showAllDef=false,showAllAtk=false;
 let lastTurnKey='',sheetSig='',sheetT=0,useShadows=true;
-const TV=new Map(),IV=new Map();   // threat and interceptor visuals by uid
+const TV=new Map(),IV=new Map(),PV=new Map();   // threat, interceptor and air-patrol visuals by uid
+const patrolMat=new THREE.MeshLambertMaterial({color:0x5b6470});
 
 function cmd(c){const r=ADD.cmdRaw(c);view=ADD.viewRaw();if(!r.ok){msg(r.error,'bad');return false;}sheetSig='';return true;}
 const canShop=()=>view&&(view.phase==='setup'||(view.phase==='turn'&&view.myTurn));
@@ -516,7 +517,7 @@ function hideoutLabel(b,isHome){const v=view,name=(b.name||'Hideout').toUpperCas
   if(isHome)return name+(b.uid===v.me.chief?' · CHIEF':'')+(v.me.inspected.includes(b.uid)?' · CHECKED BY ENEMY':'');
   const i=v.me.intel.find(x=>x.uid===b.uid);return name+(i?(i.found?' · CHIEF SEEN T'+i.turn:' · EMPTY T'+i.turn):'');}
 
-function clearBattle(){for(const t of TV.values()){scene.remove(t.mesh);t.tag.remove();}TV.clear();for(const i of IV.values())scene.remove(i.mesh);IV.clear();}
+function clearBattle(){for(const t of TV.values()){scene.remove(t.mesh);t.tag.remove();}TV.clear();for(const i of IV.values())scene.remove(i.mesh);IV.clear();for(const p of PV.values())scene.remove(p.mesh);PV.clear();}
 
 function threatShown(t){if(t.scout)return 'uav';if(t.decoy)return 'decoy';return t.cls||null;}
 function syncBattle(){
@@ -554,6 +555,11 @@ function syncBattle(){
     iv.mesh.position.copy(iv.pos);
   }
   for(const [id,iv] of IV)if(!seenI.has(id)){scene.remove(iv.mesh);IV.delete(id);}
+  const seenP=new Set();
+  for(const p of b.patrols||[]){seenP.add(p.uid);let pv=PV.get(p.uid);
+    if(!pv){pv={mesh:makeUAV(1.3),pos:new V(),fresh:true};pv.mesh.traverse(o=>{if(o.isMesh)o.material=patrolMat;});PV.set(p.uid,pv);}
+    _prev.copy(pv.pos);toScene(p.x,p.z,p.alt,pv.pos);if(!pv.fresh){_b.copy(pv.pos).sub(_prev);if(_b.lengthSq()>1e-6){_b.add(pv.pos);pv.mesh.lookAt(_b);}}pv.fresh=false;pv.mesh.position.copy(pv.pos);}
+  for(const [id,pv] of PV)if(!seenP.has(id)){scene.remove(pv.mesh);PV.delete(id);}
 }
 
 function nearestBattery(S,sys,x,z){let best=null,bd=1e9;for(const id in S.bats){const b=S.bats[id];if(b.sys!==sys)continue;const d=Math.hypot(b.pos.x-x,b.pos.z-z);if(d<bd){bd=d;best=b;}}return best;}
@@ -573,8 +579,10 @@ function handleEvents(list){
     else if(e.t==='laser'){toScene(e.fx,e.fz,0,_a);const b=nearestBattery(S,e.sys,_a.x,_a.z);toScene(e.tx,e.tz,e.alt,_c);
       if(b&&b.beam){if(b.tur)b.tur.lookAt(_c);_a.copy(b.muzzle);_a.y+=.2;b.beam.visible=true;b.beam.position.copy(_a);b.beam.lookAt(_c);b.beam.scale.set(1,1,_a.distanceTo(_c));b.beamT=.35;}
       for(let k=0;k<6;k++)emit(GLOW,_c.x,_c.y,_c.z,(rand()-.5)*3,(rand()-.5)*3,(rand()-.5)*3,.25,1.6,.4,1,.4,.8,1,0,0);}
+    else if(e.t==='aam'){toScene(e.fx,e.fz,e.falt,_a);toScene(e.tx,e.tz,e.talt,_c);const n=14;for(let k=1;k<=n;k++){_b.copy(_a).lerp(_c,k/n);emit(SMOKE,_b.x,_b.y,_b.z,0,.2,0,2+k*.05,.8,4,.92,.92,.94,.5,.3,0);}
+      sfx('launch');if(e.kill)explode(_c.clone(),2.2,false);else puff(_c.clone());}
     else if(e.t==='reveal'){if(!iDefend)msg('Target revealed','good');}
-    else if(e.t==='survey'){if(iDefend)msg('An enemy TB2 is photographing your city','warn');else msg('Survey: '+Math.round(view.me.surveyed.length/12*100)+'% of their city photographed','good');}
+    else if(e.t==='survey'){if(iDefend)msg('An enemy Aksungur is photographing your city'+(view.me.patrols?'':' · an Akıncı air patrol can shoot it down'),'warn');else msg('Survey: '+Math.round(view.me.surveyed.length/12*100)+'% of their city photographed','good');}
     else if(e.t==='intel'){const no=hideNo(e.building,!iDefend);if(iDefend)msg('An enemy recon drone checked Hideout '+no+(e.building===view.me.chief?' · your chief is there!':''),e.building===view.me.chief?'bad':'warn');
       else{msg(e.found?'CHIEF FOUND in Hideout '+no+'!':'Hideout '+no+' is empty',e.found?'good':'');if(e.found)banner('CHIEF FOUND','Hideout '+no+' · strike it before they move',3);}}
     else if(e.t==='hideout'){const no=hideNo(e.building,!iDefend);if(!e.chief)msg('Hideout '+no+' destroyed · it was empty',iDefend?'warn':'');}
@@ -691,8 +699,8 @@ function finishDraw(){
 const ORIGINS=[['Turkish',['korkut','sungur','alka','koral','hisara','hisaro','siper','gurz','gokberk','ihtar']],['American',['stinger','avenger','phalanx','nasams','patriot','thaad']],
   ['Russian',['igla','zu23','tunguska','pantsir','tor','buk','s300','s400','s500']],['Israeli',['irondome','ironbeam','davidsling']]];
 const REC_DEF=[['vs drones',['korkut','gurz']],['vs missiles',['hisara','irondome']],['vs ballistic',['patriot','s400']]];
-const DUEL_SCOUTS=CAT.scouts.filter(s=>s.id==='tb2s'); // the duel uses the TB2 for surveys
-const REC_ATK=['recon','shahed','gerbera','mald','som','tayfun','tb2s'];
+const DUEL_SCOUTS=CAT.scouts.filter(s=>s.id==='aksungur'); // the duel uses the Aksungur for surveys
+const REC_ATK=['recon','shahed','gerbera','mald','som','tayfun','aksungur'];
 const TARGET_ORDER=['factory','command','power','radar','finance','depot','airbase'];
 // Auto attack: send everything ready to fire at the best known target, in one go.
 function quickStrike(){
@@ -723,7 +731,7 @@ function launch(){
 }
 
 function vsChips(hit,col){return '<div class="vs">'+CLS_ORDER.filter(k=>hit[k]).map(k=>'<i class="y" style="--c:'+CLS_CSS[k]+'">'+CLS_LABEL[k]+' '+Math.round(hit[k])+'%</i>').join('')+'</div>';}
-function sig(){const v=view,m=v.me;return [v.phase,v.myTurn,tab,upSeg,m.budget,JSON.stringify(m.stock),JSON.stringify(m.launchers),JSON.stringify(m.scouts),JSON.stringify(m.interceptors),m.chief,JSON.stringify(m.intel),m.surveyed.length,m.batteries.map(b=>b.manual?1:0).join(''),v.enemy.buildings.length,
+function sig(){const v=view,m=v.me;return [v.phase,v.myTurn,tab,upSeg,m.budget,JSON.stringify(m.stock),JSON.stringify(m.launchers),JSON.stringify(m.scouts),JSON.stringify(m.interceptors),m.patrols,m.chief,JSON.stringify(m.intel),m.surveyed.length,m.batteries.map(b=>b.manual?1:0).join(''),v.enemy.buildings.length,
   m.batteries.map(b=>b.uid+':'+b.ammo).join(','),m.buildings.map(b=>b.down).join(','),v.enemy.buildings.map(b=>b.uid+':'+b.down).join(','),JSON.stringify(plan),placing].join('|');}
 
 function hideSheet(){$('sheet').hidden=true;document.body.classList.remove('sheet-open');}
@@ -750,6 +758,8 @@ function sheetHTML(){
     const card=(s,role)=>{const col=css(SYS_COL[s.id]),best=CLS_ORDER.filter(k=>s.hit[k]&&k!=='decoy').sort((x,y)=>s.hit[y]-s.hit[x]).slice(0,3);
       return '<button class="tile'+(placing===s.id?' sel':'')+'" type="button" data-act="place" data-k="'+s.id+'" style="--c:'+col+'"'+(B<s.price?' disabled':'')+'>'+(role?'<span class="role">'+role+'</span>':'')+'<b class="tn">'+esc(s.name)+'</b>'+
         '<span class="meta"><b>'+fmt(s.price)+'</b> · '+s.range+' km</span><span class="hits">'+best.map(k=>'<i style="--k:'+CLS_CSS[k]+'">'+CLS_LABEL[k]+' '+Math.round(s.hit[k])+'</i>').join('')+'</span></button>';};
+    {const n=m.patrols||0,P=CAT.rules.patrolPrice;
+      h+='<h3>Air patrol <span class="small">· Akıncı circling over your city; shoots down enemy survey UAVs that pass close</span></h3><div class="items"><div class="item" style="--c:#c48bff"><div class="nm"><b>Akıncı air patrol</b><span>Stays all match · '+CAT.rules.patrolMissiles+' air-to-air missile per strike, '+fmt(CAT.rules.patrolShot)+' each · '+CAT.rules.patrolHit+'% hit</span></div><div class="cnt"><b class="big">'+n+'</b><span> / '+CAT.rules.patrolMax+'</span></div><div class="acts">'+(n<CAT.rules.patrolMax?'<button class="mini" data-act="patrol"'+(B<P?' disabled':'')+'>Add · '+fmt(P)+'</button>':'<span class="small">Max</span>')+'</div></div></div>';}
     h+='<h3>Buy a defence <span class="small">· tap one, then a glowing + in your city</span></h3>';
     if(!showAllDef){h+='<div class="tiles">';for(const [title,ids] of REC_DEF)h+=ids.map(id=>card(DEF[id],title)).join('');h+='</div>';}
     else for(const [title,ids] of ORIGINS){const list=ids.filter(id=>DEF[id]).sort((x,y)=>DEF[x].price-DEF[y].price);h+='<h3>'+title+'</h3><div class="tiles">'+list.map(id=>card(DEF[id])).join('')+'</div>';}
@@ -768,7 +778,7 @@ function sheetHTML(){
           '<button class="mini" data-act="units" data-k="'+w.id+'" data-n="'+buyN+'"'+(B<w.unit*buyN?' disabled':'')+'>Buy '+buyN+' · '+fmt(w.unit*buyN)+'</button>'+
           '</div></div>';}
       for(const s of ownedS){const n=m.scouts[s.id]||0;
-        h+='<div class="item" style="--c:'+CLS_CSS.uav+'"><div class="nm"><b>'+esc(s.name)+'</b><span>survey · one lap photographs about a third of their city · map '+Math.round(m.surveyed.length/12*100)+'%</span></div><div class="cnt"><b class="big">'+n+'</b><span> ready</span></div><div class="acts">'+
+        h+='<div class="item" style="--c:'+CLS_CSS.uav+'"><div class="nm"><b>'+esc(s.name)+'</b><span>survey · one lap photographs half of their city · only an enemy air patrol can shoot it · map '+Math.round(m.surveyed.length/12*100)+'%</span></div><div class="cnt"><b class="big">'+n+'</b><span> ready</span></div><div class="acts">'+
           '<button class="mini" data-act="scout" data-k="'+s.id+'"'+(B<s.price?' disabled':'')+'>Buy '+fmt(s.price)+'</button></div></div>';}
       h+='</div>';
     }else h+='<div class="note">You have no weapons yet. Pick some below.</div>';
@@ -808,6 +818,7 @@ $('sheet').addEventListener('click',e=>{
     case 'launcher':if(cmd({c:'buyLauncher',weapon:k}))msg(ATK[k].name+' launcher bought','money');break;
     case 'units':cmd({c:'buyUnits',weapon:k,n:+b.dataset.n});break;
     case 'scout':if(cmd({c:'buyScout',scout:k}))msg(SCT[k].name+' ready','money');break;
+    case 'patrol':if(cmd({c:'buyPatrol'}))msg('Akıncı air patrol added','money');break;
     case 'manual':{const bat=view.me.batteries.find(x=>x.uid===+k);if(bat&&cmd({c:'setManual',uid:bat.uid,on:!bat.manual}))msg(DEF[bat.sys].name+(bat.manual?' fires automatically':' fires only at contacts you tap'),'good');}break;
     case 'chiefTo':{const setup=view.phase==='setup',h=view.me.buildings.find(x=>x.uid===+k);if(cmd({c:setup?'placeChief':'moveChief',uid:+k}))msg('Chief '+(setup?'placed in ':'moved to ')+(h?h.name:'the hideout')+(setup?'':' · −'+fmt(view.me.chiefMove)),'money');}break;
     case 'rsinc':case 'rsdec':{const cur=view.me.restock[k]||0,step=DEF[k].load;cmd({c:'setRestock',sys:k,n:a==='rsinc'?cur+step:Math.max(0,cur-step)});}break;
@@ -869,13 +880,13 @@ function ammoHTML(){
   return h;}
 function liveRemaining(){const m=view.me,out=[];
   for(const w of CAT.attacks){const st=m.stock[w.id]||0;if(!st)continue;const left=w.reusable?st:Math.min(st,(m.caps[w.id]||0)-(m.launched[w.id]||0));if(left>0)out.push({k:'w:'+w.id,name:w.name,n:left,col:CLS_CSS[w.cls]});}
-  for(const s of DUEL_SCOUTS){const n=m.scouts[s.id]||0;if(n>0)out.push({k:'s:'+s.id,name:'TB2 survey',n,col:CLS_CSS.uav,scout:true});}
+  for(const s of DUEL_SCOUTS){const n=m.scouts[s.id]||0;if(n>0)out.push({k:'s:'+s.id,name:'Aksungur survey',n,col:CLS_CSS.uav,scout:true});}
   return out;}
 function liveHTML(){const list=liveRemaining();
   if(liveSel&&!list.some(x=>x.k===liveSel)){liveSel=null;liveFrom=null;}
   let h='<div class="chips2">'+list.map(x=>'<button class="wchip'+(liveSel===x.k?' on':'')+'" data-live="'+x.k+'" style="--c:'+x.col+'"><b>'+esc(x.name)+'</b><span>'+(x.scout?'scout · ':'')+x.n+' left</span></button>').join('')+'</div>';
   if(!list.length)h='<div class="small">Everything for this turn has been launched.</div>';
-  h+='<div class="liverow"><span class="step-txt">'+(!liveSel?(list.length?'1. Pick a weapon':''):!liveFrom?'2. Tap on the map <b>where it starts</b> (outside the city)':liveSel==='w:recon'?'3. Tap <b>a hideout</b> to check':liveSel&&liveSel.startsWith('s:')?'3. Tap <b>their city</b>: the TB2 flies a lap and photographs it':'3. Tap <b>where it should hit</b>')+'</span><button class="btn" data-live="end" type="button">End attack</button></div>';
+  h+='<div class="liverow"><span class="step-txt">'+(!liveSel?(list.length?'1. Pick a weapon':''):!liveFrom?'2. Tap on the map <b>where it starts</b> (outside the city)':liveSel==='w:recon'?'3. Tap <b>a hideout</b> to check':liveSel&&liveSel.startsWith('s:')?'3. Tap <b>their city</b>: the Aksungur flies a lap and photographs it':'3. Tap <b>where it should hit</b>')+'</span><button class="btn" data-live="end" type="button">End attack</button></div>';
   return h;}
 function hintHTML(){
   const v=view,m=v.me;if(!v)return '';
@@ -889,7 +900,7 @@ function hintHTML(){
   if(v.phase==='setup'){
     if(!m.batteries.length)return '<b>NEXT</b> Tap <b>Defence</b> and place your first defence · your chief hides in Hideout '+m.chiefNo+' (change it in <b>Chief</b>)';
     if(!Object.values(m.launchers).some(n=>n>0)&&!hasAtk)return '<b>NEXT</b> Tap <b>Attack</b> and buy a launcher, e.g. Shahed-136 drones';
-    if(!(m.scouts.tb2s>0))return '<b>NEXT</b> Buy a <b>TB2 survey</b> in Attack: their city is hidden until you photograph it';
+    if(!(m.scouts.aksungur>0))return '<b>NEXT</b> Buy an <b>Aksungur</b> in Attack: their city is hidden until you photograph it';
     if(!(m.stock.recon>0))return '<b>NEXT</b> Buy <b>Mini recon drones</b> in Attack: they find the enemy chief';
     if(!ballistic)return '<b>TIP</b> Nothing in your city can stop ballistic missiles · then press <b>'+(v.timed?'Ready':"I'm done")+'</b>';
     return ammoWarn||'<b>NEXT</b> Press <b>'+(v.timed?'Ready':"I'm done")+'</b> when you are finished';
@@ -898,7 +909,7 @@ function hintHTML(){
     if(ammoWarn)return ammoWarn;
     if(m.inspected.includes(m.chief))return '<span class="warn">An enemy drone checked your chief\'s hideout</span> · move the chief in <b>Chief</b>';
     {const f=v.enemy.buildings.find(b=>b.kind==='hideout'&&b.down<99&&m.intel.some(x=>x.uid===b.uid&&x.found));if(f)return '<b>CHIEF FOUND</b> in '+esc(f.name)+' · START ATTACK and hit it';}
-    if(!v.enemy.buildings.some(b=>b.kind==='hideout'))return (m.scouts.tb2s>0?'<b>NEXT</b> START ATTACK and send the <b>TB2 survey</b> over their city to find the hideouts':'<b>NEXT</b> Buy a <b>TB2 survey</b> in Attack: it photographs their city and finds the hideouts');
+    if(!v.enemy.buildings.some(b=>b.kind==='hideout'))return (m.scouts.aksungur>0?'<b>NEXT</b> START ATTACK and send the <b>Aksungur</b> over their city to find the hideouts':'<b>NEXT</b> Buy an <b>Aksungur</b> in Attack: it photographs their city and finds the hideouts');
     return hasAtk||hasScout?'<b>NEXT</b> Tap <b>START ATTACK</b> and send weapons one by one · or <b>Auto attack</b>':'<b>NEXT</b> Buy weapons in <b>Attack</b>, or tap <b>No attack</b>';
   }
   if(v.phase==='turn')return v.enemy.name+' is planning a strike'+(ammoWarn?' · '+ammoWarn:'');

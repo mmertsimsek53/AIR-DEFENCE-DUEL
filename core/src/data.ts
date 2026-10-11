@@ -94,7 +94,6 @@ export const ATTACKS: AttackSpec[] = [
   a({ id: 'trg300', name: 'TRG-300', cls: 'rocket', unit: 0.6, launcher: 40, perTurn: 4, flight: 18, damage: 25, precise: true, role: 'Fast guided rocket. One hit destroys a battery or a hideout; hard for guns and lasers to stop.' }),
   a({ id: 'himars', name: 'HIMARS GMLRS', cls: 'rocket', unit: 0.3, launcher: 60, perTurn: 6, flight: 18, damage: 20, precise: true, role: 'Fast GPS-guided rockets, six per pod. Kills batteries one per hit.' }),
   a({ id: 'tb2', name: 'Bayraktar TB2', cls: 'uav', unit: 15, launcher: 0, perTurn: 99, flight: 60, damage: 10, precise: true, reusable: true, munitions: 4, munitionCost: 0.1, role: 'Armed UAV with 4 bombs: loiters over the point you choose and drops them one by one. Comes back if it survives.' }),
-  a({ id: 'akinci', name: 'Bayraktar Akıncı', cls: 'uav', unit: 40, launcher: 0, perTurn: 99, flight: 45, damage: 45, precise: true, reusable: true, munitions: 2, munitionCost: 1.0, role: 'Heavy armed UAV with 2 big bombs. Comes back if it survives.' }),
   a({ id: 'som', name: 'SOM', cls: 'cruise', unit: 1.2, launcher: 50, perTurn: 2, flight: 35, damage: 50, precise: true, low: true, role: 'Low-flying cruise missile. Long-range SAMs struggle against it; one hit destroys a battery or a hideout.' }),
   a({ id: 'tomahawk', name: 'Tomahawk', cls: 'cruise', unit: 2.0, launcher: 60, perTurn: 2, flight: 35, damage: 60, precise: true, low: true, role: 'Low-flying cruise missile with a bigger warhead. One hit destroys a battery or a hideout.' }),
   a({ id: 'tayfun', name: 'Tayfun', cls: 'ballistic', unit: 3.5, launcher: 90, perTurn: 2, flight: 12, damage: 80, precise: true, role: 'Ballistic missile: very fast, only Patriot and the long-range SAMs can stop it. The sure blow on a found chief.' }),
@@ -107,6 +106,7 @@ export interface ScoutSpec { id: string; name: string; price: number; altitude: 
 export const SCOUTS: ScoutSpec[] = [
   { id: 'tb2s', name: 'Bayraktar TB2 (survey)', price: 15, altitude: 'medium', reveal: 1.5, flight: 60, role: 'Maps their city: one lap photographs half of it (hideouts, buildings, defences). Reusable if it gets home.' },
   { id: 'anka', name: 'TAI Anka', price: 30, altitude: 'high', reveal: 3, flight: 50, role: 'Wider view, harder to hit.' },
+  { id: 'aksungur', name: 'TAI Aksungur', price: 25, altitude: 'very high', reveal: 3, flight: 60, role: 'Maps their city from high up: one lap photographs half of it. Ground defences cannot reach it; only an enemy Akıncı air patrol can shoot it down. Reusable.' },
   { id: 'globalhawk', name: 'RQ-4 Global Hawk', price: 90, altitude: 'very high', reveal: 8, flight: 45, onlyLongRange: true, role: 'Sees almost everything. Only long-range SAMs reach it.' },
 ];
 export const LONG_RANGE_SAMS = ['davidsling', 'siper', 's400', 'patriot'];
@@ -136,6 +136,12 @@ export const RULES = {
   batteryHitRadius: 0.3,   // km
   surveyPerPass: 6,        // survey sectors (of 12) a TB2 photographs per lap: half the city
   surveyHitFactor: 0.3,    // defences' hit chance against a survey TB2, relative to a UAV (≈3–4 shots to bring it down)
+  patrolPrice: 40,         // $M: Akıncı air patrol over your own city (stays all match)
+  patrolMax: 2,
+  patrolRange: 1.2,          // km: an enemy survey UAV this close to a patrol can be engaged
+  patrolShot: 1,           // $M per air-to-air missile (Bozdoğan)
+  patrolHit: 60,           // % per missile
+  patrolMissiles: 1,       // per patrol per strike (tuned: one patrol downs an Aksungur ~28% of the time, two ~45%)
   bigSamRange: 40,         // km: missile systems with this range or more can be switched to manual fire
   startBudget: 600,
   income: 120,

@@ -49,7 +49,7 @@ function newPlayer(index: PlayerIndex, name: string, isAI: boolean): PlayerState
     pads: padLayout(), scars: [], batteries: [], buildings: [], interceptors: {}, launchers: {}, stock: {}, scouts: {},
     launched: {}, offUp: {}, econ: { income: 0, storage: 0, logistics: 0, repair: 0 },
     radar: { range: 0, identify: 0, decoy: 0 }, autoFire: true, reloadsLeft: 0, spent: 0, conceded: false, ready: false, restock: {},
-    chief: -1, intel: [], inspected: [], layout: 0, surveyed: [],
+    chief: -1, intel: [], inspected: [], layout: 0, surveyed: [], patrols: 0,
   };
 }
 
@@ -257,6 +257,13 @@ export function command(m: Match, pi: PlayerIndex, cmd: Command): CommandResult 
       p.stock[w.id] = (p.stock[w.id] ?? 0) + n;
       return ok;
     }
+    case 'buyPatrol': {
+      if (m.raid) return fail('No air patrols here.');
+      if (p.patrols >= RULES.patrolMax) return fail(`At most ${RULES.patrolMax} air patrols.`);
+      if (!spend(p, RULES.patrolPrice)) return fail('Not enough budget.');
+      p.patrols++;
+      return ok;
+    }
     case 'buyScout': {
       const s = SCOUTS.find(x => x.id === cmd.scout); if (!s) return fail('Unknown UAV.');
       if (!spend(p, s.price)) return fail('Not enough budget.');
@@ -396,6 +403,11 @@ function launch(m: Match, pi: PlayerIndex, strikes: { weapon: string; n: number;
   m.battle = bt;
   m.phase = 'battle';
   def.reloadsLeft = m.raid ? ECONOMY.logistics.values[def.econ.logistics] : RULES.reloads;
+  bt.patrols = [];
+  for (let i = 0; i < def.patrols; i++) { // each patrol circles at its own radius, height and direction, new every strike
+    const r = round(1.5 + rnd(m) * 3.5), a = rnd(m) * Math.PI * 2, w = (rnd(m) < 0.5 ? -1 : 1) * (0.12 + rnd(m) * 0.08);
+    bt.patrols.push({ uid: uid(m), r, a, w, x: round(Math.cos(a) * r), z: round(Math.sin(a) * r), alt: round(4 + rnd(m) * 5), missiles: RULES.patrolMissiles, cooldown: 0 });
+  }
   def.inspected = [];
   for (const b of def.batteries) { b.cooldown = 0; b.reloading = 0; b.dwell = 0; b.dwellTarget = undefined; topUp(def, b); }
   for (const b of def.buildings) b.battleDamage = 0;
@@ -632,6 +644,7 @@ function hitChance(m: Match, def: PlayerState, b: Battery, t: Threat): number {
   let cls: ThreatClass = t.cls;
   if (t.isScout) {
     const sc = scout(t.weapon);
+    if (!m.raid && t.weapon === 'aksungur') return 0; // too high for ground defences; only an air patrol can get it
     if (sc.onlyLongRange && !LONG_RANGE_SAMS.includes(s.id)) return 0;
     let p = s.hit.uav ?? 0; if (p === 0) return 0;
     if (sc.altitude === 'high' && s.range < 40) p -= 25;
@@ -688,6 +701,8 @@ function battleStep(m: Match, bt: Battle, dt: number) {
     }
   }
 
+  patrolStep(m, bt, def, dt);
+
   // Defences.
   for (const b of def.batteries) {
     const s = defence(b.sys);
@@ -725,6 +740,23 @@ function battleStep(m: Match, bt: Battle, dt: number) {
 
   if (bt.open && m.timed !== false && bt.time >= RULES.turnSeconds) bt.open = false;
   if (!bt.open && bt.threats.every(t => !t.alive) && bt.interceptors.length === 0) endBattle(m, bt);
+}
+
+/** Akıncı air patrols circle over the city; an enemy survey UAV that comes within range may be shot down. */
+function patrolStep(m: Match, bt: Battle, def: PlayerState, dt: number) {
+  for (const pa of bt.patrols ?? []) {
+    pa.a += pa.w * dt; pa.x = round(Math.cos(pa.a) * pa.r); pa.z = round(Math.sin(pa.a) * pa.r);
+    if (pa.cooldown > 0) { pa.cooldown -= dt; continue; }
+    if (pa.missiles <= 0) continue;
+    const t = bt.threats.find(q => q.alive && q.delay <= 0 && q.isScout && !q.returning && dist(q, pa) <= RULES.patrolRange);
+    if (!t || def.budget < RULES.patrolShot) continue;
+    def.budget = round(def.budget - RULES.patrolShot); def.spent = round(def.spent + RULES.patrolShot);
+    bt.stats.defenceSpent = round(bt.stats.defenceSpent + RULES.patrolShot);
+    pa.missiles--; pa.cooldown = 3;
+    const k = rnd(m) * 100 < RULES.patrolHit;
+    emit(bt, { t: 'aam', fx: pa.x, fz: pa.z, falt: pa.alt, tx: t.x, tz: t.z, talt: t.alt, kill: k });
+    if (k) { kill(bt, t, def); emit(bt, { t: 'msg', text: 'Akıncı air patrol shot down a survey UAV.', tone: 'good' }); }
+  }
 }
 
 function turnBack(t: Threat) {

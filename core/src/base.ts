@@ -108,7 +108,7 @@ export const countAt = (t: BuildingType, hq: number) => t.counts[Math.max(1, Mat
 export const PRODUCTION: Record<string, string[]> = {
   droneworkshop: ['shahed', 'gerbera', 'kargu'],
   rocketpark: ['grad', 'trg300', 'himars'],
-  airfield: ['tb2s', 'tb2', 'anka', 'akinci', 'globalhawk'],
+  airfield: ['tb2s', 'tb2', 'anka', 'globalhawk'],
   cruisesite: ['som', 'tomahawk'],
   silo: ['tayfun', 'iskander', 'kinzhal'],
 };

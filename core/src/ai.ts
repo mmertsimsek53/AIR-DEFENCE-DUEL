@@ -26,7 +26,8 @@ function setup(m: Match, pi: PlayerIndex) {
   buy(m, pi, { c: 'buyLauncher', weapon: 'gerbera' });
   buy(m, pi, { c: 'buyUnits', weapon: 'gerbera', n: 10 });
   buy(m, pi, { c: 'buyUnits', weapon: 'recon', n: 4 });
-  buy(m, pi, { c: 'buyScout', scout: 'tb2s' });
+  buy(m, pi, { c: 'buyScout', scout: 'aksungur' });
+  buy(m, pi, { c: 'buyPatrol' });
   buy(m, pi, { c: 'buyLauncher', weapon: 'kargu' });
   buy(m, pi, { c: 'buyUnits', weapon: 'kargu', n: 8 });
   buy(m, pi, { c: 'buyLauncher', weapon: 'som' });
@@ -52,7 +53,7 @@ function shop(m: Match, pi: PlayerIndex) {
     const choice = ['hisaro', 'hisaro', 'davidsling', 'siper'][Math.floor(nextRandom(m) * 4)];
     const pad = freePad(p, false); if (pad != null) buy(m, pi, { c: 'buyBattery', sys: choice, pad });
   }
-  if (!(p.scouts.tb2s > 0) && p.surveyed.length < 12 && p.budget > 80) buy(m, pi, { c: 'buyScout', scout: 'tb2s' });
+  if (!(p.scouts.aksungur > 0) && p.surveyed.length < 12 && p.budget > 80) buy(m, pi, { c: 'buyScout', scout: 'aksungur' });
   if (p.budget > 300 && !(p.launchers.tayfun > 0)) buy(m, pi, { c: 'buyLauncher', weapon: 'tayfun' });
   // Spend savings on more strike capacity, so a found chief can be hit hard.
   if (p.budget > 400 && (p.launchers.som ?? 0) < 3) buy(m, pi, { c: 'buyLauncher', weapon: 'som' });
@@ -78,7 +79,7 @@ function attackTurn(m: Match, pi: PlayerIndex) {
   // Unchecked first, then the ones checked longest ago (the chief may have moved).
   const toCheck = standing.slice().sort((a, b) => (known(a.uid)?.turn ?? -1) - (known(b.uid)?.turn ?? -1));
   const left = (id: string) => Math.min(p.stock[id] ?? 0, launchCap(p, id) - (p.launched[id] ?? 0));
-  const anything = ATTACKS.some(w => left(w.id) > 0) || (p.scouts.tb2s ?? 0) > 0;
+  const anything = ATTACKS.some(w => left(w.id) > 0) || (p.scouts.aksungur ?? 0) > 0;
   if (!anything || !command(m, pi, { c: 'go', strikes: [], scouts: [], live: true }).ok) { command(m, pi, { c: 'wait' }); return; }
   const fire = (weapon: string, to: { x: number; z: number }) => command(m, pi, { c: 'fire', weapon, from: outside(m), to }).ok;
   // Too many known defences: spend this turn's precise weapons taking them down (recon drones would just be shot).
@@ -91,7 +92,7 @@ function attackTurn(m: Match, pi: PlayerIndex) {
   // Cheap drones and decoys keep the defence busy (aimed into the city).
   // Cheap drones and decoys wait for a find; with no recon flying they go now to keep the defence busy.
   if (!(p.stock.recon > 0) || !standing.length) for (const id of ['shahed', 'gerbera', 'mald']) for (let n = left(id); n > 0; n--) fire(id, standing[n % Math.max(1, standing.length)] ?? pt(0, 0));
-  if (p.surveyed.length < 12 && (p.scouts.tb2s ?? 0) > 0) command(m, pi, { c: 'fire', scout: 'tb2s', from: outside(m), to: pt(0, 0) });
+  if (p.surveyed.length < 12 && (p.scouts.aksungur ?? 0) > 0) command(m, pi, { c: 'fire', scout: 'aksungur', from: outside(m), to: pt(0, 0) });
   liveTurn = m.turnNo;
 }
 

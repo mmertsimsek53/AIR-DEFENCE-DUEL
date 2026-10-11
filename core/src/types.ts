@@ -61,7 +61,8 @@ export interface PlayerState {
   intel: { uid: number; found: boolean; turn: number }[]; // what your recon drones / strikes learned about the enemy hideouts
   inspected: number[];                   // your hideouts an enemy recon drone checked in the last strike (you saw it hover)
   layout: number;                        // which of the city layouts this player's city uses
-  surveyed: number[];                    // enemy city sectors your TB2s have photographed
+  surveyed: number[];                    // enemy city sectors your survey UAVs have photographed
+  patrols: number;                       // Akıncı air patrols over your own city
 }
 
 export interface Threat {
@@ -123,6 +124,7 @@ export type BattleEvent =
   | { t: 'knockout'; building: number; kind: string }
   | { t: 'reveal'; building: number }
   | { t: 'msg'; text: string; tone: 'good' | 'bad' | 'info' }
+  | { t: 'aam'; fx: number; fz: number; falt: number; tx: number; tz: number; talt: number; kill: boolean } // air patrol fires at a survey UAV
   | { t: 'survey'; sector: number }                    // a TB2 photographed a sector of the enemy city
   | { t: 'intel'; building: number; found: boolean } // a recon drone finished checking a hideout
   | { t: 'hideout'; building: number; chief: boolean }; // a hideout was hit
@@ -141,7 +143,10 @@ export interface Battle {
   stats: { launched: number; stopped: number; hits: number; damage: number; interceptorsUsed: number; defenceSpent: number; attackSpent: number };
   over: boolean;
   chiefDown?: boolean;     // the defender's chief was killed during this strike
+  patrols?: Patrol[];      // the defender's Akıncı air patrols during this strike
 }
+
+export interface Patrol { uid: number; r: number; a: number; w: number; x: number; z: number; alt: number; missiles: number; cooldown: number }
 
 export type Phase = 'setup' | 'turn' | 'battle' | 'report' | 'over';
 
@@ -185,6 +190,7 @@ export type Command =
   | { c: 'buyLauncher'; weapon: string }
   | { c: 'buyUnits'; weapon: string; n: number }
   | { c: 'buyScout'; scout: string }
+  | { c: 'buyPatrol' }                  // Akıncı air patrol over your own city
   | { c: 'placeChief'; uid: number }   // setup: choose the chief's hideout (free)
   | { c: 'moveChief'; uid: number }    // own turn: move the chief ($30M)
   | { c: 'buyRadarSite' }

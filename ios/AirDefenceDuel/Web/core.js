@@ -44,7 +44,6 @@
     a({ id: "trg300", name: "TRG-300", cls: "rocket", unit: 0.6, launcher: 40, perTurn: 4, flight: 18, damage: 25, precise: true, role: "Fast guided rocket. One hit destroys a battery or a hideout; hard for guns and lasers to stop." }),
     a({ id: "himars", name: "HIMARS GMLRS", cls: "rocket", unit: 0.3, launcher: 60, perTurn: 6, flight: 18, damage: 20, precise: true, role: "Fast GPS-guided rockets, six per pod. Kills batteries one per hit." }),
     a({ id: "tb2", name: "Bayraktar TB2", cls: "uav", unit: 15, launcher: 0, perTurn: 99, flight: 60, damage: 10, precise: true, reusable: true, munitions: 4, munitionCost: 0.1, role: "Armed UAV with 4 bombs: loiters over the point you choose and drops them one by one. Comes back if it survives." }),
-    a({ id: "akinci", name: "Bayraktar Ak\u0131nc\u0131", cls: "uav", unit: 40, launcher: 0, perTurn: 99, flight: 45, damage: 45, precise: true, reusable: true, munitions: 2, munitionCost: 1, role: "Heavy armed UAV with 2 big bombs. Comes back if it survives." }),
     a({ id: "som", name: "SOM", cls: "cruise", unit: 1.2, launcher: 50, perTurn: 2, flight: 35, damage: 50, precise: true, low: true, role: "Low-flying cruise missile. Long-range SAMs struggle against it; one hit destroys a battery or a hideout." }),
     a({ id: "tomahawk", name: "Tomahawk", cls: "cruise", unit: 2, launcher: 60, perTurn: 2, flight: 35, damage: 60, precise: true, low: true, role: "Low-flying cruise missile with a bigger warhead. One hit destroys a battery or a hideout." }),
     a({ id: "tayfun", name: "Tayfun", cls: "ballistic", unit: 3.5, launcher: 90, perTurn: 2, flight: 12, damage: 80, precise: true, role: "Ballistic missile: very fast, only Patriot and the long-range SAMs can stop it. The sure blow on a found chief." }),
@@ -54,6 +53,7 @@
   var SCOUTS = [
     { id: "tb2s", name: "Bayraktar TB2 (survey)", price: 15, altitude: "medium", reveal: 1.5, flight: 60, role: "Maps their city: one lap photographs half of it (hideouts, buildings, defences). Reusable if it gets home." },
     { id: "anka", name: "TAI Anka", price: 30, altitude: "high", reveal: 3, flight: 50, role: "Wider view, harder to hit." },
+    { id: "aksungur", name: "TAI Aksungur", price: 25, altitude: "very high", reveal: 3, flight: 60, role: "Maps their city from high up: one lap photographs half of it. Ground defences cannot reach it; only an enemy Ak\u0131nc\u0131 air patrol can shoot it down. Reusable." },
     { id: "globalhawk", name: "RQ-4 Global Hawk", price: 90, altitude: "very high", reveal: 8, flight: 45, onlyLongRange: true, role: "Sees almost everything. Only long-range SAMs reach it." }
   ];
   var LONG_RANGE_SAMS = ["davidsling", "siper", "s400", "patriot"];
@@ -94,6 +94,17 @@
     // survey sectors (of 12) a TB2 photographs per lap: half the city
     surveyHitFactor: 0.3,
     // defences' hit chance against a survey TB2, relative to a UAV (≈3–4 shots to bring it down)
+    patrolPrice: 40,
+    // $M: Akıncı air patrol over your own city (stays all match)
+    patrolMax: 2,
+    patrolRange: 1.2,
+    // km: an enemy survey UAV this close to a patrol can be engaged
+    patrolShot: 1,
+    // $M per air-to-air missile (Bozdoğan)
+    patrolHit: 60,
+    // % per missile
+    patrolMissiles: 1,
+    // per patrol per strike (tuned: one patrol downs an Aksungur ~28% of the time, two ~45%)
     bigSamRange: 40,
     // km: missile systems with this range or more can be switched to manual fire
     startBudget: 600,
@@ -294,7 +305,8 @@
       intel: [],
       inspected: [],
       layout: 0,
-      surveyed: []
+      surveyed: [],
+      patrols: 0
     };
   }
   function createMatch(seed, names, ai = [false, false], opts = {}) {
@@ -526,6 +538,13 @@
         p.stock[w.id] = (p.stock[w.id] ?? 0) + n;
         return ok;
       }
+      case "buyPatrol": {
+        if (m.raid) return fail("No air patrols here.");
+        if (p.patrols >= RULES.patrolMax) return fail(`At most ${RULES.patrolMax} air patrols.`);
+        if (!spend(p, RULES.patrolPrice)) return fail("Not enough budget.");
+        p.patrols++;
+        return ok;
+      }
       case "buyScout": {
         const s = SCOUTS.find((x) => x.id === cmd.scout);
         if (!s) return fail("Unknown UAV.");
@@ -678,6 +697,11 @@
     m.battle = bt;
     m.phase = "battle";
     def.reloadsLeft = m.raid ? ECONOMY.logistics.values[def.econ.logistics] : RULES.reloads;
+    bt.patrols = [];
+    for (let i = 0; i < def.patrols; i++) {
+      const r = round(1.5 + rnd(m) * 3.5), a2 = rnd(m) * Math.PI * 2, w = (rnd(m) < 0.5 ? -1 : 1) * (0.12 + rnd(m) * 0.08);
+      bt.patrols.push({ uid: uid(m), r, a: a2, w, x: round(Math.cos(a2) * r), z: round(Math.sin(a2) * r), alt: round(4 + rnd(m) * 5), missiles: RULES.patrolMissiles, cooldown: 0 });
+    }
     def.inspected = [];
     for (const b of def.batteries) {
       b.cooldown = 0;
@@ -989,6 +1013,7 @@
     let cls = t.cls;
     if (t.isScout) {
       const sc = scout(t.weapon);
+      if (!m.raid && t.weapon === "aksungur") return 0;
       if (sc.onlyLongRange && !LONG_RANGE_SAMS.includes(s.id)) return 0;
       let p2 = s.hit.uav ?? 0;
       if (p2 === 0) return 0;
@@ -1053,6 +1078,7 @@
         }
       }
     }
+    patrolStep(m, bt, def, dt);
     for (const b of def.batteries) {
       const s = defence(b.sys);
       if (s.kind === "ew") continue;
@@ -1112,6 +1138,31 @@
     bt.interceptors = bt.interceptors.filter((i) => i.target >= 0);
     if (bt.open && m.timed !== false && bt.time >= RULES.turnSeconds) bt.open = false;
     if (!bt.open && bt.threats.every((t) => !t.alive) && bt.interceptors.length === 0) endBattle(m, bt);
+  }
+  function patrolStep(m, bt, def, dt) {
+    for (const pa of bt.patrols ?? []) {
+      pa.a += pa.w * dt;
+      pa.x = round(Math.cos(pa.a) * pa.r);
+      pa.z = round(Math.sin(pa.a) * pa.r);
+      if (pa.cooldown > 0) {
+        pa.cooldown -= dt;
+        continue;
+      }
+      if (pa.missiles <= 0) continue;
+      const t = bt.threats.find((q) => q.alive && q.delay <= 0 && q.isScout && !q.returning && dist(q, pa) <= RULES.patrolRange);
+      if (!t || def.budget < RULES.patrolShot) continue;
+      def.budget = round(def.budget - RULES.patrolShot);
+      def.spent = round(def.spent + RULES.patrolShot);
+      bt.stats.defenceSpent = round(bt.stats.defenceSpent + RULES.patrolShot);
+      pa.missiles--;
+      pa.cooldown = 3;
+      const k = rnd(m) * 100 < RULES.patrolHit;
+      emit(bt, { t: "aam", fx: pa.x, fz: pa.z, falt: pa.alt, tx: t.x, tz: t.z, talt: t.alt, kill: k });
+      if (k) {
+        kill(bt, t, def);
+        emit(bt, { t: "msg", text: "Ak\u0131nc\u0131 air patrol shot down a survey UAV.", tone: "good" });
+      }
+    }
   }
   function turnBack(t) {
     const home = t.path[0];
@@ -1486,7 +1537,8 @@
     buy(m, pi, { c: "buyLauncher", weapon: "gerbera" });
     buy(m, pi, { c: "buyUnits", weapon: "gerbera", n: 10 });
     buy(m, pi, { c: "buyUnits", weapon: "recon", n: 4 });
-    buy(m, pi, { c: "buyScout", scout: "tb2s" });
+    buy(m, pi, { c: "buyScout", scout: "aksungur" });
+    buy(m, pi, { c: "buyPatrol" });
     buy(m, pi, { c: "buyLauncher", weapon: "kargu" });
     buy(m, pi, { c: "buyUnits", weapon: "kargu", n: 8 });
     buy(m, pi, { c: "buyLauncher", weapon: "som" });
@@ -1510,7 +1562,7 @@
       const pad = freePad(p, false);
       if (pad != null) buy(m, pi, { c: "buyBattery", sys: choice, pad });
     }
-    if (!(p.scouts.tb2s > 0) && p.surveyed.length < 12 && p.budget > 80) buy(m, pi, { c: "buyScout", scout: "tb2s" });
+    if (!(p.scouts.aksungur > 0) && p.surveyed.length < 12 && p.budget > 80) buy(m, pi, { c: "buyScout", scout: "aksungur" });
     if (p.budget > 300 && !(p.launchers.tayfun > 0)) buy(m, pi, { c: "buyLauncher", weapon: "tayfun" });
     if (p.budget > 400 && (p.launchers.som ?? 0) < 3) buy(m, pi, { c: "buyLauncher", weapon: "som" });
     if (p.budget > 500 && (p.launchers.tayfun ?? 0) < 2) buy(m, pi, { c: "buyLauncher", weapon: "tayfun" });
@@ -1532,7 +1584,7 @@
     const known = (uid2) => p.intel.find((x) => x.uid === uid2);
     const toCheck = standing.slice().sort((a2, b) => (known(a2.uid)?.turn ?? -1) - (known(b.uid)?.turn ?? -1));
     const left = (id) => Math.min(p.stock[id] ?? 0, launchCap(p, id) - (p.launched[id] ?? 0));
-    const anything = ATTACKS.some((w) => left(w.id) > 0) || (p.scouts.tb2s ?? 0) > 0;
+    const anything = ATTACKS.some((w) => left(w.id) > 0) || (p.scouts.aksungur ?? 0) > 0;
     if (!anything || !command(m, pi, { c: "go", strikes: [], scouts: [], live: true }).ok) {
       command(m, pi, { c: "wait" });
       return;
@@ -1544,7 +1596,7 @@
       for (const w of ATTACKS) if ((w.precise || w.id === "shahed") && !w.recon && !w.reusable) for (let n = left(w.id); n > 0; n--) fire2(w.id, bats[Math.floor(k++ / 3) % bats.length]);
     } else for (let i = 0; i < Math.min(left("recon"), toCheck.length); i++) fire2("recon", toCheck[i]);
     if (!(p.stock.recon > 0) || !standing.length) for (const id of ["shahed", "gerbera", "mald"]) for (let n = left(id); n > 0; n--) fire2(id, standing[n % Math.max(1, standing.length)] ?? pt(0, 0));
-    if (p.surveyed.length < 12 && (p.scouts.tb2s ?? 0) > 0) command(m, pi, { c: "fire", scout: "tb2s", from: outside(m), to: pt(0, 0) });
+    if (p.surveyed.length < 12 && (p.scouts.aksungur ?? 0) > 0) command(m, pi, { c: "fire", scout: "aksungur", from: outside(m), to: pt(0, 0) });
     liveTurn = m.turnNo;
   }
   var liveTurn = -1;
@@ -1617,6 +1669,7 @@
         chiefMove: RULES.chiefMove,
         intel: me.intel.map((x) => ({ ...x, no: foeNo.get(x.uid) ?? 0 })),
         surveyed: me.surveyed,
+        patrols: me.patrols,
         pads: me.pads,
         scars: me.scars,
         batteries: me.batteries.map((b) => ({ ...b, load: batteryLoad(b), name: defence(b.sys).name })),
@@ -1673,6 +1726,7 @@
           };
         }),
         interceptors: bt.interceptors.map((i) => ({ uid: i.uid, sys: i.sys, x: i.x, z: i.z, alt: i.alt })),
+        patrols: (bt.patrols ?? []).map((p) => ({ uid: p.uid, x: p.x, z: p.z, alt: p.alt, missiles: p.missiles })),
         stats: bt.stats
       },
       report: m.phase === "report" ? m.lastReport : void 0,
@@ -1810,7 +1864,7 @@
   var PRODUCTION = {
     droneworkshop: ["shahed", "gerbera", "kargu"],
     rocketpark: ["grad", "trg300", "himars"],
-    airfield: ["tb2s", "tb2", "anka", "akinci", "globalhawk"],
+    airfield: ["tb2s", "tb2", "anka", "globalhawk"],
     cruisesite: ["som", "tomahawk"],
     silo: ["tayfun", "iskander", "kinzhal"]
   };
@@ -2105,6 +2159,7 @@
       inspected: [],
       layout: 0,
       surveyed: [],
+      patrols: 0,
       autoFire: true,
       reloadsLeft: 0,
       spent: 0,

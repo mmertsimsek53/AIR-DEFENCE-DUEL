@@ -187,3 +187,10 @@ In the game: 28 systems — Turkish 10, American 6, Russian 9, Israeli 3. Remove
 
 ## 12. Pace (11 Oct 2026, Mert: keep the pace)
 Every weapon flies at one steady speed (no slowing in the last 20 km). Drones, decoys and UAVs start 60 km out (was 300 km), so their flight times stay as listed.
+
+## 13. Survey and air patrol (11 Oct 2026)
+| Item | Value |
+|---|---|
+| TAI Aksungur (survey) | $25M, reusable, 6 of 12 sectors per lap, ground defences cannot hit it |
+| Akıncı air patrol | $40M, max 2, engages survey UAVs within 1.2 km, 1 missile per strike, $1M, 60% hit |
+| Akıncı attack UAV | removed |
