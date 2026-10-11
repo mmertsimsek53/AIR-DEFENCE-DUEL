@@ -197,7 +197,7 @@ describe('strike direction', () => {
     command(m, 0, { c: 'buyUnits', weapon: 'shahed', n: 10 });
     command(m, 0, { c: 'endSetup' }); command(m, 1, { c: 'endSetup' });
     command(m, 0, { c: 'go', strikes: [{ weapon: 'shahed', n: 10 }], scouts: [], bearing: 0 }); // from the east (+x)
-    for (const t of m.battle!.threats) expect(t.path[0].x).toBeGreaterThan(40);
+    for (const t of m.battle!.threats) expect(t.path[0].x).toBeGreaterThan(18);
   });
 });
 

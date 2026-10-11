@@ -535,7 +535,7 @@ function routeStart(route: Point[], wantDist: number): Point {
   return { x: round(p0.x + dx * extra), z: round(p0.z + dz * extra) };
 }
 
-const SPAWN_DIST: Record<string, number> = { kargu: 30, recon: 25, grad: 40, himars: 80, trg300: 100 };
+const SPAWN_DIST: Record<string, number> = { kargu: 20, recon: 20, grad: 40, himars: 80, trg300: 100 };
 const PEAK: Record<ThreatClass, number> = { drone: 0.3, decoy: 0.3, uav: 5, rocket: 12, cruise: 0.05, ballistic: 80, hypersonic: 25 };
 
 function spawnStrike(m: Match, bt: Battle, att: PlayerState, def: PlayerState, weapon: string, target: number | undefined, delay: number, from?: Point, to?: Point) {

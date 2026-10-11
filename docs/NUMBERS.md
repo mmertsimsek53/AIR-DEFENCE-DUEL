@@ -194,3 +194,6 @@ Every weapon flies at one steady speed (no slowing in the last 20 km). Drones, d
 | TAI Aksungur (survey) | $25M, reusable, 6 of 12 sectors per lap, ground defences cannot hit it |
 | Akıncı air patrol | $40M, max 2, engages survey UAVs within 1.2 km, 1 missile per strike, $1M, 60% hit |
 | Akıncı attack UAV | removed |
+
+## 14. Shorter approach (11 Oct 2026, Mert: drones took ages to reach the city)
+Drones, decoys and UAVs start 20–25 km out instead of 60 km, at about the same speed (~1 km/s): Shahed and Gerbera 25 s, Kargu and recon drones 20 s, armed TB2 30 s, Aksungur 25 s to the city. A survey strike now takes about half a minute. Air patrol figures re-measured: one patrol 33%, two 49%.

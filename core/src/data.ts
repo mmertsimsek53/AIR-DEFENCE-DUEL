@@ -85,15 +85,15 @@ export interface AttackSpec {
 const a = (s: AttackSpec) => s;
 
 export const ATTACKS: AttackSpec[] = [
-  a({ id: 'gerbera', name: 'Gerbera decoy', cls: 'decoy', unit: 0.05, launcher: 10, perTurn: 10, flight: 70, damage: 0, precise: false, imitates: 'drone', role: 'Drone decoy. Draws gun and short-range fire away from your recon drones and real drones.' }),
+  a({ id: 'gerbera', name: 'Gerbera decoy', cls: 'decoy', unit: 0.05, launcher: 10, perTurn: 10, flight: 25, damage: 0, precise: false, imitates: 'drone', role: 'Drone decoy. Draws gun and short-range fire away from your recon drones and real drones.' }),
   a({ id: 'mald', name: 'Missile decoy (MALD)', cls: 'decoy', unit: 0.3, launcher: 30, perTurn: 4, flight: 35, damage: 0, precise: false, imitates: 'cruise', role: 'Missile decoy. Looks like a cruise missile, so the enemy spends expensive interceptors on it.' }),
-  a({ id: 'recon', name: 'Mini recon drone', cls: 'drone', unit: 0.5, launcher: 0, perTurn: 4, flight: 40, damage: 0, precise: true, noLauncher: true, recon: true, role: 'Finds the chief: flies to a hideout, hovers 5 s and tells you if the chief is inside. Defences shoot at it.' }),
-  a({ id: 'shahed', name: 'Shahed-136', cls: 'drone', unit: 0.1, launcher: 15, perTurn: 10, flight: 70, damage: 8, precise: false, scatter: 0.9, role: 'Cheap swarm drone. Damage adds up: about 3 hits destroy a battery. Any hit on the chief\'s hideout wins.' }),
-  a({ id: 'kargu', name: 'Kargu-2', cls: 'drone', unit: 0.08, launcher: 10, perTurn: 8, flight: 40, damage: 4, precise: true, role: 'Small precise drone. 5 hits destroy a battery; cheap way to pick off guns and short-range defences.' }),
+  a({ id: 'recon', name: 'Mini recon drone', cls: 'drone', unit: 0.5, launcher: 0, perTurn: 4, flight: 20, damage: 0, precise: true, noLauncher: true, recon: true, role: 'Finds the chief: flies to a hideout, hovers 5 s and tells you if the chief is inside. Defences shoot at it.' }),
+  a({ id: 'shahed', name: 'Shahed-136', cls: 'drone', unit: 0.1, launcher: 15, perTurn: 10, flight: 25, damage: 8, precise: false, scatter: 0.9, role: 'Cheap swarm drone. Damage adds up: about 3 hits destroy a battery. Any hit on the chief\'s hideout wins.' }),
+  a({ id: 'kargu', name: 'Kargu-2', cls: 'drone', unit: 0.08, launcher: 10, perTurn: 8, flight: 20, damage: 4, precise: true, role: 'Small precise drone. 5 hits destroy a battery; cheap way to pick off guns and short-range defences.' }),
   a({ id: 'grad', name: 'BM-21 Grad', cls: 'rocket', unit: 1.5, launcher: 20, perTurn: 1, flight: 20, damage: 3, precise: false, salvo: 40, scatter: 0.5, role: '40-rocket barrage over a 1.5 km area. Saturates the defence; can catch batteries or a hideout in the area.' }),
   a({ id: 'trg300', name: 'TRG-300', cls: 'rocket', unit: 0.6, launcher: 40, perTurn: 4, flight: 18, damage: 25, precise: true, role: 'Fast guided rocket. One hit destroys a battery or a hideout; hard for guns and lasers to stop.' }),
   a({ id: 'himars', name: 'HIMARS GMLRS', cls: 'rocket', unit: 0.3, launcher: 60, perTurn: 6, flight: 18, damage: 20, precise: true, role: 'Fast GPS-guided rockets, six per pod. Kills batteries one per hit.' }),
-  a({ id: 'tb2', name: 'Bayraktar TB2', cls: 'uav', unit: 15, launcher: 0, perTurn: 99, flight: 60, damage: 10, precise: true, reusable: true, munitions: 4, munitionCost: 0.1, role: 'Armed UAV with 4 bombs: loiters over the point you choose and drops them one by one. Comes back if it survives.' }),
+  a({ id: 'tb2', name: 'Bayraktar TB2', cls: 'uav', unit: 15, launcher: 0, perTurn: 99, flight: 30, damage: 10, precise: true, reusable: true, munitions: 4, munitionCost: 0.1, role: 'Armed UAV with 4 bombs: loiters over the point you choose and drops them one by one. Comes back if it survives.' }),
   a({ id: 'som', name: 'SOM', cls: 'cruise', unit: 1.2, launcher: 50, perTurn: 2, flight: 35, damage: 50, precise: true, low: true, role: 'Low-flying cruise missile. Long-range SAMs struggle against it; one hit destroys a battery or a hideout.' }),
   a({ id: 'tomahawk', name: 'Tomahawk', cls: 'cruise', unit: 2.0, launcher: 60, perTurn: 2, flight: 35, damage: 60, precise: true, low: true, role: 'Low-flying cruise missile with a bigger warhead. One hit destroys a battery or a hideout.' }),
   a({ id: 'tayfun', name: 'Tayfun', cls: 'ballistic', unit: 3.5, launcher: 90, perTurn: 2, flight: 12, damage: 80, precise: true, role: 'Ballistic missile: very fast, only Patriot and the long-range SAMs can stop it. The sure blow on a found chief.' }),
@@ -104,17 +104,17 @@ export const ATTACKS: AttackSpec[] = [
 export interface ScoutSpec { id: string; name: string; price: number; altitude: 'medium' | 'high' | 'very high'; reveal: number; flight: number; onlyLongRange?: boolean; role: string }
 
 export const SCOUTS: ScoutSpec[] = [
-  { id: 'tb2s', name: 'Bayraktar TB2 (survey)', price: 15, altitude: 'medium', reveal: 1.5, flight: 60, role: 'Maps their city: one lap photographs half of it (hideouts, buildings, defences). Reusable if it gets home.' },
-  { id: 'anka', name: 'TAI Anka', price: 30, altitude: 'high', reveal: 3, flight: 50, role: 'Wider view, harder to hit.' },
-  { id: 'aksungur', name: 'TAI Aksungur', price: 25, altitude: 'very high', reveal: 3, flight: 60, role: 'Maps their city from high up: one lap photographs half of it. Ground defences cannot reach it; only an enemy Akıncı air patrol can shoot it down. Reusable.' },
-  { id: 'globalhawk', name: 'RQ-4 Global Hawk', price: 90, altitude: 'very high', reveal: 8, flight: 45, onlyLongRange: true, role: 'Sees almost everything. Only long-range SAMs reach it.' },
+  { id: 'tb2s', name: 'Bayraktar TB2 (survey)', price: 15, altitude: 'medium', reveal: 1.5, flight: 25, role: 'Maps their city: one lap photographs half of it (hideouts, buildings, defences). Reusable if it gets home.' },
+  { id: 'anka', name: 'TAI Anka', price: 30, altitude: 'high', reveal: 3, flight: 25, role: 'Wider view, harder to hit.' },
+  { id: 'aksungur', name: 'TAI Aksungur', price: 25, altitude: 'very high', reveal: 3, flight: 25, role: 'Maps their city from high up: one lap photographs half of it. Ground defences cannot reach it; only an enemy Akıncı air patrol can shoot it down. Reusable.' },
+  { id: 'globalhawk', name: 'RQ-4 Global Hawk', price: 90, altitude: 'very high', reveal: 8, flight: 25, onlyLongRange: true, role: 'Sees almost everything. Only long-range SAMs reach it.' },
 ];
 export const LONG_RANGE_SAMS = ['davidsling', 'siper', 's400', 'patriot'];
 // Hit % against scouts: medium = UAV %, high = UAV % − 25, very high = only long-range SAMs at UAV %.
 
 // Game-world distances. Real ranges are kept for long-range systems; the city is small so short systems guard districts.
 export const CITY_RADIUS = 6;
-export const SPAWN_DISTANCE = 60; // km: drones, decoys and UAVs start here and fly at one steady speed (Mert: keep the pace, no slowing near the city)
+export const SPAWN_DISTANCE = 25; // km: drones, decoys and UAVs start here and fly at one steady speed, about 1 km/s (Mert: keep the pace; no long empty approach)
 
 export const RULES = {
   setupSeconds: 120,
