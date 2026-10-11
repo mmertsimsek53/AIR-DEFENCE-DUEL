@@ -335,6 +335,13 @@ i[style*="--r"]{font-style:normal;white-space:nowrap}i[style*="--r"]::before{con
 .wrow .v{font-size:13px;color:var(--sec);white-space:nowrap}.wrow .chev{color:var(--sec);font-size:14px}
 .stat{display:flex;justify-content:space-between;padding:9px 12px;background:var(--row);border-radius:10px;font-size:14px}.stat span{color:var(--sec)}
 .win .actions{display:flex;gap:8px;flex-wrap:wrap}.win .actions .btn{flex:1;min-width:110px;font-size:15px;padding:11px 14px}
+/* Attack shop rows */
+.srows{display:grid;gap:5px;max-height:min(52vh,300px);overflow-y:auto}
+.srow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:6px 10px;background:var(--row);border-radius:12px}
+.srow .sname{display:grid;min-width:0}.srow .sname b{font-size:14px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.srow .sname b::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--c);margin-right:6px;vertical-align:1px}
+.srow .sname span{font-size:11px;color:var(--sec);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.srow .sbuy{display:grid;justify-items:end;gap:2px}.srow .sbuy span{font-size:10px;color:var(--sec);white-space:nowrap}
 /* Live attack bar: one compact row of weapon chips you swipe sideways, so the enemy city stays visible. */
 .livebar .chips2{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px}
 .livebar .chips2::-webkit-scrollbar{display:none}

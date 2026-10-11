@@ -779,7 +779,7 @@ function launch(){
 }
 
 function vsChips(hit,col){return '<div class="vs">'+CLS_ORDER.filter(k=>hit[k]).map(k=>'<i class="y" style="--c:'+CLS_CSS[k]+'">'+CLS_LABEL[k]+' '+Math.round(hit[k])+'%</i>').join('')+'</div>';}
-function sig(){const v=view,m=v.me;return [v.phase,v.myTurn,tab,upSeg,m.budget,JSON.stringify(m.stock),JSON.stringify(m.launchers),JSON.stringify(m.scouts),JSON.stringify(m.interceptors),m.patrols,draftOpen,draftTab,draftPage,m.chief,JSON.stringify(m.intel),m.surveyed.length,m.batteries.map(b=>b.manual?1:0).join(''),v.enemy.buildings.length,
+function sig(){const v=view,m=v.me;return [v.phase,v.myTurn,tab,upSeg,m.budget,JSON.stringify(m.stock),JSON.stringify(m.launchers),JSON.stringify(m.scouts),JSON.stringify(m.interceptors),m.patrols,draftOpen,draftTab,draftPage,atkTab,m.chief,JSON.stringify(m.intel),m.surveyed.length,m.batteries.map(b=>b.manual?1:0).join(''),v.enemy.buildings.length,
   m.batteries.map(b=>b.uid+':'+b.ammo).join(','),m.buildings.map(b=>b.down).join(','),v.enemy.buildings.map(b=>b.uid+':'+b.down).join(','),JSON.stringify(plan),placing].join('|');}
 
 function hideSheet(){$('sheet').hidden=true;document.body.classList.remove('sheet-open');}
@@ -825,28 +825,24 @@ function sheetHTML(){
     return h;
   }
   if(tab==='attack'){
-    const mine=myTurn(),targets=v.enemy.buildings;let h='';
-    const owned=CAT.attacks.filter(w=>(m.launchers[w.id]||0)>0||(m.stock[w.id]||0)>0);
-    const ownedS=DUEL_SCOUTS.filter(s=>(m.scouts[s.id]||0)>0);
-    if(owned.length||ownedS.length){
-      h+='<h3>Your weapons'+(mine?' <span class="small">· tap START ATTACK, then send them one by one on the map</span>':'')+'</h3><div class="items">';
-      for(const w of owned){const st=m.stock[w.id]||0,cap=w.reusable?st:w.noLauncher?w.perTurn:(m.caps[w.id]||0),fire=Math.min(st,cap),buyN=w.reusable?1:Math.max(1,cap-st),q=Math.min(plan.counts[w.id]||0,fire);plan.counts[w.id]=q;
-        h+='<div class="item" style="--c:'+CLS_CSS[w.cls]+'"><div class="nm"><b>'+esc(w.name)+'</b><span>'+(w.reusable?'reusable UAV':w.recon?'finds the chief · up to '+cap+'/turn':w.noLauncher?'up to '+cap+'/turn':(m.launchers[w.id]||0)+' launcher · fires '+cap+'/turn')+(w.recon?'':' · '+(w.cls==='decoy'?'decoy':w.precise?'precise':'unguided'))+'<br>'+esc(w.role)+'</span></div>'+
-          '<div class="cnt"><b class="big'+(st===0?' bad':'')+'">'+st+'</b><span> in stock</span></div><div class="acts">'+
-          '<button class="mini" data-act="units" data-k="'+w.id+'" data-n="'+buyN+'"'+(B<w.unit*buyN?' disabled':'')+'>Buy '+buyN+' · '+fmt(w.unit*buyN)+'</button>'+
-          '</div></div>';}
-      for(const s of ownedS){const n=m.scouts[s.id]||0;
-        h+='<div class="item" style="--c:'+CLS_CSS.uav+'"><div class="nm"><b>'+esc(s.name)+'</b><span>survey · one lap photographs half of their city · only an enemy air patrol can shoot it · map '+Math.round(m.surveyed.length/12*100)+'%</span></div><div class="cnt"><b class="big">'+n+'</b><span> ready</span></div><div class="acts">'+
-          '<button class="mini" data-act="scout" data-k="'+s.id+'"'+(B<s.price?' disabled':'')+'>Buy '+fmt(s.price)+'</button></div></div>';}
-      h+='</div>';
-    }else h+='<div class="note">You have no weapons yet. Pick some below.</div>';
-    const rest=CAT.attacks.filter(w=>!owned.includes(w)&&(showAllAtk||REC_ATK.includes(w.id))),restS=DUEL_SCOUTS.filter(s=>!ownedS.includes(s));
-    const wt=(id,name,col,meta,act,price,n)=>{const role=(ATK[id]||SCT[id]||{}).role;return '<button class="tile" type="button" data-act="'+act+'" data-k="'+id+'"'+(n?' data-n="'+n+'"':'')+' style="--c:'+col+'"'+(B<price?' disabled':'')+'><b class="tn">'+esc(name)+'</b><span class="meta">'+meta+'</span><span class="meta"><b>'+fmt(price)+'</b></span>'+(role?'<span class="meta" style="white-space:normal;opacity:.8">'+esc(role)+'</span>':'')+'</button>';};
-    h+='<h3>Add a weapon <span class="small">· tap to buy its launcher (or the UAV)</span></h3><div class="tiles">'+
-      rest.map(w=>w.reusable?wt(w.id,w.name,CLS_CSS[w.cls],'armed UAV · reusable','units',w.unit,1):w.noLauncher?wt(w.id,w.name,CLS_CSS[w.cls],(w.recon?'finds the chief · ':'')+'no launcher · '+fmt(w.unit)+' each','units',w.unit*w.perTurn,w.perTurn):wt(w.id,w.name,CLS_CSS[w.cls],threatLabel(w.cls)+' · '+fmt(w.unit)+' each · '+w.perTurn+'/turn','launcher',w.launcher)).join('')+
-      restS.map(sc=>wt(sc.id,sc.name,CLS_CSS.uav,'survey UAV · photographs their city · reusable','scout',sc.price)).join('')+'</div>';
-    h+='<button class="mini" data-act="showall" data-k="atk">'+(showAllAtk?'Show recommended only':'Show all weapons')+'</button>';
-    h+='<div class="note">A launcher is bought once and sets how many can fly each turn. Decoys look real to the enemy. <b>Mini recon drones</b> fly to a hideout, hover 5 s and tell you if the chief is inside; enemy defences shoot at them. '+(mine?'Press <b>START ATTACK</b>: pick a weapon, tap where it starts (outside the city), then tap where it should hit.':'You attack on your turn.')+'</div>';
+    // Shop by job: tabs on top, wide cards 3 per row; tap a card to buy (launcher first, then a turn's worth).
+    const groups=ATK_GROUPS,g=groups[atkTab]||groups[0];
+    let h='<div class="seg" style="margin-bottom:6px">'+groups.map((x,i)=>{const n=x.ids.reduce((s,id)=>s+((id==='aksungur'?m.scouts[id]:m.stock[id])||0),0);
+      return '<button class="mini'+(x===g?' on':'')+'" data-act="atab" data-k="'+i+'">'+x.title+(n?' · '+n:'')+'</button>';}).join('')+'</div>';
+    h+='<div class="srows">';
+    for(const id of g.ids){
+      if(id==='aksungur'){const s=SCT[id],n=m.scouts[id]||0;
+        h+=shopCard(id,s.name,CLS_CSS.uav,WHY_ATK[id],n+' ready · reusable','scout',s.price,'Buy · '+fmt(s.price),B<s.price);continue;}
+      const w=ATK[id];if(!w)continue;const st=m.stock[id]||0,L=m.launchers[id]||0;
+      const cap=w.reusable?st:w.noLauncher?w.perTurn:L*w.perTurn;
+      let act,price,label,n;
+      if(!w.reusable&&!w.noLauncher&&L===0){act='launcher';price=w.launcher;label='Buy launcher · '+fmt(price);}
+      else{n=w.reusable?1:Math.max(1,cap-st);act='units';price=w.unit*n;label='Buy '+n+' · '+fmt(price);}
+      const stock=w.reusable?st+' ready · reusable':L===0&&!w.noLauncher?fmt(w.unit)+' each · '+w.perTurn+'/turn per launcher':st+' in stock · fires '+cap+'/turn';
+      h+=shopCard(id,w.name,CLS_CSS[w.cls],WHY_ATK[id]||w.role,stock,act,price,label,B<price,n);
+    }
+    h+='</div>';
+    if(myTurn())h+='<div class="small" style="margin-top:6px">Ready? Press <b>START ATTACK</b>, pick a weapon and drag from where it comes from to the target.</div>';
     return h;
   }
   if(tab==='chief'){
@@ -876,6 +872,7 @@ $('sheet').addEventListener('click',e=>{
     case 'launcher':if(cmd({c:'buyLauncher',weapon:k}))msg(ATK[k].name+' launcher bought','money');break;
     case 'units':cmd({c:'buyUnits',weapon:k,n:+b.dataset.n});break;
     case 'scout':if(cmd({c:'buyScout',scout:k}))msg(SCT[k].name+' ready','money');break;
+    case 'atab':atkTab=+k;break;
     case 'dtab':draftTab=+k;draftPage=0;break;
     case 'dpage':draftPage=Math.max(0,draftPage+ +k);break;
     case 'tier':{const P=CAT.rules.draftPicks,cur=draftOpen!=null?draftOpen:[1,2,3,4].find(t=>view.me.batteries.filter(b=>DEF[b.sys].tier===t).length<P[t]);
@@ -900,6 +897,20 @@ $('sheet').addEventListener('click',e=>{
 $('sheet').addEventListener('change',e=>{const s=e.target.closest('select');if(!s)return;
   if(s.dataset.act==='target')plan.target=s.value===''?null:+s.value;
   sheetSig='';});
+
+/* Attack shop: groups by job, one short line per weapon. */
+const ATK_GROUPS=[{title:'Find',ids:['aksungur','recon']},{title:'Drones & decoys',ids:['shahed','kargu','gerbera','mald','harop']},
+  {title:'Rockets & anti-radar',ids:['akbaba','trg300','himars','grad']},{title:'Missiles',ids:['som','tomahawk','tayfun','iskander','kinzhal']},{title:'UAV',ids:['tb2']}];
+const WHY_ATK={aksungur:'Maps half their city per flight',recon:'Checks one hideout for the chief',shahed:'Cheap swarm · 3 hits kill a defence',
+  kargu:'Small precise drone · picks off guns',gerbera:'Fake drone · soaks up gun fire',mald:'Fake cruise missile · wastes their missiles',
+  harop:'Waits over the city, dives on a radar',akbaba:'Homes on any defence that fires',trg300:'Fast guided rocket · kills a defence',
+  himars:'Six guided rockets per turn',grad:'40-rocket barrage on an area',som:'Low cruise missile · slips under radar',
+  tomahawk:'Low cruise missile · bigger warhead',tayfun:'Fast ballistic · hard to stop',iskander:'Ballistic with 2 decoys',
+  kinzhal:'Hypersonic · almost unstoppable',tb2:'Armed UAV · 4 bombs, comes back'};
+let atkTab=0;
+function shopCard(id,name,col,why,stock,act,price,label,disabled,n){ // one wide row per weapon: name and job on the left, stock and buy on the right
+  return '<div class="srow" data-k="'+id+'" style="--c:'+col+'"><div class="sname"><b>'+esc(name)+'</b><span>'+esc(why)+'</span></div>'+
+    '<div class="sbuy"><span>'+stock+'</span><button class="mini" type="button" data-act="'+act+'" data-k="'+id+'"'+(n?' data-n="'+n+'"':'')+(disabled?' disabled':'')+'>'+label+'</button></div></div>';}
 
 /* Why you would pick each system (shown on its card in the defence draft). */
 const PICK_WHY={zu23:'Cheapest gun. Drones close in only; bursts cost almost nothing.',
