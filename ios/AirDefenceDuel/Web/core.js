@@ -58,7 +58,7 @@
   ];
   var LONG_RANGE_SAMS = ["davidsling", "siper", "s400", "patriot"];
   var CITY_RADIUS = 6;
-  var SPAWN_DISTANCE = 300;
+  var SPAWN_DISTANCE = 60;
   var RULES = {
     setupSeconds: 120,
     turnSeconds: 60,
@@ -803,17 +803,7 @@
   var MISSILE_START = 2 * TERMINAL;
   function setSpeeds(t, from, flight, flies = t.cls) {
     const d2 = Math.hypot(from.x, from.z);
-    if (MISSILE_CLASSES.includes(flies)) {
-      t.speed = t.speedIn = d2 / flight;
-      return;
-    }
-    const inner = Math.min(TERMINAL, d2), outer = d2 - inner;
-    if (outer > 0) {
-      t.speed = outer / (flight / 2);
-      t.speedIn = inner / (flight / 2);
-    } else {
-      t.speed = t.speedIn = d2 / flight;
-    }
+    t.speed = t.speedIn = d2 / flight;
   }
   var speedNow = (t) => Math.hypot(t.x, t.z) > TERMINAL ? t.speed : t.speedIn;
   function resample(pts, step2) {

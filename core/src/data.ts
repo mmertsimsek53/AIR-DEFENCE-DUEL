@@ -114,7 +114,7 @@ export const LONG_RANGE_SAMS = ['davidsling', 'siper', 's400', 'patriot'];
 
 // Game-world distances. Real ranges are kept for long-range systems; the city is small so short systems guard districts.
 export const CITY_RADIUS = 6;
-export const SPAWN_DISTANCE = 300;
+export const SPAWN_DISTANCE = 60; // km: drones, decoys and UAVs start here and fly at one steady speed (Mert: keep the pace, no slowing near the city)
 
 export const RULES = {
   setupSeconds: 120,

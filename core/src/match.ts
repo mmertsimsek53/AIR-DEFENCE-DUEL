@@ -479,11 +479,10 @@ const TERMINAL = 20; // km: the last 20 km take half the flight time
 const MISSILE_START = 2 * TERMINAL; // missiles fly at one steady speed, launched 40 km out
 
 function setSpeeds(t: Threat, from: Point, flight: number, flies: ThreatClass = t.cls) {
+  // Everything flies at one steady speed: no slowing down near the city.
+  void flies;
   const d = Math.hypot(from.x, from.z);
-  if (MISSILE_CLASSES.includes(flies)) { t.speed = t.speedIn = d / flight; return; }
-  const inner = Math.min(TERMINAL, d), outer = d - inner;
-  if (outer > 0) { t.speed = outer / (flight / 2); t.speedIn = inner / (flight / 2); }
-  else { t.speed = t.speedIn = d / flight; }
+  t.speed = t.speedIn = d / flight;
 }
 const speedNow = (t: Threat) => (Math.hypot(t.x, t.z) > TERMINAL ? t.speed : t.speedIn);
 

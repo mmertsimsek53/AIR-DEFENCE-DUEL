@@ -184,3 +184,6 @@ A hit of 20+ damage on a revealed building knocks it out until repaired. Every h
 
 Decoys: same hit % as the threat they imitate (85 for the missile systems). S-300 and S-500 lose 20 points against low cruise missiles. Each jammer (Koral, İhtar) gets its own roll at a contact entering its range.
 In the game: 28 systems — Turkish 10, American 6, Russian 9, Israeli 3. Removed: Gepard, IRIS-T SLM.
+
+## 12. Pace (11 Oct 2026, Mert: keep the pace)
+Every weapon flies at one steady speed (no slowing in the last 20 km). Drones, decoys and UAVs start 60 km out (was 300 km), so their flight times stay as listed.
