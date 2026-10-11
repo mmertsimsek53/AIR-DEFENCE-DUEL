@@ -147,7 +147,8 @@ export const RULES = {
   bigSamRange: 40,         // km: missile systems with this range or more can be switched to manual fire
   startBudget: 600,
   income: 120,
-  knockoutDamage: 20,
+  knockoutDamage: 20,       // base raids
+  buildingLives: 40,       // duel: hideouts and critical buildings (a Shahed does 8, a cruise missile 50+)
   buildingHitRadius: 0.4, // km: an unguided hit this close to a building counts on it
   badWeatherChance: 0.2,
   visualRange: 15,        // km: what you see with no working radar

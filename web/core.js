@@ -112,6 +112,9 @@
     startBudget: 600,
     income: 120,
     knockoutDamage: 20,
+    // base raids
+    buildingLives: 40,
+    // duel: hideouts and critical buildings (a Shahed does 8, a cruise missile 50+)
     buildingHitRadius: 0.4,
     // km: an unguided hit this close to a building counts on it
     badWeatherChance: 0.2,
@@ -275,7 +278,7 @@
   function addBuilding(m, p, kind, at) {
     const spot = at ?? freeSpot(m, p);
     if (!spot) return void 0;
-    const b = { uid: uid(m), kind, x: spot.x, z: spot.z, down: 0, revealed: false, battleDamage: 0 };
+    const b = { uid: uid(m), kind, x: spot.x, z: spot.z, down: 0, revealed: false, battleDamage: 0, hp: RULES.buildingLives, maxHp: RULES.buildingLives };
     p.buildings.push(b);
     return b;
   }
@@ -578,6 +581,7 @@
         const cost = BUILDINGS.find((x) => x.kind === b.kind).repairNow;
         if (!spend(p, cost)) return fail("Not enough budget.");
         b.down = 0;
+        b.hp = b.maxHp;
         return ok;
       }
     }
@@ -589,7 +593,10 @@
     m.turnNo++;
     m.battle = void 0;
     const p = m.players[who];
-    for (const b of p.buildings) if (b.down > 0 && b.down < 99) b.down--;
+    for (const b of p.buildings) if (b.down > 0 && b.down < 99) {
+      b.down--;
+      if (b.down === 0) b.hp = b.maxHp;
+    }
     const commandHit = !working(p, "command");
     p.budget = round(p.budget + incomeFor(p));
     autoRestock(p);
@@ -1332,15 +1339,17 @@
     const b = def.buildings.find((x) => x.uid === buildingUid);
     if (!b) return;
     if (b.kind === "hideout") {
-      hitHideout(m, bt, def, b);
+      hitHideout(m, bt, def, b, damage);
       return;
     }
     if (!b.revealed) {
       b.revealed = true;
       emit(bt, { t: "reveal", building: b.uid });
     }
+    if (b.down > 0) return;
     b.battleDamage += damage;
-    if (b.down === 0 && b.battleDamage >= RULES.knockoutDamage) {
+    b.hp = Math.max(0, (b.hp ?? RULES.buildingLives) - damage);
+    if (b.hp <= 0) {
       b.down = RULES.repairTurns;
       const name = BUILDINGS.find((x) => x.kind === b.kind).name;
       emit(bt, { t: "knockout", building: b.uid, kind: b.kind });
@@ -1375,9 +1384,14 @@
     }
     def.health = def.buildings.reduce((s, b) => s + (b.hp ?? 0), 0);
   }
-  function hitHideout(m, bt, def, h) {
+  function hitHideout(m, bt, def, h, damage) {
     if (!intact(h)) return;
     const att = m.players[bt.attacker], chief = def.chief === h.uid;
+    h.hp = Math.max(0, (h.hp ?? RULES.buildingLives) - damage);
+    if (h.hp > 0) {
+      emit(bt, { t: "msg", text: `A hideout was hit: ${h.hp}/${h.maxHp ?? RULES.buildingLives} left.`, tone: "info" });
+      return;
+    }
     h.down = 99;
     emit(bt, { t: "hideout", building: h.uid, chief });
     if (chief) {
@@ -1513,7 +1527,7 @@
     m.lastReport = {
       attacker: bt.attacker,
       ...bt.stats,
-      knockedOut: def.buildings.filter((b) => b.kind !== "hideout" && b.battleDamage >= RULES.knockoutDamage && b.down > 0 && b.down < 99).map((b) => BUILDINGS.find((x) => x.kind === b.kind).name),
+      knockedOut: def.buildings.filter((b) => b.kind !== "hideout" && b.battleDamage > 0 && b.down > 0 && b.down < 99).map((b) => BUILDINGS.find((x) => x.kind === b.kind).name),
       revealed: def.buildings.filter((b) => b.revealed && b.kind !== "hideout").length
     };
     if (m.raid) {
@@ -1672,6 +1686,7 @@
       raid: !!m.raid,
       maxBatteries: m.maxBatteries ?? 0,
       weatherBad: m.weatherBad,
+      batteryLives: RULES.batteryKillDamage,
       winner: m.winner,
       endReason: m.endReason,
       iWon: m.winner === pi,
@@ -1690,7 +1705,7 @@
         pads: me.pads,
         scars: me.scars,
         batteries: me.batteries.map((b) => ({ ...b, load: batteryLoad(b), name: defence(b.sys).name })),
-        buildings: me.buildings.map((b) => ({ uid: b.uid, kind: b.kind, x: b.x, z: b.z, down: b.down, revealed: b.revealed, no: myNo.get(b.uid), name: nameOfBuilding(b.kind, myNo.get(b.uid)) })),
+        buildings: me.buildings.map((b) => ({ uid: b.uid, kind: b.kind, x: b.x, z: b.z, down: b.down, revealed: b.revealed, no: myNo.get(b.uid), name: nameOfBuilding(b.kind, myNo.get(b.uid)), hp: b.hp, maxHp: b.maxHp })),
         interceptors: me.interceptors,
         launchers: me.launchers,
         stock: me.stock,
@@ -1709,8 +1724,8 @@
         name: foe.name,
         scars: foe.scars,
         hideoutsLeft: foe.buildings.filter((b) => b.kind === "hideout" && b.down < 99).length,
-        buildings: foe.buildings.filter((b) => b.revealed).map((b) => ({ uid: b.uid, kind: b.kind, x: b.x, z: b.z, down: b.down, no: foeNo.get(b.uid), name: nameOfBuilding(b.kind, foeNo.get(b.uid)) })),
-        batteries: foe.batteries.filter((b) => b.revealed).map((b) => ({ uid: b.uid, sys: b.sys, name: defence(b.sys).name, x: foe.pads[b.pad].x, z: foe.pads[b.pad].z }))
+        buildings: foe.buildings.filter((b) => b.revealed).map((b) => ({ uid: b.uid, kind: b.kind, x: b.x, z: b.z, down: b.down, no: foeNo.get(b.uid), name: nameOfBuilding(b.kind, foeNo.get(b.uid)), hp: b.hp, maxHp: b.maxHp })),
+        batteries: foe.batteries.filter((b) => b.revealed).map((b) => ({ uid: b.uid, sys: b.sys, name: defence(b.sys).name, x: foe.pads[b.pad].x, z: foe.pads[b.pad].z, damage: b.damage ?? 0 }))
       },
       battle: bt && {
         attacker: bt.attacker,

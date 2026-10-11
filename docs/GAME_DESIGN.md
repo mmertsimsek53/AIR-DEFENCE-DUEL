@@ -146,3 +146,9 @@ Status: first outline from Mert, 9 Oct 2026. Everything below "Open questions" i
 - Money then goes only on attack weapons, drones (Aksungur, recon, decoys) and defence ammunition.
 - Levels: short — ZU-23-2, Korkut, Phalanx C-RAM, Stinger, Igla-S, Sungur, Avenger, ALKA, Gökberk, İhtar · medium — Pantsir-S1, Tunguska, Gürz, Tor-M2, Hisar-A+, Iron Dome, Iron Beam, Koral · long — Hisar-O+, NASAMS, Buk-M3, David's Sling, Siper, S-300 · top — Patriot PAC-3, S-400, S-500, THAAD.
 - AI vs AI: median 21 turns in total, 12–41 over 16 games.
+
+## Lives (decided 11 Oct 2026, Mert: a Shahed should not destroy a building in one shot)
+- Hideouts and critical buildings have **40 lives**; defence systems **20**. Each hit takes its warhead damage (Shahed 8, Kargu 4, guided rockets 20–25, cruise 50–60, ballistic 80, hypersonic 100).
+- A hideout at 0 is destroyed: chief inside → the attacker wins; empty → both sides know. Damage to hideouts stays between turns.
+- A critical building at 0 is knocked out for 3 turns, then comes back with full lives (or pay to repair now).
+- Remaining lives show on the labels (your own buildings, and enemy ones you have found) and on battery tags.

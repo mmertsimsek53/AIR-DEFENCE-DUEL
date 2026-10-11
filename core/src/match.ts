@@ -38,7 +38,7 @@ function freeSpot(m: Match, p: PlayerState): Point | undefined {
 function addBuilding(m: Match, p: PlayerState, kind: BuildingKind, at?: Point): Building | undefined {
   const spot = at ?? freeSpot(m, p);
   if (!spot) return undefined;
-  const b: Building = { uid: uid(m), kind, x: spot.x, z: spot.z, down: 0, revealed: false, battleDamage: 0 };
+  const b: Building = { uid: uid(m), kind, x: spot.x, z: spot.z, down: 0, revealed: false, battleDamage: 0, hp: RULES.buildingLives, maxHp: RULES.buildingLives };
   p.buildings.push(b);
   return b;
 }
@@ -290,7 +290,7 @@ export function command(m: Match, pi: PlayerIndex, cmd: Command): CommandResult 
       const b = p.buildings.find(x => x.uid === cmd.uid); if (!b || b.down === 0) return fail('Nothing to repair.');
       const cost = BUILDINGS.find(x => x.kind === b.kind)!.repairNow;
       if (!spend(p, cost)) return fail('Not enough budget.');
-      b.down = 0;
+      b.down = 0; b.hp = b.maxHp;
       return ok;
     }
   }
@@ -305,7 +305,7 @@ function startTurn(m: Match, who: PlayerIndex) {
   m.turnNo++;
   m.battle = undefined;
   const p = m.players[who];
-  for (const b of p.buildings) if (b.down > 0 && b.down < 99) b.down--;
+  for (const b of p.buildings) if (b.down > 0 && b.down < 99) { b.down--; if (b.down === 0) b.hp = b.maxHp; }
   const commandHit = !working(p, 'command');
   p.budget = round(p.budget + incomeFor(p));
   autoRestock(p);
@@ -884,10 +884,12 @@ function impact(m: Match, bt: Battle, def: PlayerState, pt: Point, damage: numbe
   emit(bt, { t: 'impact', x: pt.x, z: pt.z, damage, building: buildingUid });
   if (buildingUid == null) return;
   const b = def.buildings.find(x => x.uid === buildingUid); if (!b) return;
-  if (b.kind === 'hideout') { hitHideout(m, bt, def, b); return; }
+  if (b.kind === 'hideout') { hitHideout(m, bt, def, b, damage); return; }
   if (!b.revealed) { b.revealed = true; emit(bt, { t: 'reveal', building: b.uid }); }
+  if (b.down > 0) return; // already knocked out
   b.battleDamage += damage;
-  if (b.down === 0 && b.battleDamage >= RULES.knockoutDamage) {
+  b.hp = Math.max(0, (b.hp ?? RULES.buildingLives) - damage);
+  if (b.hp <= 0) {
     b.down = RULES.repairTurns;
     const name = BUILDINGS.find(x => x.kind === b.kind)!.name;
     emit(bt, { t: 'knockout', building: b.uid, kind: b.kind });
@@ -918,10 +920,12 @@ function raidImpact(m: Match, bt: Battle, def: PlayerState, pt: Point, damage: n
   def.health = def.buildings.reduce((s, b) => s + (b.hp ?? 0), 0);
 }
 
-/** Any hit on a hideout: chief inside → the attacker wins; empty → it is destroyed and both sides know it was empty. */
-function hitHideout(m: Match, bt: Battle, def: PlayerState, h: Building) {
+/** A hideout loses lives with each hit; at zero it is destroyed: chief inside → the attacker wins; empty → both sides know it was empty. */
+function hitHideout(m: Match, bt: Battle, def: PlayerState, h: Building, damage: number) {
   if (!intact(h)) return;
   const att = m.players[bt.attacker], chief = def.chief === h.uid;
+  h.hp = Math.max(0, (h.hp ?? RULES.buildingLives) - damage);
+  if (h.hp > 0) { emit(bt, { t: 'msg', text: `A hideout was hit: ${h.hp}/${h.maxHp ?? RULES.buildingLives} left.`, tone: 'info' }); return; }
   h.down = 99;
   emit(bt, { t: 'hideout', building: h.uid, chief });
   if (chief) { bt.chiefDown = true; return; }
@@ -1040,7 +1044,7 @@ function endBattle(m: Match, bt: Battle) {
   const def = m.players[bt.defender];
   m.lastReport = {
     attacker: bt.attacker, ...bt.stats,
-    knockedOut: def.buildings.filter(b => b.kind !== 'hideout' && b.battleDamage >= RULES.knockoutDamage && b.down > 0 && b.down < 99).map(b => BUILDINGS.find(x => x.kind === b.kind)!.name),
+    knockedOut: def.buildings.filter(b => b.kind !== 'hideout' && b.battleDamage > 0 && b.down > 0 && b.down < 99).map(b => BUILDINGS.find(x => x.kind === b.kind)!.name),
     revealed: def.buildings.filter(b => b.revealed && b.kind !== 'hideout').length,
   };
   if (m.raid) {

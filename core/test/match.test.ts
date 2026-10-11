@@ -394,4 +394,18 @@ describe('chief, hideouts, recon drones and decoys', () => {
     run(m, 60);
     expect(m.players[1].batteries).toHaveLength(0);
   });
+
+  it('hideouts have 40 lives: drones chip away, a cruise missile destroys one', () => {
+    const m = ready(98);
+    command(m, 0, { c: 'buyLauncher', weapon: 'kargu' }); command(m, 0, { c: 'buyUnits', weapon: 'kargu', n: 8 });
+    start(m);
+    const chief = m.players[1].chief, h = hideoutsOf(m, 1).find(x => x.uid !== chief)!;
+    command(m, 0, { c: 'go', strikes: [], scouts: [], live: true });
+    for (let i = 0; i < 3; i++) command(m, 0, { c: 'fire', weapon: 'kargu', from: { x: 20, z: 0 }, to: { x: h.x, z: h.z } });
+    command(m, 0, { c: 'endAttack' });
+    run(m, 60);
+    expect(h.down).toBe(0);               // three Kargus (4 each) are not enough
+    expect(h.hp).toBeLessThan(40);
+    expect(viewFor(m, 0).enemy.buildings.find(b => b.uid === h.uid)?.hp).toBe(h.hp);
+  });
 });

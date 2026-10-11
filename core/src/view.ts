@@ -21,7 +21,7 @@ export function viewFor(m: Match, pi: PlayerIndex) {
     active: m.active,
     turnNo: m.turnNo,
     radius: m.cityRadius ?? CITY_RADIUS, raid: !!m.raid, maxBatteries: m.maxBatteries ?? 0,
-    weatherBad: m.weatherBad,
+    weatherBad: m.weatherBad, batteryLives: RULES.batteryKillDamage,
     winner: m.winner, endReason: m.endReason, iWon: m.winner === pi,
     me: {
       name: me.name, budget: me.budget, income: incomeFor(me), ready: me.ready,
@@ -29,7 +29,7 @@ export function viewFor(m: Match, pi: PlayerIndex) {
       intel: me.intel.map(x => ({ ...x, no: foeNo.get(x.uid) ?? 0 })), surveyed: me.surveyed, patrols: me.patrols,
       pads: me.pads, scars: me.scars,
       batteries: me.batteries.map(b => ({ ...b, load: batteryLoad(b), name: defence(b.sys).name })),
-      buildings: me.buildings.map(b => ({ uid: b.uid, kind: b.kind, x: b.x, z: b.z, down: b.down, revealed: b.revealed, no: myNo.get(b.uid), name: nameOfBuilding(b.kind, myNo.get(b.uid)) })),
+      buildings: me.buildings.map(b => ({ uid: b.uid, kind: b.kind, x: b.x, z: b.z, down: b.down, revealed: b.revealed, no: myNo.get(b.uid), name: nameOfBuilding(b.kind, myNo.get(b.uid)), hp: b.hp, maxHp: b.maxHp })),
       interceptors: me.interceptors, launchers: me.launchers, stock: me.stock, scouts: me.scouts, launched: me.launched, caps,
       radarRange: radarRange(me),
       storage: { used: storedUnits(me), safe: RULES.storage },
@@ -39,8 +39,8 @@ export function viewFor(m: Match, pi: PlayerIndex) {
     enemy: {
       name: foe.name, scars: foe.scars,
       hideoutsLeft: foe.buildings.filter(b => b.kind === 'hideout' && b.down < 99).length,
-      buildings: foe.buildings.filter(b => b.revealed).map(b => ({ uid: b.uid, kind: b.kind, x: b.x, z: b.z, down: b.down, no: foeNo.get(b.uid), name: nameOfBuilding(b.kind, foeNo.get(b.uid)) })),
-      batteries: foe.batteries.filter(b => b.revealed).map(b => ({ uid: b.uid, sys: b.sys, name: defence(b.sys).name, x: foe.pads[b.pad].x, z: foe.pads[b.pad].z })),
+      buildings: foe.buildings.filter(b => b.revealed).map(b => ({ uid: b.uid, kind: b.kind, x: b.x, z: b.z, down: b.down, no: foeNo.get(b.uid), name: nameOfBuilding(b.kind, foeNo.get(b.uid)), hp: b.hp, maxHp: b.maxHp })),
+      batteries: foe.batteries.filter(b => b.revealed).map(b => ({ uid: b.uid, sys: b.sys, name: defence(b.sys).name, x: foe.pads[b.pad].x, z: foe.pads[b.pad].z, damage: b.damage ?? 0 })),
     },
     battle: bt && {
       attacker: bt.attacker, defender: bt.defender, iDefend, time: bt.time, bearing: bt.bearing, route: iDefend ? undefined : bt.route, live: !!bt.live, open: !!bt.open,

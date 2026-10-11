@@ -501,7 +501,8 @@ function syncCity(S,isHome){
       for(const gb of S.generic)if(Math.hypot(gb.x-c.x,gb.z-c.z)<11)gb.g.visible=false; // clear the plot
       const el=document.createElement('div');el.className='ind';el.style.setProperty('--c',css(BLD_COL[b.kind]));el.hidden=true;$('tags').appendChild(el);c.el=el;S.labelEls.push(el);S.crit[b.uid]=c;}
     const down=b.down>0;if(down!==c.down){c.down=down;setBurnt(c,down);if(down)S.fires.push({x:c.x,y:3,z:c.z,t:b.down>=99?40:9999,w:4,crit:b.uid});else S.fires=S.fires.filter(f=>f.crit!==b.uid);}
-    c.txt=b.kind==='hideout'?hideoutLabel(b,isHome):(BLD[b.kind]?BLD[b.kind].name:b.kind).toUpperCase()+(down?' · DOWN '+b.down:'');
+    const lives=b.maxHp&&b.down<99?' · '+(b.down>0&&b.kind!=='hideout'?0:b.hp)+'/'+b.maxHp:'';
+    c.txt=b.kind==='hideout'?hideoutLabel(b,isHome)+lives:(BLD[b.kind]?BLD[b.kind].name:b.kind).toUpperCase()+(down?' · DOWN '+b.down:lives);
     c.chief=isHome&&b.uid===v.me.chief;c.revealed=isHome&&b.revealed&&b.kind!=='hideout';}
   for(const id in S.crit)if(!seenB.has(+id)){S.root.remove(S.crit[id].g);S.crit[id].el.remove();delete S.crit[id];}
   if(!isHome&&S.fog)S.fog.forEach((f,i)=>{f.visible=!v.me.surveyed.includes(i);});
@@ -1099,7 +1100,7 @@ function drawRadar(){
   if(inBattle){for(const t of b.threats){const d=Math.hypot(t.x,t.z);if(d>range*1.02)continue;const [a,c]=map(t.x,t.z);const k=threatShown(t);rx.fillStyle=k?CLS_CSS[k]:CLS_CSS.unk;rx.beginPath();rx.arc(a,c,k==='drone'?1.6:2.8,0,TAU);rx.fill();}
     rx.fillStyle='#d6e8ee';for(const i of b.interceptors){const [a,c]=map(i.x,i.z);rx.fillRect(a-1,c-1,2,2);}}
 }
-const padMarks={},ammoTags={};
+const padMarks={},ammoTags={},foeTags={};
 function markEl(pool,id,cls){let el=pool[id];if(!el){el=document.createElement('div');el.className=cls;$('tags').appendChild(el);pool[id]=el;}return el;}
 let dockLeft=1e9;
 function behindDock(sx){return document.body.classList.contains('sheet-open')&&sx>dockLeft-10;}
@@ -1115,11 +1116,17 @@ function updMarkers(){
   if(showA)for(const b of v.me.batteries){seen.add(b.uid);const vb=SIDES[0].bats&&SIDES[0].bats[b.uid];const el=markEl(ammoTags,b.uid,'ammo');if(!vb){el.hidden=true;continue;}
     const s=project(_b.copy(vb.pos).setY(vb.muzzle.y+5));if(!s){el.hidden=true;continue;}
     const spare=v.me.interceptors[b.sys]||0;
-    const txt=b.load?(b.reloading>0?'reloading':b.ammo+'/'+b.load+(spare?' +'+spare:'')+(b.manual?' · MAN':'')):'';
+    const L=v.batteryLives,hpT=b.damage?' · ♥'+(L-b.damage)+'/'+L:'';
+    const txt=(b.load?(b.reloading>0?'reloading':b.ammo+'/'+b.load+(spare?' +'+spare:'')+(b.manual?' · MAN':'')):'')+hpT;
     if(!txt||behindDock(s.x)){el.hidden=true;continue;}
     el.hidden=false;el.textContent=txt;el.className='ammo'+(b.load&&b.ammo===0&&!spare?' empty':b.load&&b.ammo<=Math.max(1,b.load/4)?' low':'');
     el.style.transform='translate('+s.x.toFixed(0)+'px,'+s.y.toFixed(0)+'px)';}
   for(const id in ammoTags)if(!seen.has(+id))ammoTags[id].hidden=true;
+  const seenE=new Set();
+  if(v&&viewSide===1&&v.phase!=='over')for(const b of v.enemy.batteries){const vb=SIDES[1].bats&&SIDES[1].bats[b.uid];const el=markEl(foeTags,b.uid,'ammo');seenE.add(b.uid);
+    if(!vb){el.hidden=true;continue;}const s=project(_b.copy(vb.pos).setY(vb.muzzle.y+5));if(!s||behindDock(s.x)){el.hidden=true;continue;}
+    const L=v.batteryLives;el.hidden=false;el.textContent=b.name+' · ♥'+(L-b.damage)+'/'+L;el.className='ammo'+(b.damage?' low':'');el.style.transform='translate('+s.x.toFixed(0)+'px,'+s.y.toFixed(0)+'px)';}
+  for(const id in foeTags)if(!seenE.has(+id))foeTags[id].hidden=true;
 }
 function updTags(){
   updMarkers();
