@@ -792,6 +792,12 @@ function moveThreat(m: Match, bt: Battle, att: PlayerState, def: PlayerState, t:
     else { move -= left; t.traveled = 0; t.leg++; arrive(m, bt, att, def, t); }
   }
   if (!t.alive) return;
+  // UAVs (survey and armed) finish their mission once they are heading home and clear of the city, instead of flying all the way back.
+  if ((t.isScout || t.cls === 'uav') && t.leg >= t.path.length - 2 && (t.leg > 0 || t.returning) && Math.hypot(t.x, t.z) > R(m) + 3) {
+    t.alive = false; t.landed = true;
+    if (t.isScout) att.scouts[t.weapon] = (att.scouts[t.weapon] ?? 0) + 1; else att.stock[t.weapon] = (att.stock[t.weapon] ?? 0) + 1;
+    return;
+  }
   const a = t.path[t.leg], b = t.path[t.leg + 1] ?? a;
   const legLen = dist(a, b) || 1;
   const u = Math.min(1, t.traveled / legLen);

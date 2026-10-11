@@ -1208,6 +1208,13 @@
       }
     }
     if (!t.alive) return;
+    if ((t.isScout || t.cls === "uav") && t.leg >= t.path.length - 2 && (t.leg > 0 || t.returning) && Math.hypot(t.x, t.z) > R(m) + 3) {
+      t.alive = false;
+      t.landed = true;
+      if (t.isScout) att.scouts[t.weapon] = (att.scouts[t.weapon] ?? 0) + 1;
+      else att.stock[t.weapon] = (att.stock[t.weapon] ?? 0) + 1;
+      return;
+    }
     const a2 = t.path[t.leg], b = t.path[t.leg + 1] ?? a2;
     const legLen = dist(a2, b) || 1;
     const u = Math.min(1, t.traveled / legLen);

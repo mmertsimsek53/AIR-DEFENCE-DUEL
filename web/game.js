@@ -990,7 +990,7 @@ cv.addEventListener('contextmenu',e=>e.preventDefault());cv.addEventListener('po
 cv.addEventListener('wheel',e=>{e.preventDefault();cam.r=Math.min(380,Math.max(40,cam.r*(1+e.deltaY*0.001)));},{passive:false});
 function project(p){_c.copy(p).project(camera);return _c.z<1&&_c.z>-1?{x:(_c.x*.5+.5)*innerWidth,y:(-_c.y*.5+.5)*innerHeight}:null;}
 function nearestThreat(x,y){let best=null,bd=56;for(const [uid,tv] of TV){const s=project(tv.pos);if(!s)continue;const d=Math.hypot(s.x-x,s.y-y);if(d<bd){bd=d;best=uid;}}return best;}
-function placeAt(padId){const k=placing;if(!k)return;if(cmd({c:'buyBattery',sys:k,pad:padId})){const t=DEF[k].tier;draftOpen=view.me.batteries.filter(b=>DEF[b.sys].tier===t).length<CAT.rules.draftPicks[t]?t:null;/* stay on this level until it is full, then the next */msg(DEF[k].name+' deployed','money');setPlacing(null);refreshUI();}}
+function placeAt(padId){const k=placing;if(!k)return;if(cmd({c:'buyBattery',sys:k,pad:padId})){draftOpen=-1;/* back to the list of levels after each pick */msg(DEF[k].name+' deployed','money');setPlacing(null);refreshUI();}}
 function tap(x,y){
   if(!view)return;
   if(placing&&canShop()&&viewSide===0){const taken=new Set(view.me.batteries.map(b=>b.pad));let best=null,bd=46;
