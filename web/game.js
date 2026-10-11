@@ -471,7 +471,7 @@ function startGame(demo){
   initAudio();
   const name=($('nameIn').value||'').trim()||'You';
   try{localStorage.setItem('add.name',name);}catch(e){}
-  ADD.newSandbox((Math.random()*1e9)|0,name,!!demo,limitChoice||undefined);
+  ADD.newSandbox((Math.random()*1e9)|0,name,!!demo);
   view=ADD.viewRaw();
   buildCity(SIDES[0],0);buildCity(SIDES[1],1);
   clearBattle();choice=0;tab=demo?null:'build';placing=null;selected=null;plan=newPlan();lastTurnKey='';sheetSig='';
@@ -480,10 +480,6 @@ function startGame(demo){
   refreshUI();
 }
 $('startBtn').onclick=()=>startGame(false);
-// Defence limit per player for the next match (remembered on this device).
-let limitChoice=6;try{const v=localStorage.getItem('add.limit');if(v!=null)limitChoice=+v;}catch(e){}
-function showLimit(){for(const b of document.querySelectorAll('#limitSeg [data-lim]'))b.classList.toggle('on',+b.dataset.lim===limitChoice);}
-document.querySelectorAll('#limitSeg [data-lim]').forEach(b=>b.onclick=()=>{limitChoice=+b.dataset.lim;try{localStorage.setItem('add.limit',String(limitChoice));}catch(e){}showLimit();});showLimit();
 try{$('nameIn').value=localStorage.getItem('add.name')||'';}catch(e){}
 
 function showSide(i){if(i!==viewSide){cam.tx=0;cam.tz=0;}viewSide=i;SIDES[0].root&&(SIDES[0].root.visible=i===0);SIDES[1].root&&(SIDES[1].root.visible=i===1);for(const S of SIDES)for(const el of S.labelEls||[])el.hidden=true;}
@@ -757,16 +753,21 @@ function sheetHTML(){
           (s.load?'<div class="stepper"><span class="small">Keep spare</span><button class="step" data-act="rsdec" data-k="'+b.sys+'"'+((m.restock[b.sys]||0)<=0?' disabled':'')+'>−</button><output>'+(m.restock[b.sys]||0)+'</output><button class="step" data-act="rsinc" data-k="'+b.sys+'">+</button></div>'+
             '<button class="mini" data-act="reload" data-k="'+b.uid+'"'+(B<rc?' disabled':'')+'>Buy '+s.load+' now · '+fmt(rc)+'</button>':'')+'</div></div>';}).join('')+'</div>';
     }
-    const card=(s,role)=>{const col=css(SYS_COL[s.id]),best=CLS_ORDER.filter(k=>s.hit[k]&&k!=='decoy').sort((x,y)=>s.hit[y]-s.hit[x]).slice(0,3);
-      return '<button class="tile'+(placing===s.id?' sel':'')+'" type="button" data-act="place" data-k="'+s.id+'" style="--c:'+col+'"'+(B<s.price?' disabled':'')+'>'+(role?'<span class="role">'+role+'</span>':'')+'<b class="tn">'+esc(s.name)+'</b>'+
-        '<span class="meta"><b>'+fmt(s.price)+'</b> · '+s.range+' km</span><span class="hits">'+best.map(k=>'<i style="--k:'+CLS_CSS[k]+'">'+CLS_LABEL[k]+' '+Math.round(s.hit[k])+'</i>').join('')+'</span></button>';};
-    {const n=m.patrols||0,P=CAT.rules.patrolPrice;
-      h+='<h3>Air patrol <span class="small">· Akıncı circling over your city; shoots down enemy survey UAVs that pass close</span></h3><div class="items"><div class="item" style="--c:#c48bff"><div class="nm"><b>Akıncı air patrol</b><span>Stays all match · '+CAT.rules.patrolMissiles+' air-to-air missile per strike, '+fmt(CAT.rules.patrolShot)+' each · '+CAT.rules.patrolHit+'% hit</span></div><div class="cnt"><b class="big">'+n+'</b><span> / '+CAT.rules.patrolMax+'</span></div><div class="acts">'+(n<CAT.rules.patrolMax?'<button class="mini" data-act="patrol"'+(B<P?' disabled':'')+'>Add · '+fmt(P)+'</button>':'<span class="small">Max</span>')+'</div></div></div>';}
-    const full=v.maxBatteries&&m.batteries.length>=v.maxBatteries;
-    h+='<h3>Buy a defence <span class="small">· '+(full?'<span style="color:var(--danger)">limit of '+v.maxBatteries+' reached: sell one to place another</span>':'tap one, then a glowing + in your city'+(v.maxBatteries?' · '+(v.maxBatteries-m.batteries.length)+' left':''))+'</span></h3>';
-    if(!showAllDef){h+='<div class="tiles">';for(const [title,ids] of REC_DEF)h+=ids.map(id=>card(DEF[id],title)).join('');h+='</div>';}
-    else for(const [title,ids] of ORIGINS){const list=ids.filter(id=>DEF[id]).sort((x,y)=>DEF[x].price-DEF[y].price);h+='<h3>'+title+'</h3><div class="tiles">'+list.map(id=>card(DEF[id])).join('')+'</div>';}
-    h+='<button class="mini" data-act="showall" data-k="def">'+(showAllDef?'Show recommended only':'Show all '+CAT.defences.length+' systems')+'</button>';
+    // Draft: pick 2 short, 2 medium, 2 long range and 1 top-level system, free, during setup only.
+    const ORIGIN_OF={};for(const [o,ids] of ORIGINS)for(const id of ids)ORIGIN_OF[id]=o;
+    const picked=t=>m.batteries.filter(b=>DEF[b.sys].tier===t).length;
+    const card=(s,full)=>{const col=css(SYS_COL[s.id]),best=CLS_ORDER.filter(k=>s.hit[k]&&k!=='decoy').sort((x,y)=>s.hit[y]-s.hit[x]).slice(0,3);
+      return '<button class="tile'+(placing===s.id?' sel':'')+'" type="button" data-act="place" data-k="'+s.id+'" style="--c:'+col+'"'+(full?' disabled':'')+'><span class="role">'+(ORIGIN_OF[s.id]||'')+'</span><b class="tn">'+esc(s.name)+'</b>'+
+        '<span class="meta"><b>free</b> · '+s.range+' km'+(s.load?' · missiles '+fmt(s.shot)+' each':s.kind==='gun'?' · '+fmt(s.shot)+'/burst':'')+'</span><span class="hits">'+best.map(k=>'<i style="--k:'+CLS_CSS[k]+'">'+CLS_LABEL[k]+' '+Math.round(s.hit[k])+'</i>').join('')+'</span></button>';};
+    if(v.phase==='setup'){
+      const P=CAT.rules.draftPicks,total=P[1]+P[2]+P[3]+P[4];
+      h+='<div class="note">Pick your defence now: <b>2 short range, 2 medium range, 2 long range and 1 top-level system</b> ('+m.batteries.length+' of '+total+' picked). Picks are free with their first load of missiles. After setup no defences can be added; your money goes on attack weapons, drones and spare missiles. Tap a picked system in your city to remove it.</div>';
+      for(let t=1;t<=4;t++){const n=picked(t),full=n>=P[t];
+        h+='<h3>'+CAT.tierNames[t]+' <span class="small">· '+n+' / '+P[t]+' picked'+(full?' · full':' · tap one, then a glowing + in your city')+'</span></h3><div class="tiles">'+
+          CAT.defences.filter(d=>d.tier===t).sort((x,y)=>x.price-y.price).map(d=>card(d,full)).join('')+'</div>';}
+    }
+    {const n=m.patrols||0,P=CAT.rules.patrolPrice,setup=v.phase==='setup';
+      h+='<h3>Air patrol <span class="small">· Akıncı circling over your city; shoots down enemy survey UAVs that pass close'+(setup?'':' · chosen in setup')+'</span></h3><div class="items"><div class="item" style="--c:#c48bff"><div class="nm"><b>Akıncı air patrol</b><span>Stays all match · '+CAT.rules.patrolMissiles+' air-to-air missile per strike, '+fmt(CAT.rules.patrolShot)+' each · '+CAT.rules.patrolHit+'% hit</span></div><div class="cnt"><b class="big">'+n+'</b><span> / '+CAT.rules.patrolMax+'</span></div><div class="acts">'+(setup&&n<CAT.rules.patrolMax?'<button class="mini" data-act="patrol"'+(B<P?' disabled':'')+'>Add · '+fmt(P)+'</button>':'')+'</div></div></div>';}
     return h;
   }
   if(tab==='attack'){
@@ -842,7 +843,7 @@ $('sheet').addEventListener('change',e=>{const s=e.target.closest('select');if(!
   if(s.dataset.act==='target')plan.target=s.value===''?null:+s.value;
   sheetSig='';});
 
-function setPlacing(k){placing=k;if(k)$('placing').hidden=false;if(k&&choice!==0){choice=0;}if(k){drawMode=null;$('placeText').innerHTML='Tap a glowing <b>+</b> to deploy <b>'+esc(DEF[k].name)+'</b> · '+fmt(DEF[k].price)+'<br><span class="small">'+esc(DEF[k].role)+(DEF[k].load?' · '+DEF[k].load+' missiles, '+fmt(DEF[k].shot)+' each':'')+'</span>';$('placing').style.borderColor=css(SYS_COL[k]);closeInfo();padMat.color.set(SYS_COL[k]);padBeamMat.color.set(SYS_COL[k]);
+function setPlacing(k){placing=k;if(k)$('placing').hidden=false;if(k&&choice!==0){choice=0;}if(k){drawMode=null;$('placeText').innerHTML='Tap a glowing <b>+</b> to deploy <b>'+esc(DEF[k].name)+'</b> · free<br><span class="small">'+esc(DEF[k].role)+(DEF[k].load?' · '+DEF[k].load+' missiles, '+fmt(DEF[k].shot)+' each':'')+'</span>';$('placing').style.borderColor=css(SYS_COL[k]);closeInfo();padMat.color.set(SYS_COL[k]);padBeamMat.color.set(SYS_COL[k]);
     cam.r=Math.max(cam.r,215);cam.phi=Math.min(cam.phi,.8);cam.tx=0;cam.tz=0;}else{padMat.color.set(0x6fe3ff);padBeamMat.color.set(0x6fe3ff);if(!drawMode)$('placing').hidden=true;}sheetSig='';}
 $('cancelPlace').onclick=()=>{if(drawMode)setDraw(null);else setPlacing(null);};
 
@@ -858,7 +859,7 @@ function openInfo(uid){
     '<div class="tabs">'+(shop&&s.load?'<button class="btn" type="button" data-i="reload"'+(v.me.budget<reloadCost?' disabled':'')+'>+1 reload · '+fmt(reloadCost)+'</button>':'')+
     (manualOK(b.sys)?'<button class="btn'+(b.manual?' primary':'')+'" type="button" data-i="manual">'+(b.manual?'Manual fire · only tapped contacts':'Automatic fire')+'</button>':'<span class="small">Small system · always automatic</span>')+
     '<button class="btn'+(b.holdFire?' danger':'')+'" type="button" data-i="hold">'+(b.holdFire?'Holding fire':'Hold fire')+'</button>'+
-    (shop?'<button class="btn danger" type="button" data-i="sell">Sell · +'+fmt(s.price/2)+'</button>':'')+'<button class="btn" type="button" data-i="close">Close</button></div>';
+    (v.phase==='setup'?'<button class="btn danger" type="button" data-i="sell">Remove (pick another)</button>':'')+'<button class="btn" type="button" data-i="close">Close</button></div>';
   el.hidden=false;
 }
 $('info').addEventListener('click',e=>{const b=e.target.closest('[data-i]');if(!b||b.disabled||selected==null)return;const uid=selected,bat=view.me.batteries.find(x=>x.uid===uid);if(!bat)return closeInfo();
@@ -866,7 +867,7 @@ $('info').addEventListener('click',e=>{const b=e.target.closest('[data-i]');if(!
   if(i==='reload'){if(cmd({c:'buyInterceptors',sys:bat.sys,n:DEF[bat.sys].load}))msg('Reload bought','money');}
   else if(i==='hold')cmd({c:'holdBattery',uid});
   else if(i==='manual'){if(cmd({c:'setManual',uid,on:!bat.manual}))msg(DEF[bat.sys].name+(bat.manual?' fires automatically':' fires only at contacts you tap'),'good');}
-  else if(i==='sell'){if(cmd({c:'sellBattery',uid})){msg(DEF[bat.sys].name+' sold','money');closeInfo();return;}}
+  else if(i==='sell'){if(cmd({c:'sellBattery',uid})){msg(DEF[bat.sys].name+' removed · pick another','money');closeInfo();return;}}
   else if(i==='close'){closeInfo();return;}
   openInfo(uid);});
 function closeInfo(){selected=null;$('info').hidden=true;}
@@ -901,7 +902,7 @@ function hintHTML(){
   if(placing)return '<b>NEXT</b> Tap a glowing <b>+</b> in your city';
   if(drawMode)return '<b>NEXT</b> Draw with your finger on the enemy city';
   if(v.phase==='setup'){
-    if(!m.batteries.length)return '<b>NEXT</b> Tap <b>Defence</b> and place your first defence · your chief hides in Hideout '+m.chiefNo+' (change it in <b>Chief</b>)';
+    if(m.batteries.length<7)return '<b>NEXT</b> Pick your defence in <b>Defence</b>: 2 short, 2 medium, 2 long range, 1 top level ('+m.batteries.length+'/7) · your chief hides in Hideout '+m.chiefNo;
     if(!Object.values(m.launchers).some(n=>n>0)&&!hasAtk)return '<b>NEXT</b> Tap <b>Attack</b> and buy a launcher, e.g. Shahed-136 drones';
     if(!(m.scouts.aksungur>0))return '<b>NEXT</b> Buy an <b>Aksungur</b> in Attack: their city is hidden until you photograph it';
     if(!(m.stock.recon>0))return '<b>NEXT</b> Buy <b>Mini recon drones</b> in Attack: they find the enemy chief';
@@ -984,7 +985,7 @@ cv.addEventListener('contextmenu',e=>e.preventDefault());cv.addEventListener('po
 cv.addEventListener('wheel',e=>{e.preventDefault();cam.r=Math.min(380,Math.max(40,cam.r*(1+e.deltaY*0.001)));},{passive:false});
 function project(p){_c.copy(p).project(camera);return _c.z<1&&_c.z>-1?{x:(_c.x*.5+.5)*innerWidth,y:(-_c.y*.5+.5)*innerHeight}:null;}
 function nearestThreat(x,y){let best=null,bd=56;for(const [uid,tv] of TV){const s=project(tv.pos);if(!s)continue;const d=Math.hypot(s.x-x,s.y-y);if(d<bd){bd=d;best=uid;}}return best;}
-function placeAt(padId){const k=placing;if(!k)return;if(cmd({c:'buyBattery',sys:k,pad:padId})){msg(DEF[k].name+' deployed · −'+fmt(DEF[k].price),'money');setPlacing(null);refreshUI();}}
+function placeAt(padId){const k=placing;if(!k)return;if(cmd({c:'buyBattery',sys:k,pad:padId})){msg(DEF[k].name+' deployed','money');setPlacing(null);refreshUI();}}
 function tap(x,y){
   if(!view)return;
   if(placing&&canShop()&&viewSide===0){const taken=new Set(view.me.batteries.map(b=>b.pad));let best=null,bd=46;

@@ -19,9 +19,9 @@ function freePad(p: PlayerState, inner: boolean): number | undefined {
 function setup(m: Match, pi: PlayerIndex) {
   const p = m.players[pi];
   const r = nextRandom(m);
-  // Always one system that can stop ballistic missiles (S-300 or David's Sling), plus short-range cover.
-  const layers = r < 0.5 ? ['korkut', 'pantsir', 's300'] : ['zu23', 'sungur', 'irondome', 'davidsling'];
-  for (const sys of layers) { const pad = freePad(p, defence(sys).range < 10); if (pad != null) buy(m, pi, { c: 'buyBattery', sys, pad }); }
+  // Draft: 2 short, 2 medium, 2 long range and 1 top-level system (free), in one of two styles.
+  const picks = r < 0.5 ? ['korkut', 'stinger', 'pantsir', 'hisara', 's300', 'hisaro', 'patriot'] : ['zu23', 'gokberk', 'irondome', 'tor', 'davidsling', 'buk', 's400'];
+  for (const sys of picks) { const pad = freePad(p, defence(sys).range < 10); if (pad != null) buy(m, pi, { c: 'buyBattery', sys, pad }); }
   buy(m, pi, { c: 'buyLauncher', weapon: 'shahed' });
   buy(m, pi, { c: 'buyUnits', weapon: 'shahed', n: 10 });
   buy(m, pi, { c: 'buyLauncher', weapon: 'gerbera' });
@@ -48,11 +48,6 @@ function shop(m: Match, pi: PlayerIndex) {
     const s = defence(b.sys); if (s.load === 0) continue;
     const have = p.interceptors[s.id] ?? 0;
     if (have < s.load && p.budget > s.shot * s.load + 40) buy(m, pi, { c: 'buyInterceptors', sys: s.id, n: s.load - have });
-  }
-  // Grow the defence once rich.
-  if (p.budget > 450 && p.batteries.length < 8) {
-    const choice = ['hisaro', 'hisaro', 'davidsling', 'siper'][Math.floor(nextRandom(m) * 4)];
-    const pad = freePad(p, false); if (pad != null) buy(m, pi, { c: 'buyBattery', sys: choice, pad });
   }
   if (!(p.scouts.aksungur > 0) && p.surveyed.length < 12 && p.budget > 80) buy(m, pi, { c: 'buyScout', scout: 'aksungur' });
   if (p.budget > 300 && !(p.launchers.tayfun > 0)) buy(m, pi, { c: 'buyLauncher', weapon: 'tayfun' });

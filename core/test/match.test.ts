@@ -37,12 +37,22 @@ describe('setup and turns', () => {
     expect(m.active).toBe(1);
   });
 
-  it('refuses to shop outside your turn and when broke', () => {
+  it('defence draft: 2 short, 2 medium, 2 long, 1 top, free, setup only; money only for weapons and ammo', () => {
     const m = createMatch(4, ['A', 'B']);
-    expect(command(m, 0, { c: 'buyBattery', sys: 'patriot', pad: 0 }).ok).toBe(true);
-    expect(command(m, 0, { c: 'buyBattery', sys: 'zu23', pad: 1 }).ok).toBe(false); // $0 left
+    const ok = (sys: string, pad: number) => command(m, 0, { c: 'buyBattery', sys, pad }).ok;
+    expect(ok('patriot', 0)).toBe(true);
+    expect(ok('s400', 1)).toBe(false);               // one top-level system
+    expect(ok('korkut', 2) && ok('stinger', 3)).toBe(true);
+    expect(ok('zu23', 4)).toBe(false);               // two short-range
+    expect(ok('pantsir', 5) && ok('hisara', 6) && ok('siper', 7) && ok('s300', 8)).toBe(true);
+    expect(m.players[0].budget).toBe(RULES.startBudget); // picks are free
+    command(m, 0, { c: 'sellBattery', uid: m.players[0].batteries[1].uid }); // swap during setup
+    expect(ok('zu23', 4)).toBe(true);
+    expect(command(m, 0, { c: 'buyUnits', weapon: 'tayfun', n: 999 }).ok).toBe(false); // broke
     command(m, 0, { c: 'endSetup' }); command(m, 1, { c: 'endSetup' });
-    expect(command(m, 1, { c: 'buyBattery', sys: 'zu23', pad: 1 }).ok).toBe(false); // not B's turn
+    expect(ok('igla', 9)).toBe(false);               // no defences after setup
+    expect(command(m, 0, { c: 'sellBattery', uid: m.players[0].batteries[0].uid }).ok).toBe(false);
+    expect(command(m, 0, { c: 'buyInterceptors', sys: 'patriot', n: 2 }).ok).toBe(true); // ammunition is still bought
   });
 
   it('income is fixed; there are no upgrades', () => {
@@ -86,12 +96,12 @@ describe('strikes', () => {
       const m = createMatch(seed, ['A', 'B']);
       command(m, 0, { c: 'buyLauncher', weapon: 'shahed' });
       command(m, 0, { c: 'buyUnits', weapon: 'shahed', n: 10 });
-      for (const pad of [0, 1, 2, 3, 4, 5]) command(m, 1, { c: 'buyBattery', sys: 'korkut', pad });
+      for (const [sys, pad] of [['korkut', 0], ['phalanx', 1], ['gurz', 2], ['tunguska', 3]] as const) command(m, 1, { c: 'buyBattery', sys, pad });
       command(m, 0, { c: 'endSetup' }); command(m, 1, { c: 'endSetup' });
       command(m, 0, { c: 'go', strikes: [{ weapon: 'shahed', n: 10 }], scouts: [] });
       run(m, 120);
       stopped += m.lastReport!.stopped;
-      expect(m.players[1].spent).toBeGreaterThan(240); // 6 × Korkut + bursts
+      expect(m.players[1].spent).toBeGreaterThan(0); // gun bursts cost money
     }
     expect(stopped).toBeGreaterThan(20); // most of 50 drones
   });

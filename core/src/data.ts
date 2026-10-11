@@ -10,6 +10,7 @@ export interface DefenceSpec {
   id: string;
   name: string;
   kind: DefenceKind;
+  tier: 1 | 2 | 3 | 4;    // duel draft level: 1 short, 2 medium, 3 long range, 4 top
   price: number;          // battery, includes first full load
   shot: number;           // $M per interceptor / gun burst (lasers 0)
   load: number;           // magazine (0 = unlimited: guns, lasers, EW)
@@ -28,35 +29,35 @@ export interface DefenceSpec {
 const d = (s: DefenceSpec) => s;
 
 export const DEFENCES: DefenceSpec[] = [
-  d({ id: 'zu23', name: 'ZU-23-2', kind: 'gun', price: 10, shot: 0.01, load: 0, range: 2.5, fireEvery: 0.5, hit: { drone: 35, decoy: 35, uav: 15, cruise: 5 }, role: 'Twin 23 mm gun. Cheapest drone defence.' }),
-  d({ id: 'korkut', name: 'Korkut', kind: 'gun', price: 40, shot: 0.03, load: 0, range: 4, fireEvery: 0.5, hit: { drone: 65, decoy: 65, uav: 35, rocket: 10, cruise: 25 }, role: '35 mm airburst gun. Shreds drone swarms.' }),
-  d({ id: 'stinger', name: 'Stinger', kind: 'sam', price: 15, shot: 0.4, load: 4, range: 5, fireEvery: 1.5, interceptorSpeed: 0.7, hit: { drone: 70, decoy: 70, uav: 60, cruise: 30 }, role: 'Shoulder-fired IR missile.' }),
-  d({ id: 'sungur', name: 'Sungur', kind: 'sam', price: 25, shot: 0.35, load: 4, range: 8, fireEvery: 1.5, interceptorSpeed: 0.75, hit: { drone: 75, decoy: 75, uav: 65, cruise: 35 }, role: 'Vehicle-mounted short-range IR missile.' }),
-  d({ id: 'alka', name: 'ALKA', kind: 'laser', price: 50, shot: 0, load: 0, range: 1, dwell: 1.5, needsPower: true, hit: { drone: 90, decoy: 90, uav: 40 }, role: 'Laser. Burns down drones. Needs power.' }),
-  d({ id: 'ironbeam', name: 'Iron Beam', kind: 'laser', price: 90, shot: 0, load: 0, range: 8, dwell: 2, needsPower: true, weatherHit: true, hit: { drone: 90, decoy: 90, uav: 50, rocket: 70, cruise: 20 }, role: 'High-energy laser. Near-free shots; weather hurts it.' }),
-  d({ id: 'koral', name: 'Koral', kind: 'ew', price: 80, shot: 0, load: 0, range: 150, needsPower: true, hit: { drone: 15, decoy: 15, uav: 40 }, role: 'Electronic warfare. Drones lost, UAVs turned back, cruise accuracy down.' }),
-  d({ id: 'pantsir', name: 'Pantsir-S1', kind: 'sam', price: 110, shot: 0.15, load: 12, range: 20, fireEvery: 1, interceptorSpeed: 1.0, hit: { drone: 80, decoy: 80, uav: 85, rocket: 40, cruise: 75 }, role: 'Gun + missile short-range system.' }),
-  d({ id: 'hisara', name: 'Hisar-A+', kind: 'sam', price: 120, shot: 0.5, load: 4, range: 15, fireEvery: 1.5, interceptorSpeed: 0.9, hit: { drone: 80, decoy: 80, uav: 88, cruise: 85 }, role: 'Low-altitude missile. Workhorse against cruise missiles.' }),
-  d({ id: 'irondome', name: 'Iron Dome', kind: 'sam', price: 150, shot: 0.06, load: 20, range: 70, fireEvery: 0.7, interceptorSpeed: 1.2, skipsMisses: true, hit: { drone: 80, decoy: 20, uav: 60, rocket: 90, cruise: 60 }, role: 'Rocket killer. Ignores rockets that will miss the city.' }),
-  d({ id: 'hisaro', name: 'Hisar-O+', kind: 'sam', price: 200, shot: 0.7, load: 6, range: 40, fireEvery: 1.2, interceptorSpeed: 1.3, hit: { drone: 85, decoy: 85, uav: 92, cruise: 88 }, role: 'Medium-altitude missile. Kills UAVs before they fire.' }),
-  d({ id: 'davidsling', name: "David's Sling", kind: 'sam', price: 300, shot: 1.0, load: 8, range: 150, fireEvery: 1.5, interceptorSpeed: 2.0, hit: { decoy: 85, uav: 85, rocket: 85, cruise: 85, ballistic: 60 }, role: 'Heavy rockets, cruise and short-range ballistic.' }),
-  d({ id: 'siper', name: 'Siper', kind: 'sam', price: 380, shot: 1.5, load: 8, range: 150, fireEvery: 1.5, interceptorSpeed: 2.0, hit: { decoy: 85, uav: 95, cruise: 88, ballistic: 45 }, role: 'Long-range area defence. Limited ballistic capability.' }),
-  d({ id: 's400', name: 'S-400', kind: 'sam', price: 450, shot: 1.5, load: 8, range: 250, fireEvery: 1.5, interceptorSpeed: 2.2, lowCruisePenalty: 20, hit: { decoy: 85, uav: 95, cruise: 70, ballistic: 65, hypersonic: 10 }, role: 'Very long range. Low cruise missiles slip under it.' }),
+  d({ id: 'zu23', tier: 1, name: 'ZU-23-2', kind: 'gun', price: 10, shot: 0.01, load: 0, range: 2.5, fireEvery: 0.5, hit: { drone: 35, decoy: 35, uav: 15, cruise: 5 }, role: 'Twin 23 mm gun. Cheapest drone defence.' }),
+  d({ id: 'korkut', tier: 1, name: 'Korkut', kind: 'gun', price: 40, shot: 0.03, load: 0, range: 4, fireEvery: 0.5, hit: { drone: 65, decoy: 65, uav: 35, rocket: 10, cruise: 25 }, role: '35 mm airburst gun. Shreds drone swarms.' }),
+  d({ id: 'stinger', tier: 1, name: 'Stinger', kind: 'sam', price: 15, shot: 0.4, load: 4, range: 5, fireEvery: 1.5, interceptorSpeed: 0.7, hit: { drone: 70, decoy: 70, uav: 60, cruise: 30 }, role: 'Shoulder-fired IR missile.' }),
+  d({ id: 'sungur', tier: 1, name: 'Sungur', kind: 'sam', price: 25, shot: 0.35, load: 4, range: 8, fireEvery: 1.5, interceptorSpeed: 0.75, hit: { drone: 75, decoy: 75, uav: 65, cruise: 35 }, role: 'Vehicle-mounted short-range IR missile.' }),
+  d({ id: 'alka', tier: 1, name: 'ALKA', kind: 'laser', price: 50, shot: 0, load: 0, range: 1, dwell: 1.5, needsPower: true, hit: { drone: 90, decoy: 90, uav: 40 }, role: 'Laser. Burns down drones. Needs power.' }),
+  d({ id: 'ironbeam', tier: 2, name: 'Iron Beam', kind: 'laser', price: 90, shot: 0, load: 0, range: 8, dwell: 2, needsPower: true, weatherHit: true, hit: { drone: 90, decoy: 90, uav: 50, rocket: 70, cruise: 20 }, role: 'High-energy laser. Near-free shots; weather hurts it.' }),
+  d({ id: 'koral', tier: 2, name: 'Koral', kind: 'ew', price: 80, shot: 0, load: 0, range: 150, needsPower: true, hit: { drone: 15, decoy: 15, uav: 40 }, role: 'Electronic warfare. Drones lost, UAVs turned back, cruise accuracy down.' }),
+  d({ id: 'pantsir', tier: 2, name: 'Pantsir-S1', kind: 'sam', price: 110, shot: 0.15, load: 12, range: 20, fireEvery: 1, interceptorSpeed: 1.0, hit: { drone: 80, decoy: 80, uav: 85, rocket: 40, cruise: 75 }, role: 'Gun + missile short-range system.' }),
+  d({ id: 'hisara', tier: 2, name: 'Hisar-A+', kind: 'sam', price: 120, shot: 0.5, load: 4, range: 15, fireEvery: 1.5, interceptorSpeed: 0.9, hit: { drone: 80, decoy: 80, uav: 88, cruise: 85 }, role: 'Low-altitude missile. Workhorse against cruise missiles.' }),
+  d({ id: 'irondome', tier: 2, name: 'Iron Dome', kind: 'sam', price: 150, shot: 0.06, load: 20, range: 70, fireEvery: 0.7, interceptorSpeed: 1.2, skipsMisses: true, hit: { drone: 80, decoy: 20, uav: 60, rocket: 90, cruise: 60 }, role: 'Rocket killer. Ignores rockets that will miss the city.' }),
+  d({ id: 'hisaro', tier: 3, name: 'Hisar-O+', kind: 'sam', price: 200, shot: 0.7, load: 6, range: 40, fireEvery: 1.2, interceptorSpeed: 1.3, hit: { drone: 85, decoy: 85, uav: 92, cruise: 88 }, role: 'Medium-altitude missile. Kills UAVs before they fire.' }),
+  d({ id: 'davidsling', tier: 3, name: "David's Sling", kind: 'sam', price: 300, shot: 1.0, load: 8, range: 150, fireEvery: 1.5, interceptorSpeed: 2.0, hit: { decoy: 85, uav: 85, rocket: 85, cruise: 85, ballistic: 60 }, role: 'Heavy rockets, cruise and short-range ballistic.' }),
+  d({ id: 'siper', tier: 3, name: 'Siper', kind: 'sam', price: 380, shot: 1.5, load: 8, range: 150, fireEvery: 1.5, interceptorSpeed: 2.0, hit: { decoy: 85, uav: 95, cruise: 88, ballistic: 45 }, role: 'Long-range area defence. Limited ballistic capability.' }),
+  d({ id: 's400', tier: 4, name: 'S-400', kind: 'sam', price: 450, shot: 1.5, load: 8, range: 250, fireEvery: 1.5, interceptorSpeed: 2.2, lowCruisePenalty: 20, hit: { decoy: 85, uav: 95, cruise: 70, ballistic: 65, hypersonic: 10 }, role: 'Very long range. Low cruise missiles slip under it.' }),
   // ---- added 11 Oct 2026 (Turkish, American, Russian); numbers approved by Mert
-  d({ id: 'gurz', name: 'Gürz', kind: 'sam', price: 140, shot: 0.2, load: 8, range: 15, fireEvery: 0.9, interceptorSpeed: 1.1, hit: { drone: 85, decoy: 85, uav: 85, rocket: 50, cruise: 80 }, role: 'Turkish gun + missile system. Answer to rockets and drones.' }),
-  d({ id: 'gokberk', name: 'Gökberk', kind: 'laser', price: 70, shot: 0, load: 0, range: 3, dwell: 1.5, needsPower: true, hit: { drone: 92, decoy: 92, uav: 50 }, role: 'Turkish anti-drone laser. Near-free shots. Needs power.' }),
-  d({ id: 'ihtar', name: 'İhtar', kind: 'ew', price: 45, shot: 0, load: 0, range: 10, needsPower: true, hit: { drone: 40, decoy: 40, uav: 20 }, role: 'Turkish anti-drone radar and jammer. Drones lost, UAVs turned back. Needs power.' }),
-  d({ id: 'avenger', name: 'Avenger', kind: 'sam', price: 35, shot: 0.4, load: 8, range: 5, fireEvery: 1.2, interceptorSpeed: 0.7, hit: { drone: 70, decoy: 70, uav: 60, cruise: 30 }, role: 'American Stinger vehicle, 8 missiles ready.' }),
-  d({ id: 'phalanx', name: 'Phalanx C-RAM', kind: 'gun', price: 90, shot: 0.05, load: 0, range: 2, fireEvery: 0.3, hit: { drone: 75, decoy: 75, uav: 40, rocket: 70, cruise: 50 }, role: 'American last-line gun. Shreds rockets and drones close in.' }),
-  d({ id: 'nasams', name: 'NASAMS', kind: 'sam', price: 220, shot: 0.8, load: 6, range: 40, fireEvery: 1.2, interceptorSpeed: 1.3, hit: { drone: 80, decoy: 85, uav: 92, rocket: 30, cruise: 90 }, role: 'American medium range. Strong against cruise missiles.' }),
-  d({ id: 'thaad', name: 'THAAD', kind: 'sam', price: 700, shot: 6.0, load: 8, range: 200, fireEvery: 1.5, interceptorSpeed: 3.0, hit: { decoy: 85, ballistic: 95, hypersonic: 20 }, role: 'American high-altitude interceptor. Ballistic missiles only.' }),
-  d({ id: 'igla', name: 'Igla-S', kind: 'sam', price: 12, shot: 0.3, load: 4, range: 5, fireEvery: 1.5, interceptorSpeed: 0.7, hit: { drone: 65, decoy: 65, uav: 55, cruise: 25 }, role: 'Russian shoulder-fired missile. The cheapest missile post.' }),
-  d({ id: 'tunguska', name: 'Tunguska', kind: 'sam', price: 90, shot: 0.1, load: 8, range: 8, fireEvery: 0.8, interceptorSpeed: 0.9, hit: { drone: 75, decoy: 75, uav: 75, cruise: 50 }, role: 'Russian gun + missile vehicle.' }),
-  d({ id: 'tor', name: 'Tor-M2', kind: 'sam', price: 150, shot: 0.4, load: 16, range: 15, fireEvery: 0.9, interceptorSpeed: 1.0, hit: { drone: 85, decoy: 85, uav: 90, rocket: 50, cruise: 85 }, role: 'Russian short range with 16 missiles.' }),
-  d({ id: 'buk', name: 'Buk-M3', kind: 'sam', price: 230, shot: 0.8, load: 6, range: 70, fireEvery: 1.3, interceptorSpeed: 1.6, hit: { drone: 75, decoy: 85, uav: 92, rocket: 40, cruise: 85, ballistic: 20 }, role: 'Russian medium range.' }),
-  d({ id: 's300', name: 'S-300', kind: 'sam', price: 350, shot: 1.2, load: 8, range: 150, fireEvery: 1.5, interceptorSpeed: 2.0, lowCruisePenalty: 20, hit: { decoy: 85, uav: 90, cruise: 70, ballistic: 50 }, role: 'Russian long range. A cheaper S-400; low cruise missiles slip under it.' }),
-  d({ id: 's500', name: 'S-500', kind: 'sam', price: 800, shot: 5.0, load: 8, range: 400, fireEvery: 1.5, interceptorSpeed: 3.0, lowCruisePenalty: 20, hit: { decoy: 85, uav: 95, cruise: 70, ballistic: 90, hypersonic: 50 }, role: 'Russian top tier. The best answer to hypersonic missiles.' }),
-  d({ id: 'patriot', name: 'Patriot PAC-3 MSE', kind: 'sam', price: 600, shot: 4.0, load: 8, range: 60, fireEvery: 1.2, interceptorSpeed: 2.5, hit: { decoy: 85, uav: 90, rocket: 60, cruise: 85, ballistic: 90, hypersonic: 35 }, role: 'Hit-to-kill. The answer to ballistic missiles.' }),
+  d({ id: 'gurz', tier: 2, name: 'Gürz', kind: 'sam', price: 140, shot: 0.2, load: 8, range: 15, fireEvery: 0.9, interceptorSpeed: 1.1, hit: { drone: 85, decoy: 85, uav: 85, rocket: 50, cruise: 80 }, role: 'Turkish gun + missile system. Answer to rockets and drones.' }),
+  d({ id: 'gokberk', tier: 1, name: 'Gökberk', kind: 'laser', price: 70, shot: 0, load: 0, range: 3, dwell: 1.5, needsPower: true, hit: { drone: 92, decoy: 92, uav: 50 }, role: 'Turkish anti-drone laser. Near-free shots. Needs power.' }),
+  d({ id: 'ihtar', tier: 1, name: 'İhtar', kind: 'ew', price: 45, shot: 0, load: 0, range: 10, needsPower: true, hit: { drone: 40, decoy: 40, uav: 20 }, role: 'Turkish anti-drone radar and jammer. Drones lost, UAVs turned back. Needs power.' }),
+  d({ id: 'avenger', tier: 1, name: 'Avenger', kind: 'sam', price: 35, shot: 0.4, load: 8, range: 5, fireEvery: 1.2, interceptorSpeed: 0.7, hit: { drone: 70, decoy: 70, uav: 60, cruise: 30 }, role: 'American Stinger vehicle, 8 missiles ready.' }),
+  d({ id: 'phalanx', tier: 1, name: 'Phalanx C-RAM', kind: 'gun', price: 90, shot: 0.05, load: 0, range: 2, fireEvery: 0.3, hit: { drone: 75, decoy: 75, uav: 40, rocket: 70, cruise: 50 }, role: 'American last-line gun. Shreds rockets and drones close in.' }),
+  d({ id: 'nasams', tier: 3, name: 'NASAMS', kind: 'sam', price: 220, shot: 0.8, load: 6, range: 40, fireEvery: 1.2, interceptorSpeed: 1.3, hit: { drone: 80, decoy: 85, uav: 92, rocket: 30, cruise: 90 }, role: 'American medium range. Strong against cruise missiles.' }),
+  d({ id: 'thaad', tier: 4, name: 'THAAD', kind: 'sam', price: 700, shot: 6.0, load: 8, range: 200, fireEvery: 1.5, interceptorSpeed: 3.0, hit: { decoy: 85, ballistic: 95, hypersonic: 20 }, role: 'American high-altitude interceptor. Ballistic missiles only.' }),
+  d({ id: 'igla', tier: 1, name: 'Igla-S', kind: 'sam', price: 12, shot: 0.3, load: 4, range: 5, fireEvery: 1.5, interceptorSpeed: 0.7, hit: { drone: 65, decoy: 65, uav: 55, cruise: 25 }, role: 'Russian shoulder-fired missile. The cheapest missile post.' }),
+  d({ id: 'tunguska', tier: 2, name: 'Tunguska', kind: 'sam', price: 90, shot: 0.1, load: 8, range: 8, fireEvery: 0.8, interceptorSpeed: 0.9, hit: { drone: 75, decoy: 75, uav: 75, cruise: 50 }, role: 'Russian gun + missile vehicle.' }),
+  d({ id: 'tor', tier: 2, name: 'Tor-M2', kind: 'sam', price: 150, shot: 0.4, load: 16, range: 15, fireEvery: 0.9, interceptorSpeed: 1.0, hit: { drone: 85, decoy: 85, uav: 90, rocket: 50, cruise: 85 }, role: 'Russian short range with 16 missiles.' }),
+  d({ id: 'buk', tier: 3, name: 'Buk-M3', kind: 'sam', price: 230, shot: 0.8, load: 6, range: 70, fireEvery: 1.3, interceptorSpeed: 1.6, hit: { drone: 75, decoy: 85, uav: 92, rocket: 40, cruise: 85, ballistic: 20 }, role: 'Russian medium range.' }),
+  d({ id: 's300', tier: 3, name: 'S-300', kind: 'sam', price: 350, shot: 1.2, load: 8, range: 150, fireEvery: 1.5, interceptorSpeed: 2.0, lowCruisePenalty: 20, hit: { decoy: 85, uav: 90, cruise: 70, ballistic: 50 }, role: 'Russian long range. A cheaper S-400; low cruise missiles slip under it.' }),
+  d({ id: 's500', tier: 4, name: 'S-500', kind: 'sam', price: 800, shot: 5.0, load: 8, range: 400, fireEvery: 1.5, interceptorSpeed: 3.0, lowCruisePenalty: 20, hit: { decoy: 85, uav: 95, cruise: 70, ballistic: 90, hypersonic: 50 }, role: 'Russian top tier. The best answer to hypersonic missiles.' }),
+  d({ id: 'patriot', tier: 4, name: 'Patriot PAC-3 MSE', kind: 'sam', price: 600, shot: 4.0, load: 8, range: 60, fireEvery: 1.2, interceptorSpeed: 2.5, hit: { decoy: 85, uav: 90, rocket: 60, cruise: 85, ballistic: 90, hypersonic: 35 }, role: 'Hit-to-kill. The answer to ballistic missiles.' }),
 ];
 
 export interface AttackSpec {
@@ -142,6 +143,7 @@ export const RULES = {
   patrolShot: 1,           // $M per air-to-air missile (Bozdoğan)
   patrolHit: 60,           // % per missile
   patrolMissiles: 1,       // per patrol per strike (tuned: one patrol downs an Aksungur ~28% of the time, two ~45%)
+  draftPicks: [0, 2, 2, 2, 1] as number[], // duel: systems each player picks per level (index = tier), free, setup only
   bigSamRange: 40,         // km: missile systems with this range or more can be switched to manual fire
   startBudget: 600,
   income: 120,
@@ -192,6 +194,8 @@ export const BUILDINGS: { kind: BuildingKind; name: string; effect: string; repa
   { kind: 'structure', name: 'Building', effect: 'No special effect', repairNow: 0 },
 ];
 export const FINANCE_PENALTY = 0.3;
+
+export const TIER_NAMES = ['', 'Short range', 'Medium range', 'Long range', 'Top level'];
 
 export const XP = { start: 1000, win: 30, bigWinBonus: 10, bigWinHealth: 500, loss: -20, concede: -25, window: 100, widenEvery: 15, widenBy: 50 };
 

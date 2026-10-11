@@ -140,3 +140,9 @@ Status: first outline from Mert, 9 Oct 2026. Everything below "Open questions" i
 
 ## No cloud (11 Oct 2026, Mert)
 - The enemy city itself is always visible (streets, river, houses). Hideouts, critical buildings and defences stay hidden until an Aksungur survey photographs their sector.
+
+## Defence draft (decided 11 Oct 2026, Mert) — replaces the defence limit option
+- In setup each player picks **2 short-range, 2 medium-range, 2 long-range and 1 top-level** system, free (first load included). Picks can be swapped during setup; after setup no defence can be added and a destroyed one is not replaced. Akıncı air patrols are also chosen in setup.
+- Money then goes only on attack weapons, drones (Aksungur, recon, decoys) and defence ammunition.
+- Levels: short — ZU-23-2, Korkut, Phalanx C-RAM, Stinger, Igla-S, Sungur, Avenger, ALKA, Gökberk, İhtar · medium — Pantsir-S1, Tunguska, Gürz, Tor-M2, Hisar-A+, Iron Dome, Iron Beam, Koral · long — Hisar-O+, NASAMS, Buk-M3, David's Sling, Siper, S-300 · top — Patriot PAC-3, S-400, S-500, THAAD.
+- AI vs AI: median 21 turns in total, 12–41 over 16 games.

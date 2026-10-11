@@ -1,5 +1,5 @@
 import {
-  ATTACKS, BUILDINGS, CITY_RADIUS, DEFENCES, DEF_UPGRADE, ECONOMY, EXTRA_RADAR_PRICE, FINANCE_PENALTY,
+  ATTACKS, BUILDINGS, CITY_RADIUS, DEFENCES, TIER_NAMES, DEF_UPGRADE, ECONOMY, EXTRA_RADAR_PRICE, FINANCE_PENALTY,
   LONG_RANGE_SAMS, POWER_RADAR_PENALTY, RADAR_LEVELS, RULES, SCOUTS, SPAWN_DISTANCE,
   attack, defence, scout, type BuildingKind, type ThreatClass,
 } from './data';
@@ -223,9 +223,15 @@ export function command(m: Match, pi: PlayerIndex, cmd: Command): CommandResult 
     case 'buyBattery': {
       const s = DEFENCES.find(x => x.id === cmd.sys); if (!s) return fail('Unknown system.');
       if (!p.pads.some(x => x.id === cmd.pad)) return fail('No such pad.');
+      const draft = !m.raid;
+      if (draft && m.phase !== 'setup') return fail('Defences are chosen in setup. Now your money goes on attack weapons, drones and defence missiles.');
+      if (draft) {
+        const have = p.batteries.filter(b => defence(b.sys).tier === s.tier).length, max = RULES.draftPicks[s.tier];
+        if (have >= max) return fail(`You already picked ${max} ${TIER_NAMES[s.tier].toLowerCase()} system${max > 1 ? 's' : ''}. Remove one to pick another.`);
+      }
       if (p.batteries.some(b => b.pad === cmd.pad)) return fail('That pad is taken.');
       if (m.maxBatteries && p.batteries.length >= m.maxBatteries) return fail(`Defence limit reached: ${m.maxBatteries} systems per player in this match. Sell one to place another.`);
-      if (!spend(p, s.price)) return fail('Not enough budget.');
+      if (!draft && !spend(p, s.price)) return fail('Not enough budget.'); // duel picks are free (first load included)
       p.batteries.push({ uid: uid(m), sys: s.id, pad: cmd.pad, level: 1, ammo: s.load, cooldown: 0, reloading: 0, holdFire: false, revealed: false, kills: 0, dwell: 0 });
       if (s.load > 0 && p.restock[s.id] == null) p.restock[s.id] = s.load; // default: keep one full reload spare
       return ok;
@@ -233,7 +239,8 @@ export function command(m: Match, pi: PlayerIndex, cmd: Command): CommandResult 
     case 'sellBattery': {
       const i = p.batteries.findIndex(x => x.uid === cmd.uid); if (i < 0) return fail('No such battery.');
       const b = p.batteries[i];
-      p.budget = round(p.budget + defence(b.sys).price * 0.5);
+      if (!m.raid) { if (m.phase !== 'setup') return fail('Defences can only be changed in setup.'); }
+      else p.budget = round(p.budget + defence(b.sys).price * 0.5);
       p.batteries.splice(i, 1);
       return ok;
     }
@@ -261,6 +268,7 @@ export function command(m: Match, pi: PlayerIndex, cmd: Command): CommandResult 
     }
     case 'buyPatrol': {
       if (m.raid) return fail('No air patrols here.');
+      if (m.phase !== 'setup') return fail('Air patrols are chosen in setup.');
       if (p.patrols >= RULES.patrolMax) return fail(`At most ${RULES.patrolMax} air patrols.`);
       if (!spend(p, RULES.patrolPrice)) return fail('Not enough budget.');
       p.patrols++;
