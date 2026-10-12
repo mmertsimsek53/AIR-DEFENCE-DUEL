@@ -41,7 +41,9 @@ export const DEFENCES: DefenceSpec[] = [
   d({ id: 'irondome', tier: 2, name: 'Iron Dome', kind: 'sam', price: 150, shot: 0.06, load: 20, range: 70, fireEvery: 0.7, interceptorSpeed: 1.2, skipsMisses: true, hit: { drone: 80, decoy: 20, uav: 60, rocket: 90, cruise: 60 }, role: 'Rocket killer. Ignores rockets that will miss the city.' }),
   d({ id: 'hisaro', tier: 3, name: 'Hisar-O+', kind: 'sam', price: 200, shot: 0.7, load: 6, range: 40, fireEvery: 1.2, interceptorSpeed: 1.3, hit: { drone: 85, decoy: 85, uav: 92, cruise: 88 }, role: 'Medium-altitude missile. Kills UAVs before they fire.' }),
   d({ id: 'davidsling', tier: 3, name: "David's Sling", kind: 'sam', price: 300, shot: 1.0, load: 8, range: 150, fireEvery: 1.5, interceptorSpeed: 2.0, hit: { decoy: 85, uav: 85, rocket: 85, cruise: 85, ballistic: 60 }, role: 'Heavy rockets, cruise and short-range ballistic.' }),
-  d({ id: 'siper', tier: 3, name: 'Siper', kind: 'sam', price: 380, shot: 1.5, load: 8, range: 150, fireEvery: 1.5, interceptorSpeed: 2.0, hit: { decoy: 85, uav: 95, cruise: 88, ballistic: 45 }, role: 'Long-range area defence. Limited ballistic capability.' }),
+  d({ id: 'siper', tier: 3, name: 'Siper Blok-1', kind: 'sam', price: 300, shot: 1.2, load: 8, range: 100, fireEvery: 1.5, interceptorSpeed: 2.0, hit: { decoy: 85, uav: 92, cruise: 85, ballistic: 20 }, role: 'Turkish long-range missile, 100 km. Strong against UAVs and cruise missiles.' }),
+  d({ id: 'siper2', tier: 4, name: 'Siper Blok-2', kind: 'sam', price: 420, shot: 1.6, load: 8, range: 150, fireEvery: 1.5, interceptorSpeed: 2.2, hit: { decoy: 85, uav: 95, cruise: 88, ballistic: 60, hypersonic: 10 }, role: 'Turkish long-range missile, 150 km, with some reach against ballistic missiles.' }),
+  d({ id: 'siper3', tier: 4, name: 'Siper Blok-3', kind: 'sam', price: 520, shot: 2.5, load: 8, range: 180, fireEvery: 1.4, interceptorSpeed: 2.6, hit: { decoy: 85, uav: 95, cruise: 88, ballistic: 85, hypersonic: 30 }, role: 'Turkish ballistic-missile defence (in development): 180 km, strong against ballistic missiles.' }),
   d({ id: 's400', tier: 4, name: 'S-400', kind: 'sam', price: 450, shot: 1.5, load: 8, range: 250, fireEvery: 1.5, interceptorSpeed: 2.2, lowCruisePenalty: 20, hit: { decoy: 85, uav: 95, cruise: 70, ballistic: 65, hypersonic: 10 }, role: 'Very long range. Low cruise missiles slip under it.' }),
   // ---- added 11 Oct 2026 (Turkish, American, Russian); numbers approved by Mert
   d({ id: 'gurz', tier: 2, name: 'Gürz', kind: 'sam', price: 140, shot: 0.2, load: 8, range: 15, fireEvery: 0.9, interceptorSpeed: 1.1, hit: { drone: 85, decoy: 85, uav: 85, rocket: 50, cruise: 80 }, role: 'Turkish gun + missile system. Answer to rockets and drones.' }),
@@ -92,6 +94,7 @@ export const ATTACKS: AttackSpec[] = [
   a({ id: 'mald', name: 'Missile decoy (MALD)', cls: 'decoy', unit: 0.3, launcher: 30, perTurn: 4, flight: 35, damage: 0, precise: false, imitates: 'cruise', role: 'Missile decoy. Looks like a cruise missile, so the enemy spends expensive interceptors on it.' }),
   a({ id: 'recon', name: 'Mini recon drone', cls: 'drone', unit: 0.5, launcher: 0, perTurn: 4, flight: 20, damage: 0, precise: true, noLauncher: true, recon: true, role: 'Finds the chief: flies to a hideout, hovers 5 s and tells you if the chief is inside. Defences shoot at it.' }),
   a({ id: 'shahed', name: 'Shahed-136', cls: 'drone', unit: 0.1, launcher: 15, perTurn: 10, flight: 25, damage: 8, precise: false, scatter: 0.9, role: 'Cheap swarm drone. Damage adds up: about 3 hits destroy a battery. Any hit on the chief\'s hideout wins.' }),
+  a({ id: 'alpagu', name: 'Alpagu', cls: 'drone', unit: 0.6, launcher: 20, perTurn: 4, flight: 22, damage: 12, precise: true, role: 'Turkish fixed-wing loitering munition: fast, precise, hits harder than a Kargu.' }),
   a({ id: 'kargu', name: 'Kargu-2', cls: 'drone', unit: 0.08, launcher: 10, perTurn: 8, flight: 20, damage: 4, precise: true, role: 'Small precise drone. 5 hits destroy a battery; cheap way to pick off guns and short-range defences.' }),
   a({ id: 'grad', name: 'BM-21 Grad', cls: 'rocket', unit: 1.5, launcher: 20, perTurn: 1, flight: 20, damage: 3, precise: false, salvo: 40, scatter: 0.5, role: '40-rocket barrage over a 1.5 km area. Saturates the defence; can catch batteries or a hideout in the area.' }),
   a({ id: 'trg300', name: 'TRG-300', cls: 'rocket', unit: 0.6, launcher: 40, perTurn: 4, flight: 18, damage: 25, precise: true, role: 'Fast guided rocket. One hit destroys a battery or a hideout; hard for guns and lasers to stop.' }),
@@ -204,6 +207,10 @@ export const FINANCE_PENALTY = 0.3;
 
 /** Systems without a search radar (infra-red, optical, lasers): anti-radiation weapons cannot home on them. */
 export const PASSIVE_SYSTEMS = ['stinger', 'igla', 'sungur', 'avenger', 'alka', 'gokberk', 'ironbeam'];
+
+/** The duel uses a short list (Mert, 12 Oct): 4 per defence level and 4 per attack group, 2 Turkish in each. */
+export const DUEL_DEFENCES = ['korkut', 'sungur', 'stinger', 'igla', 'hisara', 'gurz', 'pantsir', 'irondome', 'hisaro', 'siper', 'nasams', 's300', 'siper2', 'siper3', 'patriot', 's400'];
+export const DUEL_ATTACKS = ['recon', 'kargu', 'alpagu', 'shahed', 'mald', 'trg300', 'akbaba', 'himars', 'harop', 'som', 'tayfun', 'tomahawk', 'kinzhal', 'tb2'];
 
 export const TIER_NAMES = ['', 'Short range', 'Medium range', 'Long range', 'Top level'];
 

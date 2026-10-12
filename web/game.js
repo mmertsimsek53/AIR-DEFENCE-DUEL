@@ -13,12 +13,14 @@ let rng=Math.random;
 const CAT=ADD.catalogueRaw(),GEO=ADD.geo(),U=GEO.unitsPerKm;
 const DEF={};for(const d of CAT.defences)DEF[d.id]=d;
 const ATK={};for(const a of CAT.attacks)ATK[a.id]=a;
+const DUEL_DEF=new Set(CAT.duelDefences||[]); // the duel's short list: 4 per level, 2 Turkish in each
+const inDuel=d=>!DUEL_DEF.size||DUEL_DEF.has(d.id);
 const SCT={};for(const s of CAT.scouts)SCT[s.id]=s;
 const BLD={};for(const b of CAT.buildings)BLD[b.kind]=b;
 
 /* ======================= STYLE ======================= */
 const SYS_COL={zu23:0xffd27a,gepard:0xffc04d,korkut:0xffb020,stinger:0x9dffb0,sungur:0x2fd27a,alka:0xff3fc0,ironbeam:0xff6ad5,koral:0x9acc00,
-  pantsir:0x3fe0c8,hisara:0x1fb6e0,irondome:0x5fd0ff,irist:0x4f9cff,hisaro:0x2f7fe0,davidsling:0x8aa8ff,siper:0x7a5cff,s400:0xe0204a,patriot:0xff6a2b,
+  pantsir:0x3fe0c8,hisara:0x1fb6e0,irondome:0x5fd0ff,irist:0x4f9cff,hisaro:0x2f7fe0,davidsling:0x8aa8ff,siper:0x7a5cff,siper2:0x6a4cf0,siper3:0x5a3ce0,s400:0xe0204a,patriot:0xff6a2b,
   gurz:0x22c7a0,gokberk:0xff5fb0,ihtar:0xb8e04a,avenger:0x7dffa0,phalanx:0xffe08a,nasams:0x5aa8ff,thaad:0xff9a55,igla:0xa8ffb8,tunguska:0x40d8b0,tor:0x36b8d8,buk:0x9a7cff,s300:0xd8506a,s500:0xff3060};
 const css=h=>'#'+h.toString(16).padStart(6,'0');
 const CLS_CSS={drone:'#ffe066',decoy:'#9aa6b0',uav:'#c48bff',rocket:'#ff9a66',cruise:'#ff8a3d',ballistic:'#ff5a4e',hypersonic:'#ff3380',unk:'#ffb340'};
@@ -396,7 +398,7 @@ function buildModel(key,g,root){
   else if(key==='irist'){veh(g,8,2.8,acc);tubes(g,4,2,.32,4.4,.7,false,1.45,2.3,-3.2);top=6;}
   else if(key==='hisaro'){veh(g,7.5,2.8,acc);tubes(g,3,2,.45,3.8,1,true,1.5,2.2,-2.9);top=6;}
   else if(key==='davidsling'){veh(g,8.5,3,acc);tubes(g,3,2,.5,5.5,1.05,true,1.2,2.3,-3.4);top=7;}
-  else if(key==='siper'){veh(g,9,3,acc);tubes(g,2,2,.55,7,1.25,false,1,2.3,-3.8);top=8;}
+  else if(key==='siper'||key==='siper2'||key==='siper3'){veh(g,9,3,acc);tubes(g,2,2,.55,7,1.25,false,1,2.3,-3.8);top=8;}
   else if(key==='patriot'){veh(g,8,3,acc);tubes(g,2,2,.6,5.8,1.3,true,.66,2.3,-3.2);top=6.5;}
   else if(key==='s400'){veh(g,9.5,3,acc);tubes(g,2,2,.5,7.6,1.15,false,1.52,2.3,-3.9);top=9;}
   // ---- systems added 11 Oct 2026, same vehicle kit
@@ -534,7 +536,7 @@ function renderPlanner(){
     h+='<div class="srow" style="--c:#c48bff"><div class="sname"><b>Akıncı air patrol</b><span>Circles over your city, shoots at enemy survey UAVs</span></div><div class="sbuy"><span>'+(m.patrols||0)+' / '+CAT.rules.patrolMax+' · '+fmt(m.budget)+' left</span>'+
       ((m.patrols||0)<CAT.rules.patrolMax?'<button class="mini" data-pl="patrol"'+(m.budget<PP?' disabled':'')+'>Add · '+fmt(PP)+'</button>':'')+'</div></div>';}
   else{const full=plPicked(plTab)>=P[plTab];
-    h+=CAT.defences.filter(d=>d.tier===plTab).sort((a,b)=>a.price-b.price).map(d=>'<div class="srow'+(plSel===d.id?' sel':'')+(full?' off':'')+'" data-pl="sys" data-k="'+d.id+'" style="--c:'+css(SYS_COL[d.id])+'"><div class="sname"><b>'+esc(d.name)+'</b><span>'+esc(PICK_WHY[d.id]||d.role)+'</span></div><div class="sbuy"><span>'+d.range+' km'+(d.load?' · '+d.load+' missiles':'')+'</span></div></div>').join('');}
+    h+=CAT.defences.filter(d=>d.tier===plTab&&inDuel(d)).sort((a,b)=>a.price-b.price).map(d=>'<div class="srow'+(plSel===d.id?' sel':'')+(full?' off':'')+'" data-pl="sys" data-k="'+d.id+'" style="--c:'+css(SYS_COL[d.id])+'"><div class="sname"><b>'+esc(d.name)+'</b><span>'+esc(PICK_WHY[d.id]||d.role)+'</span></div><div class="sbuy"><span>'+d.range+' km'+(d.load?' · '+d.load+' missiles':'')+'</span></div></div>').join('');}
   $('plSide').innerHTML=h;
   $('plTop').innerHTML='<span class="pill">Your chief: Hideout '+m.chiefNo+(plSel?' · placing <b>'+esc(DEF[plSel].name)+'</b>':'')+'</span><button class="btn primary" data-pl="done"'+(n<total?' disabled':'')+'>'+(n<total?'Place '+(total-n)+' more':'Done · start the duel')+'</button>';
   drawPlanner();
@@ -810,11 +812,11 @@ function finishDraw(){
   if(mode==='route'){plan.route=km;plan.routeU=u;plan.bearing=Math.atan2(km[0].z,km[0].x);msg('Route set · strike comes from the '+compass(plan.bearing),'good');}
   else{plan.scoutPath[mode]=km;plan.scoutPathU[mode]=u;msg(SCT[mode].name+' will fly this path','good');}
   drawMode=null;$('placing').hidden=true;tab='attack';sheetSig='';rebuildPlanGfx();refreshUI();}
-const ORIGINS=[['Turkish',['korkut','sungur','alka','koral','hisara','hisaro','siper','gurz','gokberk','ihtar']],['American',['stinger','avenger','phalanx','nasams','patriot','thaad']],
+const ORIGINS=[['Turkish',['korkut','sungur','alka','koral','hisara','hisaro','siper','siper2','siper3','gurz','gokberk','ihtar']],['American',['stinger','avenger','phalanx','nasams','patriot','thaad']],
   ['Russian',['igla','zu23','tunguska','pantsir','tor','buk','s300','s400','s500']],['Israeli',['irondome','ironbeam','davidsling']]];
 const REC_DEF=[['vs drones',['korkut','gurz']],['vs missiles',['hisara','irondome']],['vs ballistic',['patriot','s400']]];
 const DUEL_SCOUTS=CAT.scouts.filter(s=>s.id==='aksungur'); // the duel uses the Aksungur for surveys
-const REC_ATK=['aksungur','recon','shahed','gerbera','mald','akbaba','harop','som','tayfun','kinzhal'];
+const REC_ATK=['aksungur','recon','shahed','alpagu','mald','akbaba','harop','som','tayfun','kinzhal'];
 const TARGET_ORDER=['factory','command','power','radar','finance','depot','airbase'];
 // Auto attack: send everything ready to fire at the best known target, in one go.
 function quickStrike(){
@@ -885,7 +887,7 @@ function sheetHTML(){
       for(let t=1;t<=4;t++){const n=picked(t),full=n>=P[t],open=t===openT;
         h+='<div class="sec-h'+(open?' open':'')+'" data-act="tier" data-k="'+t+'" style="margin-top:8px"><span>'+CAT.tierNames[t]+'</span><span class="cnt">'+n+' / '+P[t]+' picked'+(full?' ✓':'')+'</span><span class="chev">›</span></div>';
         if(open)h+='<div class="small" style="margin:6px 2px">'+(full?'Full. Remove one in your city to pick another.':'Tap one, then a glowing + in your city.')+'</div><div class="tiles">'+
-          CAT.defences.filter(d=>d.tier===t).sort((x,y)=>x.price-y.price).map(d=>card(d,full)).join('')+'</div>';}
+          CAT.defences.filter(d=>d.tier===t&&inDuel(d)).sort((x,y)=>x.price-y.price).map(d=>card(d,full)).join('')+'</div>';}
     }
     {const n=m.patrols||0,P=CAT.rules.patrolPrice,setup=v.phase==='setup';
       h+='<h3>Air patrol <span class="small">· Akıncı circling over your city; shoots down enemy survey UAVs that pass close'+(setup?'':' · chosen in setup')+'</span></h3><div class="items"><div class="item" style="--c:#c48bff"><div class="nm"><b>Akıncı air patrol</b><span>Stays all match · '+CAT.rules.patrolMissiles+' air-to-air missile per strike, '+fmt(CAT.rules.patrolShot)+' each · '+CAT.rules.patrolHit+'% hit</span></div><div class="cnt"><b class="big">'+n+'</b><span> / '+CAT.rules.patrolMax+'</span></div><div class="acts">'+(setup&&n<CAT.rules.patrolMax?'<button class="mini" data-act="patrol"'+(B<P?' disabled':'')+'>Add · '+fmt(P)+'</button>':'')+'</div></div></div>';}
@@ -967,10 +969,10 @@ $('sheet').addEventListener('change',e=>{const s=e.target.closest('select');if(!
   sheetSig='';});
 
 /* Attack shop: groups by job, one short line per weapon. */
-const ATK_GROUPS=[{title:'Find',ids:['aksungur','recon']},{title:'Drones & decoys',ids:['shahed','kargu','gerbera','mald','harop']},
-  {title:'Rockets & anti-radar',ids:['akbaba','trg300','himars','grad']},{title:'Missiles',ids:['som','tomahawk','tayfun','iskander','kinzhal']},{title:'UAV',ids:['tb2']}];
+const ATK_GROUPS=[{title:'Find',ids:['aksungur','recon']},{title:'Drones & decoys',ids:['kargu','alpagu','shahed','mald']},
+  {title:'Rockets & anti-radar',ids:['trg300','akbaba','himars','harop']},{title:'Missiles',ids:['som','tayfun','tomahawk','kinzhal']},{title:'UAV',ids:['tb2']}];
 const WHY_ATK={aksungur:'Maps half their city per flight',recon:'Checks one hideout for the chief',shahed:'Cheap swarm · 3 hits kill a defence',
-  kargu:'Small precise drone · picks off guns',gerbera:'Fake drone · soaks up gun fire',mald:'Fake cruise missile · wastes their missiles',
+  kargu:'Small precise drone · picks off guns',alpagu:'Fast precise drone · hits harder than Kargu',gerbera:'Fake drone · soaks up gun fire',mald:'Fake cruise missile · wastes their missiles',
   harop:'Waits over the city, dives on a radar',akbaba:'Homes on any defence that fires',trg300:'Fast guided rocket · kills a defence',
   himars:'Six guided rockets per turn',grad:'40-rocket barrage on an area',som:'Low cruise missile · slips under radar',
   tomahawk:'Low cruise missile · bigger warhead',tayfun:'Fast ballistic · hard to stop',iskander:'Ballistic with 2 decoys',
@@ -1003,7 +1005,9 @@ const PICK_WHY={zu23:'Cheapest gun. Drones close in only; bursts cost almost not
   nasams:'40 km, very good against cruise missiles and UAVs.',
   buk:'70 km reach, with a small chance against ballistic missiles.',
   davidsling:'150 km: stops rockets, cruise and 60% of ballistic missiles.',
-  siper:'150 km cover against UAVs and cruise; weak against ballistic.',
+  siper:'100 km cover against UAVs and cruise; weak against ballistic.',
+  siper2:'150 km cover, 60% against ballistic missiles.',
+  siper3:'180 km, 85% against ballistic: the Turkish answer to Tayfun.',
   s300:'150 km, 50% against ballistic. Low cruise missiles slip under it.',
   patriot:'Best against ballistic missiles (90%), some chance against hypersonic.',
   s400:'250 km reach; 65% against ballistic, little against hypersonic.',
@@ -1022,7 +1026,7 @@ function draftHTML(){
   if(t===5){const n=m.patrols||0,PP=CAT.rules.patrolPrice;
     return tabsH+'<div class="tiles"><div class="tile" style="--c:#c48bff;cursor:default"><span class="role">Turkish</span><b class="tn">Akıncı air patrol</b><span class="meta"><b>'+fmt(PP)+'</b> · circles over your city all match</span><span class="meta" style="white-space:normal">Shoots at enemy survey UAVs passing within '+CAT.rules.patrolRange+' km: '+CAT.rules.patrolMissiles+' missile per strike, '+CAT.rules.patrolHit+'% hit.</span>'+
       (n<CAT.rules.patrolMax?'<button class="mini" data-act="patrol"'+(B<PP?' disabled':'')+'>Add · '+fmt(PP)+'</button>':'<span class="small">Max reached</span>')+'</div></div>';}
-  const list=CAT.defences.filter(d=>d.tier===t).sort((x,y)=>x.price-y.price),pages=Math.ceil(list.length/DRAFT_PER_PAGE);
+  const list=CAT.defences.filter(d=>d.tier===t&&inDuel(d)).sort((x,y)=>x.price-y.price),pages=Math.ceil(list.length/DRAFT_PER_PAGE);
   const pg=Math.min(draftPage,pages-1),full=picked(t)>=P[t];
   const ORIGIN_OF={};for(const [o,ids] of ORIGINS)for(const id of ids)ORIGIN_OF[id]=o;
   const mine=m.batteries.filter(b=>DEF[b.sys].tier===t).map(b=>DEF[b.sys].name);
@@ -1264,6 +1268,8 @@ const padMarks={},ammoTags={},foeTags={};
 function markEl(pool,id,cls){let el=pool[id];if(!el){el=document.createElement('div');el.className=cls;$('tags').appendChild(el);pool[id]=el;}return el;}
 let dockLeft=1e9;
 function behindDock(sx){return document.body.classList.contains('sheet-open')&&sx>dockLeft-10;}
+/* Labels only show while the matching sheet tab is open (Mert, 12 Oct: no names on everything). */
+function sheetTab(t){return document.body.classList.contains('sheet-open')&&tab===t;}
 function updMarkers(){
   dockLeft=document.body.classList.contains('sheet-open')?$('dock').getBoundingClientRect().left:1e9;
   const v=view,show=v&&placing&&viewSide===0&&canShop();
@@ -1272,7 +1278,7 @@ function updMarkers(){
     if(!show||taken.has(p.id)){el.hidden=true;continue;}const s=project(_b.set(p.x,6,p.z));if(!s){el.hidden=true;continue;}
     if(!el.onclick)el.onclick=()=>placeAt(p.id);
     el.hidden=false;el.textContent='+';el.style.transform='translate('+s.x.toFixed(0)+'px,'+s.y.toFixed(0)+'px)';el.style.setProperty('--c',css(SYS_COL[placing]||0x6fe3ff));}
-  const showA=v&&viewSide===0&&v.phase!=='over';const seen=new Set();
+  const showA=v&&viewSide===0&&v.phase!=='over'&&v.phase!=='battle'&&sheetTab('build');const seen=new Set();
   if(showA)for(const b of v.me.batteries){seen.add(b.uid);const vb=SIDES[0].bats&&SIDES[0].bats[b.uid];const el=markEl(ammoTags,b.uid,'ammo');if(!vb){el.hidden=true;continue;}
     const s=project(_b.copy(vb.pos).setY(vb.muzzle.y+5));if(!s){el.hidden=true;continue;}
     const spare=v.me.interceptors[b.sys]||0;
@@ -1283,7 +1289,7 @@ function updMarkers(){
     el.style.transform='translate('+s.x.toFixed(0)+'px,'+s.y.toFixed(0)+'px)';}
   for(const id in ammoTags)if(!seen.has(+id))ammoTags[id].hidden=true;
   const seenE=new Set();
-  if(v&&viewSide===1&&v.phase!=='over')for(const b of v.enemy.batteries){const vb=SIDES[1].bats&&SIDES[1].bats[b.uid];const el=markEl(foeTags,b.uid,'ammo');seenE.add(b.uid);
+  if(v&&viewSide===1&&v.phase!=='over'&&v.phase!=='battle'&&sheetTab('attack'))for(const b of v.enemy.batteries){const vb=SIDES[1].bats&&SIDES[1].bats[b.uid];const el=markEl(foeTags,b.uid,'ammo');seenE.add(b.uid);
     if(!vb){el.hidden=true;continue;}const s=project(_b.copy(vb.pos).setY(vb.muzzle.y+5));if(!s||behindDock(s.x)){el.hidden=true;continue;}
     const L=v.batteryLives;el.hidden=false;el.textContent=b.name+' · ♥'+(L-b.damage)+'/'+L+(b.dry?' · OUT OF MISSILES':'');el.className='ammo'+(b.dry?' empty':b.damage?' low':'');el.style.transform='translate('+s.x.toFixed(0)+'px,'+s.y.toFixed(0)+'px)';}
   for(const id in foeTags)if(!seenE.has(+id))foeTags[id].hidden=true;
@@ -1294,12 +1300,11 @@ function updTags(){
     const s=project(tv.pos);if(!s){tv.tag.hidden=true;continue;}
     tv.tag.hidden=false;tv.tag.style.transform='translate('+s.x.toFixed(1)+'px,'+s.y.toFixed(1)+'px)';
     const k=threatShown(t),cls=k?CLS_TAG[k]:'unk';
-    let txt=t.recon?(t.hovering?'RECON · CHECKING':'RECON'):t.locked!=null&&!view.battle.iDefend?'LOCKED ON':(t.name==='Harop (loitering)'&&t.hovering)?'HAROP · WAITING':t.scout?'SCOUT UAV':t.decoy?'DECOY':!t.cls?'UNKNOWN':k==='drone'?(t.hovering?'HOVERING':''):t.name.toUpperCase();
-    if(t.engaged&&txt)txt+=' · ENG';if(t.priority)txt+=(txt?' · ':'')+'PRIORITY';if(t.hold)txt+=(txt?' · ':'')+'HOLD';
+    let txt='';if(0)txt=t.recon?(t.hovering?'RECON · CHECKING':'RECON'):t.locked!=null&&!view.battle.iDefend?'LOCKED ON':(t.name==='Harop (loitering)'&&t.hovering)?'HAROP · WAITING':t.scout?'SCOUT UAV':t.decoy?'DECOY':!t.cls?'UNKNOWN':k==='drone'?(t.hovering?'HOVERING':''):t.name.toUpperCase();
     const key=cls+t.engaged+t.priority+t.hold+txt;
     if(key!==tv.key){tv.key=key;tv.tag.className='tag '+cls+(t.engaged?' eng':'')+(t.priority?' prio':'')+(t.hold?' hold':'');tv.span.textContent=txt;}
   }
-  const S=SIDES[viewSide],showL=view&&view.phase!=='over'&&(!document.body.classList.contains('sheet-open')||tab==='city');const placed=[];
+  const S=SIDES[viewSide],showL=view&&view.phase!=='over'&&view.phase!=='battle'&&(sheetTab('city')||sheetTab('chief'));const placed=[];
   if(S.crit)for(const id in S.crit){const c=S.crit[id];if(!showL){c.el.hidden=true;continue;}const s=project(_a.set(c.x,22,c.z));if(!s){c.el.hidden=true;continue;}
     if(behindDock(s.x)||placed.some(r=>Math.abs(r.x-s.x)<130&&Math.abs(r.y-s.y)<20)){c.el.hidden=true;continue;}placed.push(s);
     c.el.hidden=false;c.el.style.transform='translate('+s.x.toFixed(0)+'px,'+s.y.toFixed(0)+'px)';c.el.classList.toggle('dead',c.down);

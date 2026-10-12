@@ -72,7 +72,7 @@ const SUPPORT_TYPES: BuildingType[] = [
 // Defences: one building per air-defence system. Unlocks follow the tiers in docs/BASE_DESIGN.md.
 const DEF_UNLOCK: Record<string, number> = {
   zu23: 1, stinger: 1, gepard: 2, sungur: 2, korkut: 2, alka: 3, pantsir: 3, hisara: 3, koral: 4, irondome: 4, ironbeam: 5,
-  irist: 5, hisaro: 5, davidsling: 7, siper: 7, s400: 8, patriot: 9,
+  irist: 5, hisaro: 5, davidsling: 7, siper: 7, siper2: 8, siper3: 10, s400: 8, patriot: 9,
   igla: 1, avenger: 1, phalanx: 2, ihtar: 2, gokberk: 3, tunguska: 3, gurz: 4, tor: 4, nasams: 5, buk: 6, s300: 7, thaad: 9, s500: 10,
 };
 const DEFENCE_TYPES: BuildingType[] = DEFENCES.map(d => {

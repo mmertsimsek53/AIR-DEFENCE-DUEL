@@ -38,6 +38,7 @@ const api = {
     return {
       defences: core.DEFENCES, attacks: core.ATTACKS, scouts: core.SCOUTS, rules: core.RULES, radar: core.RADAR_LEVELS,
       extraRadar: core.EXTRA_RADAR_PRICE, buildings: core.BUILDINGS, cityRadius: core.CITY_RADIUS, longRange: core.LONG_RANGE_SAMS, tierNames: core.TIER_NAMES,
+      duelDefences: core.DUEL_DEFENCES, duelAttacks: core.DUEL_ATTACKS,
     };
   },
   geo() {

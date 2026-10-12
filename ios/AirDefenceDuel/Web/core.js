@@ -15,7 +15,9 @@
     d({ id: "irondome", tier: 2, name: "Iron Dome", kind: "sam", price: 150, shot: 0.06, load: 20, range: 70, fireEvery: 0.7, interceptorSpeed: 1.2, skipsMisses: true, hit: { drone: 80, decoy: 20, uav: 60, rocket: 90, cruise: 60 }, role: "Rocket killer. Ignores rockets that will miss the city." }),
     d({ id: "hisaro", tier: 3, name: "Hisar-O+", kind: "sam", price: 200, shot: 0.7, load: 6, range: 40, fireEvery: 1.2, interceptorSpeed: 1.3, hit: { drone: 85, decoy: 85, uav: 92, cruise: 88 }, role: "Medium-altitude missile. Kills UAVs before they fire." }),
     d({ id: "davidsling", tier: 3, name: "David's Sling", kind: "sam", price: 300, shot: 1, load: 8, range: 150, fireEvery: 1.5, interceptorSpeed: 2, hit: { decoy: 85, uav: 85, rocket: 85, cruise: 85, ballistic: 60 }, role: "Heavy rockets, cruise and short-range ballistic." }),
-    d({ id: "siper", tier: 3, name: "Siper", kind: "sam", price: 380, shot: 1.5, load: 8, range: 150, fireEvery: 1.5, interceptorSpeed: 2, hit: { decoy: 85, uav: 95, cruise: 88, ballistic: 45 }, role: "Long-range area defence. Limited ballistic capability." }),
+    d({ id: "siper", tier: 3, name: "Siper Blok-1", kind: "sam", price: 300, shot: 1.2, load: 8, range: 100, fireEvery: 1.5, interceptorSpeed: 2, hit: { decoy: 85, uav: 92, cruise: 85, ballistic: 20 }, role: "Turkish long-range missile, 100 km. Strong against UAVs and cruise missiles." }),
+    d({ id: "siper2", tier: 4, name: "Siper Blok-2", kind: "sam", price: 420, shot: 1.6, load: 8, range: 150, fireEvery: 1.5, interceptorSpeed: 2.2, hit: { decoy: 85, uav: 95, cruise: 88, ballistic: 60, hypersonic: 10 }, role: "Turkish long-range missile, 150 km, with some reach against ballistic missiles." }),
+    d({ id: "siper3", tier: 4, name: "Siper Blok-3", kind: "sam", price: 520, shot: 2.5, load: 8, range: 180, fireEvery: 1.4, interceptorSpeed: 2.6, hit: { decoy: 85, uav: 95, cruise: 88, ballistic: 85, hypersonic: 30 }, role: "Turkish ballistic-missile defence (in development): 180 km, strong against ballistic missiles." }),
     d({ id: "s400", tier: 4, name: "S-400", kind: "sam", price: 450, shot: 1.5, load: 8, range: 250, fireEvery: 1.5, interceptorSpeed: 2.2, lowCruisePenalty: 20, hit: { decoy: 85, uav: 95, cruise: 70, ballistic: 65, hypersonic: 10 }, role: "Very long range. Low cruise missiles slip under it." }),
     // ---- added 11 Oct 2026 (Turkish, American, Russian); numbers approved by Mert
     d({ id: "gurz", tier: 2, name: "G\xFCrz", kind: "sam", price: 140, shot: 0.2, load: 8, range: 15, fireEvery: 0.9, interceptorSpeed: 1.1, hit: { drone: 85, decoy: 85, uav: 85, rocket: 50, cruise: 80 }, role: "Turkish gun + missile system. Answer to rockets and drones." }),
@@ -39,6 +41,7 @@
     a({ id: "mald", name: "Missile decoy (MALD)", cls: "decoy", unit: 0.3, launcher: 30, perTurn: 4, flight: 35, damage: 0, precise: false, imitates: "cruise", role: "Missile decoy. Looks like a cruise missile, so the enemy spends expensive interceptors on it." }),
     a({ id: "recon", name: "Mini recon drone", cls: "drone", unit: 0.5, launcher: 0, perTurn: 4, flight: 20, damage: 0, precise: true, noLauncher: true, recon: true, role: "Finds the chief: flies to a hideout, hovers 5 s and tells you if the chief is inside. Defences shoot at it." }),
     a({ id: "shahed", name: "Shahed-136", cls: "drone", unit: 0.1, launcher: 15, perTurn: 10, flight: 25, damage: 8, precise: false, scatter: 0.9, role: "Cheap swarm drone. Damage adds up: about 3 hits destroy a battery. Any hit on the chief's hideout wins." }),
+    a({ id: "alpagu", name: "Alpagu", cls: "drone", unit: 0.6, launcher: 20, perTurn: 4, flight: 22, damage: 12, precise: true, role: "Turkish fixed-wing loitering munition: fast, precise, hits harder than a Kargu." }),
     a({ id: "kargu", name: "Kargu-2", cls: "drone", unit: 0.08, launcher: 10, perTurn: 8, flight: 20, damage: 4, precise: true, role: "Small precise drone. 5 hits destroy a battery; cheap way to pick off guns and short-range defences." }),
     a({ id: "grad", name: "BM-21 Grad", cls: "rocket", unit: 1.5, launcher: 20, perTurn: 1, flight: 20, damage: 3, precise: false, salvo: 40, scatter: 0.5, role: "40-rocket barrage over a 1.5 km area. Saturates the defence; can catch batteries or a hideout in the area." }),
     a({ id: "trg300", name: "TRG-300", cls: "rocket", unit: 0.6, launcher: 40, perTurn: 4, flight: 18, damage: 25, precise: true, role: "Fast guided rocket. One hit destroys a battery or a hideout; hard for guns and lasers to stop." }),
@@ -165,6 +168,8 @@
   ];
   var FINANCE_PENALTY = 0.3;
   var PASSIVE_SYSTEMS = ["stinger", "igla", "sungur", "avenger", "alka", "gokberk", "ironbeam"];
+  var DUEL_DEFENCES = ["korkut", "sungur", "stinger", "igla", "hisara", "gurz", "pantsir", "irondome", "hisaro", "siper", "nasams", "s300", "siper2", "siper3", "patriot", "s400"];
+  var DUEL_ATTACKS = ["recon", "kargu", "alpagu", "shahed", "mald", "trg300", "akbaba", "himars", "harop", "som", "tayfun", "tomahawk", "kinzhal", "tb2"];
   var TIER_NAMES = ["", "Short range", "Medium range", "Long range", "Top level"];
   var XP = { start: 1e3, win: 30, bigWinBonus: 10, bigWinHealth: 500, loss: -20, concede: -25, window: 100, widenEvery: 15, widenBy: 50 };
   var defence = (id) => DEFENCES.find((s) => s.id === id);
@@ -514,6 +519,7 @@
         if (!s) return fail("Unknown system.");
         if (!p.pads.some((x) => x.id === cmd.pad)) return fail("No such pad.");
         const draft = !m.raid;
+        if (draft && !DUEL_DEFENCES.includes(s.id)) return fail("That system is not in the duel.");
         if (draft && m.phase !== "setup") return fail("Defences are chosen in setup. Now your money goes on attack weapons, drones and defence missiles.");
         if (draft) {
           const have = p.batteries.filter((b) => defence(b.sys).tier === s.tier).length, max = RULES.draftPicks[s.tier];
@@ -546,6 +552,7 @@
         return ok;
       }
       case "buyLauncher": {
+        if (!m.raid && !DUEL_ATTACKS.includes(cmd.weapon)) return fail("That weapon is not in the duel.");
         const w = ATTACKS.find((x) => x.id === cmd.weapon);
         if (!w || w.reusable || w.noLauncher) return fail("No launcher needed.");
         if (!spend(p, w.launcher)) return fail("Not enough budget.");
@@ -553,6 +560,7 @@
         return ok;
       }
       case "buyUnits": {
+        if (!m.raid && !DUEL_ATTACKS.includes(cmd.weapon)) return fail("That weapon is not in the duel.");
         const w = ATTACKS.find((x) => x.id === cmd.weapon);
         if (!w) return fail("Unknown weapon.");
         if (!w.reusable && !factoryUp) return fail("Missile factory is knocked out.");
@@ -1619,15 +1627,15 @@
   function setup(m, pi) {
     const p = m.players[pi];
     const r = nextRandom(m);
-    const picks = r < 0.5 ? ["korkut", "stinger", "pantsir", "hisara", "s300", "hisaro", "patriot"] : ["zu23", "gokberk", "irondome", "tor", "davidsling", "buk", "s400"];
+    const picks = r < 0.5 ? ["korkut", "stinger", "pantsir", "hisara", "s300", "hisaro", "patriot"] : ["sungur", "igla", "irondome", "gurz", "siper", "nasams", "siper3"];
     for (const sys of picks) {
       const pad = freePad(p, defence(sys).range < 10);
       if (pad != null) buy(m, pi, { c: "buyBattery", sys, pad });
     }
     buy(m, pi, { c: "buyLauncher", weapon: "shahed" });
     buy(m, pi, { c: "buyUnits", weapon: "shahed", n: 10 });
-    buy(m, pi, { c: "buyLauncher", weapon: "gerbera" });
-    buy(m, pi, { c: "buyUnits", weapon: "gerbera", n: 10 });
+    buy(m, pi, { c: "buyLauncher", weapon: "mald" });
+    buy(m, pi, { c: "buyUnits", weapon: "mald", n: 4 });
     buy(m, pi, { c: "buyUnits", weapon: "recon", n: 4 });
     buy(m, pi, { c: "buyScout", scout: "aksungur" });
     buy(m, pi, { c: "buyPatrol" });
@@ -1684,7 +1692,7 @@
       for (const w of ATTACKS) if ((w.precise || w.id === "shahed") && !w.recon && !w.reusable) for (let n = left(w.id); n > 0; n--) fire2(w.id, bats[Math.floor(k++ / 3) % bats.length]);
     } else for (let i = 0; i < Math.min(left("recon"), toCheck.length); i++) fire2("recon", toCheck[i]);
     for (let n = left("akbaba"); n > 0; n--) fire2("akbaba", pt(0, 0));
-    if (!(p.stock.recon > 0) || !standing.length) for (const id of ["shahed", "gerbera", "mald"]) for (let n = left(id); n > 0; n--) fire2(id, standing[n % Math.max(1, standing.length)] ?? pt(0, 0));
+    if (!(p.stock.recon > 0) || !standing.length) for (const id of ["shahed", "mald"]) for (let n = left(id); n > 0; n--) fire2(id, standing[n % Math.max(1, standing.length)] ?? pt(0, 0));
     if (p.surveyed.length < 12 && (p.scouts.aksungur ?? 0) > 0) command(m, pi, { c: "fire", scout: "aksungur", from: outside(m), to: pt(0, 0) });
     liveTurn = m.turnNo;
   }
@@ -1903,6 +1911,8 @@
     hisaro: 5,
     davidsling: 7,
     siper: 7,
+    siper2: 8,
+    siper3: 10,
     s400: 8,
     patriot: 9,
     igla: 1,
@@ -2501,7 +2511,9 @@
         buildings: BUILDINGS,
         cityRadius: CITY_RADIUS,
         longRange: LONG_RANGE_SAMS,
-        tierNames: TIER_NAMES
+        tierNames: TIER_NAMES,
+        duelDefences: DUEL_DEFENCES,
+        duelAttacks: DUEL_ATTACKS
       };
     },
     geo() {

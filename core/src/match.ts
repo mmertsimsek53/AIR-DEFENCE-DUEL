@@ -1,5 +1,5 @@
 import {
-  ATTACKS, BUILDINGS, CITY_RADIUS, DEFENCES, PASSIVE_SYSTEMS, TIER_NAMES, DEF_UPGRADE, ECONOMY, EXTRA_RADAR_PRICE, FINANCE_PENALTY,
+  ATTACKS, BUILDINGS, CITY_RADIUS, DEFENCES, DUEL_ATTACKS, DUEL_DEFENCES, PASSIVE_SYSTEMS, TIER_NAMES, DEF_UPGRADE, ECONOMY, EXTRA_RADAR_PRICE, FINANCE_PENALTY,
   LONG_RANGE_SAMS, POWER_RADAR_PENALTY, RADAR_LEVELS, RULES, SCOUTS, SPAWN_DISTANCE,
   attack, defence, scout, type BuildingKind, type ThreatClass,
 } from './data';
@@ -224,6 +224,7 @@ export function command(m: Match, pi: PlayerIndex, cmd: Command): CommandResult 
       const s = DEFENCES.find(x => x.id === cmd.sys); if (!s) return fail('Unknown system.');
       if (!p.pads.some(x => x.id === cmd.pad)) return fail('No such pad.');
       const draft = !m.raid;
+      if (draft && !DUEL_DEFENCES.includes(s.id)) return fail('That system is not in the duel.');
       if (draft && m.phase !== 'setup') return fail('Defences are chosen in setup. Now your money goes on attack weapons, drones and defence missiles.');
       if (draft) {
         const have = p.batteries.filter(b => defence(b.sys).tier === s.tier).length, max = RULES.draftPicks[s.tier];
@@ -253,12 +254,14 @@ export function command(m: Match, pi: PlayerIndex, cmd: Command): CommandResult 
       return ok;
     }
     case 'buyLauncher': {
+      if (!m.raid && !DUEL_ATTACKS.includes(cmd.weapon)) return fail('That weapon is not in the duel.');
       const w = ATTACKS.find(x => x.id === cmd.weapon); if (!w || w.reusable || w.noLauncher) return fail('No launcher needed.');
       if (!spend(p, w.launcher)) return fail('Not enough budget.');
       p.launchers[w.id] = (p.launchers[w.id] ?? 0) + 1;
       return ok;
     }
     case 'buyUnits': {
+      if (!m.raid && !DUEL_ATTACKS.includes(cmd.weapon)) return fail('That weapon is not in the duel.');
       const w = ATTACKS.find(x => x.id === cmd.weapon); if (!w) return fail('Unknown weapon.');
       if (!w.reusable && !factoryUp) return fail('Missile factory is knocked out.');
       const n = Math.max(1, Math.floor(cmd.n));

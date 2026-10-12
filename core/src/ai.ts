@@ -20,12 +20,12 @@ function setup(m: Match, pi: PlayerIndex) {
   const p = m.players[pi];
   const r = nextRandom(m);
   // Draft: 2 short, 2 medium, 2 long range and 1 top-level system (free), in one of two styles.
-  const picks = r < 0.5 ? ['korkut', 'stinger', 'pantsir', 'hisara', 's300', 'hisaro', 'patriot'] : ['zu23', 'gokberk', 'irondome', 'tor', 'davidsling', 'buk', 's400'];
+  const picks = r < 0.5 ? ['korkut', 'stinger', 'pantsir', 'hisara', 's300', 'hisaro', 'patriot'] : ['sungur', 'igla', 'irondome', 'gurz', 'siper', 'nasams', 'siper3'];
   for (const sys of picks) { const pad = freePad(p, defence(sys).range < 10); if (pad != null) buy(m, pi, { c: 'buyBattery', sys, pad }); }
   buy(m, pi, { c: 'buyLauncher', weapon: 'shahed' });
   buy(m, pi, { c: 'buyUnits', weapon: 'shahed', n: 10 });
-  buy(m, pi, { c: 'buyLauncher', weapon: 'gerbera' });
-  buy(m, pi, { c: 'buyUnits', weapon: 'gerbera', n: 10 });
+  buy(m, pi, { c: 'buyLauncher', weapon: 'mald' });
+  buy(m, pi, { c: 'buyUnits', weapon: 'mald', n: 4 });
   buy(m, pi, { c: 'buyUnits', weapon: 'recon', n: 4 });
   buy(m, pi, { c: 'buyScout', scout: 'aksungur' });
   buy(m, pi, { c: 'buyPatrol' });
@@ -90,7 +90,7 @@ function attackTurn(m: Match, pi: PlayerIndex) {
   for (let n = left('akbaba'); n > 0; n--) fire('akbaba', pt(0, 0));
   // Cheap drones and decoys keep the defence busy (aimed into the city).
   // Cheap drones and decoys wait for a find; with no recon flying they go now to keep the defence busy.
-  if (!(p.stock.recon > 0) || !standing.length) for (const id of ['shahed', 'gerbera', 'mald']) for (let n = left(id); n > 0; n--) fire(id, standing[n % Math.max(1, standing.length)] ?? pt(0, 0));
+  if (!(p.stock.recon > 0) || !standing.length) for (const id of ['shahed', 'mald']) for (let n = left(id); n > 0; n--) fire(id, standing[n % Math.max(1, standing.length)] ?? pt(0, 0));
   if (p.surveyed.length < 12 && (p.scouts.aksungur ?? 0) > 0) command(m, pi, { c: 'fire', scout: 'aksungur', from: outside(m), to: pt(0, 0) });
   liveTurn = m.turnNo;
 }

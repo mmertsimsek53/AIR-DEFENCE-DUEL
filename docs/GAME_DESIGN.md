@@ -163,11 +163,11 @@ Status: first outline from Mert, 9 Oct 2026. Everything below "Open questions" i
 ## Setup planner (11 Oct 2026, Mert)
 - The match opens in the 3D city. Defence → **Place your defence** opens a top view of your city with the defence list on the left (tabs per level + air patrol). Tap a system, then an empty spot; tap a placed one to remove it; tap a hideout to move the chief there. Range circles show coverage. **Done · start the duel** (all 7 placed) ends setup and returns to 3D for turn 1.
 
-## PENDING — recorded 12 Oct 2026, build only when Mert is at the MacBook
-1. **No text during the war:** while a strike is on, drop the name tags on missiles/drones and the labels on buildings (keep the 3D view clean). Labels can stay in setup / the planner / the enemy-city view between turns.
-2. **Simpler choice:** 4 options per defence level (short, medium, long, top) and 4 per attack group, with **at least 2 Turkish options in every level/group**. Draft lists to confirm with Mert before building:
+## Done 12 Oct 2026 — fewer labels, shorter lists
+1. **No text during the war:** threats show only as coloured boxes (no names). Building labels show only on the City / Chief tabs, own ammo tags only on the Defence tab, enemy battery tags only on the Attack tab — never during a strike.
+2. **Short list** (`DUEL_DEFENCES` / `DUEL_ATTACKS` in core/src/data.ts; other systems stay for My Base mode):
    - Short: Korkut (TR), Sungur (TR), Stinger (US), Igla-S (RU)
    - Medium: Hisar-A+ (TR), Gürz (TR), Pantsir-S1 (RU), Iron Dome (IL)
-   - Long: Hisar-O+ (TR), Siper (TR), NASAMS (US), S-300 (RU)
-   - Top: needs 2 Turkish — real Turkey has no second top-tier system yet; options: Siper Blok-2 as top tier + a planned Siper Blok-3, or relax the rule for Top. Rest: Patriot (US), S-400 (RU).
-   - Attack groups (4 each, ≥2 TR): Find — Aksungur (TR), Bayraktar TB2 survey (TR), mini recon, …; Drones & decoys — Kargu (TR), Alpagu (TR), Shahed, Gerbera/MALD; Rockets & anti-radar — TRG-300 (TR), Akbaba (TR), HIMARS, Grad; Missiles — SOM (TR), Tayfun (TR), Tomahawk, Kinzhal/Iskander.
+   - Long: Hisar-O+ (TR), Siper Blok-1 (TR, 100 km, $300M), NASAMS (US), S-300 (RU)
+   - Top: Siper Blok-2 (TR, 150 km, ballistic 60%, $420M), Siper Blok-3 (TR, 180 km, ballistic 85%, hypersonic 30%, $520M), Patriot (US), S-400 (RU)
+   - Find: Aksungur, mini recon · Drones & decoys: Kargu, Alpagu (new: $0.6M, 4/turn, damage 12, precise), Shahed, MALD · Rockets & anti-radar: TRG-300, Akbaba, HIMARS, Harop · Missiles: SOM, Tayfun, Tomahawk, Kinzhal · UAV: TB2

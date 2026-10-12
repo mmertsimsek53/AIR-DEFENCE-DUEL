@@ -43,11 +43,11 @@ describe('setup and turns', () => {
     expect(ok('patriot', 0)).toBe(true);
     expect(ok('s400', 1)).toBe(false);               // one top-level system
     expect(ok('korkut', 2) && ok('stinger', 3)).toBe(true);
-    expect(ok('zu23', 4)).toBe(false);               // two short-range
+    expect(ok('igla', 4)).toBe(false);               // two short-range
     expect(ok('pantsir', 5) && ok('hisara', 6) && ok('siper', 7) && ok('s300', 8)).toBe(true);
     expect(m.players[0].budget).toBe(RULES.startBudget); // picks are free
     command(m, 0, { c: 'sellBattery', uid: m.players[0].batteries[1].uid }); // swap during setup
-    expect(ok('zu23', 4)).toBe(true);
+    expect(ok('igla', 4)).toBe(true);
     expect(command(m, 0, { c: 'buyUnits', weapon: 'tayfun', n: 999 }).ok).toBe(false); // broke
     command(m, 0, { c: 'endSetup' }); command(m, 1, { c: 'endSetup' });
     expect(ok('igla', 9)).toBe(false);               // no defences after setup
@@ -164,11 +164,11 @@ describe('strikes', () => {
     let stopped = 0, launched = 0;
     for (let seed = 20; seed < 30; seed++) {
       const m = createMatch(seed, ['A', 'B']);
-      command(m, 0, { c: 'buyLauncher', weapon: 'iskander' });
-      command(m, 0, { c: 'buyUnits', weapon: 'iskander', n: 2 });
+      command(m, 0, { c: 'buyLauncher', weapon: 'tayfun' });
+      command(m, 0, { c: 'buyUnits', weapon: 'tayfun', n: 2 });
       command(m, 1, { c: 'buyBattery', sys: 'patriot', pad: 0 });
       command(m, 0, { c: 'endSetup' }); command(m, 1, { c: 'endSetup' });
-      command(m, 0, { c: 'go', strikes: [{ weapon: 'iskander', n: 2 }], scouts: [] });
+      command(m, 0, { c: 'go', strikes: [{ weapon: 'tayfun', n: 2 }], scouts: [] });
       run(m, 60);
       stopped += m.lastReport!.stopped; launched += 2;
     }
@@ -215,12 +215,12 @@ describe('drawn routes and top-up', () => {
   it('drones follow the drawn route; ballistic missiles ignore it', () => {
     const m = createMatch(41, ['A', 'B']);
     command(m, 0, { c: 'buyLauncher', weapon: 'shahed' }); command(m, 0, { c: 'buyUnits', weapon: 'shahed', n: 2 });
-    command(m, 0, { c: 'buyLauncher', weapon: 'iskander' }); command(m, 0, { c: 'buyUnits', weapon: 'iskander', n: 1 });
+    command(m, 0, { c: 'buyLauncher', weapon: 'tayfun' }); command(m, 0, { c: 'buyUnits', weapon: 'tayfun', n: 1 });
     command(m, 0, { c: 'endSetup' }); command(m, 1, { c: 'endSetup' });
     const route = [{ x: 30, z: 0 }, { x: 20, z: 10 }, { x: 10, z: -10 }, { x: 3, z: 0 }];
-    expect(command(m, 0, { c: 'go', strikes: [{ weapon: 'shahed', n: 2 }, { weapon: 'iskander', n: 1 }], scouts: [], route }).ok).toBe(true);
+    expect(command(m, 0, { c: 'go', strikes: [{ weapon: 'shahed', n: 2 }, { weapon: 'tayfun', n: 1 }], scouts: [], route }).ok).toBe(true);
     const drone = m.battle!.threats.find(t => t.weapon === 'shahed')!;
-    const isk = m.battle!.threats.find(t => t.weapon === 'iskander')!;
+    const isk = m.battle!.threats.find(t => t.weapon === 'tayfun')!;
     expect(drone.path.length).toBeGreaterThan(20);
     expect(drone.path.some(p => Math.abs(p.x - 20) < 0.5 && Math.abs(p.z - 10) < 0.5)).toBe(true);
     expect(isk.path).toHaveLength(2);
@@ -276,12 +276,12 @@ describe('live attack', () => {
 describe('defence limit', () => {
   it('a chosen limit caps batteries for both players; selling frees a slot', () => {
     const m = createMatch(13, ['A', 'B'], [false, false], { maxBatteries: 2 });
-    expect(command(m, 0, { c: 'buyBattery', sys: 'zu23', pad: 0 }).ok).toBe(true);
-    expect(command(m, 0, { c: 'buyBattery', sys: 'zu23', pad: 1 }).ok).toBe(true);
-    expect(command(m, 0, { c: 'buyBattery', sys: 'zu23', pad: 2 }).ok).toBe(false);
-    expect(command(m, 1, { c: 'buyBattery', sys: 'zu23', pad: 0 }).ok).toBe(true);
+    expect(command(m, 0, { c: 'buyBattery', sys: 'korkut', pad: 0 }).ok).toBe(true);
+    expect(command(m, 0, { c: 'buyBattery', sys: 'korkut', pad: 1 }).ok).toBe(true);
+    expect(command(m, 0, { c: 'buyBattery', sys: 'korkut', pad: 2 }).ok).toBe(false);
+    expect(command(m, 1, { c: 'buyBattery', sys: 'korkut', pad: 0 }).ok).toBe(true);
     command(m, 0, { c: 'sellBattery', uid: m.players[0].batteries[0].uid });
-    expect(command(m, 0, { c: 'buyBattery', sys: 'zu23', pad: 2 }).ok).toBe(true);
+    expect(command(m, 0, { c: 'buyBattery', sys: 'korkut', pad: 2 }).ok).toBe(true);
     expect(createMatch(14, ['A', 'B']).maxBatteries).toBeUndefined();
   });
 });
@@ -381,7 +381,7 @@ describe('chief, hideouts, recon drones and decoys', () => {
   it('a precise hit on a revealed battery destroys it', () => {
     const m = ready(97);
     command(m, 0, { c: 'buyLauncher', weapon: 'tayfun' }); command(m, 0, { c: 'buyUnits', weapon: 'tayfun', n: 2 });
-    command(m, 1, { c: 'buyBattery', sys: 'zu23', pad: 3 });
+    command(m, 1, { c: 'buyBattery', sys: 'korkut', pad: 3 });
     start(m);
     hideChiefFrom(m, 1, m.players[1].pads[3].x, m.players[1].pads[3].z);
     m.players[1].batteries[0].revealed = true;
