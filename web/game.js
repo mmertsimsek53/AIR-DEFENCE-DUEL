@@ -538,7 +538,7 @@ function renderPlanner(){
   else{const full=plPicked(plTab)>=P[plTab];
     h+=CAT.defences.filter(d=>d.tier===plTab&&inDuel(d)).sort((a,b)=>a.price-b.price).map(d=>'<div class="srow'+(plSel===d.id?' sel':'')+(full?' off':'')+'" data-pl="sys" data-k="'+d.id+'" style="--c:'+css(SYS_COL[d.id])+'"><div class="sname"><b>'+esc(d.name)+'</b><span>'+esc(PICK_WHY[d.id]||d.role)+'</span></div><div class="sbuy"><span>'+d.range+' km'+(d.load?' · '+d.load+' missiles':'')+'</span></div></div>').join('');}
   $('plSide').innerHTML=h;
-  $('plTop').innerHTML='<span class="pill">Your chief: Hideout '+m.chiefNo+(plSel?' · placing <b>'+esc(DEF[plSel].name)+'</b>':'')+'</span><button class="btn primary" data-pl="done"'+(n<total?' disabled':'')+'>'+(n<total?'Place '+(total-n)+' more':'Done · start the duel')+'</button>';
+  $('plTop').innerHTML='<span class="pill">Your chief: Hideout '+m.chiefNo+(plSel?' · placing <b>'+esc(DEF[plSel].name)+'</b>':'')+'</span><span style="display:flex;gap:8px"><button class="btn" data-pl="back">‹ Back</button><button class="btn primary" data-pl="done"'+(n<total?' disabled':'')+'>'+(n<total?'Place '+(total-n)+' more':'Done · start the duel')+'</button></span>';
   drawPlanner();
 }
 function plGeom(){const w=plCv.clientWidth,h=plCv.clientHeight,d=devicePixelRatio||1;if(plCv.width!==Math.round(w*d)||plCv.height!==Math.round(h*d)){plCv.width=Math.round(w*d);plCv.height=Math.round(h*d);}
@@ -570,6 +570,7 @@ $('planner').addEventListener('click',e=>{const b=e.target.closest('[data-pl]');
   if(a==='tab'){plTab=+k;plSel=null;}
   else if(a==='sys'){if(!b.classList.contains('off'))plSel=plSel===k?null:k;}
   else if(a==='patrol'){if(cmd({c:'buyPatrol'}))msg('Akıncı air patrol added','money');}
+  else if(a==='back'){closePlanner();refreshUI();}
   else if(a==='done'){if(cmd({c:'endSetup'})){closePlanner();msg('Defence ready · the duel starts','good');}}
   renderPlanner();});
 plCv.addEventListener('pointerup',e=>{if(!plannerOpen||!view)return;const g=plGeom(),r=plCv.getBoundingClientRect(),kx=(e.clientX-r.left-g.cx)/g.sc,kz=(e.clientY-r.top-g.cy)/g.sc,m=view.me;
