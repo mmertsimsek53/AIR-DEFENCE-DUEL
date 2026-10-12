@@ -162,3 +162,12 @@ Status: first outline from Mert, 9 Oct 2026. Everything below "Open questions" i
 
 ## Setup planner (11 Oct 2026, Mert)
 - The match opens in the 3D city. Defence → **Place your defence** opens a top view of your city with the defence list on the left (tabs per level + air patrol). Tap a system, then an empty spot; tap a placed one to remove it; tap a hideout to move the chief there. Range circles show coverage. **Done · start the duel** (all 7 placed) ends setup and returns to 3D for turn 1.
+
+## PENDING — recorded 12 Oct 2026, build only when Mert is at the MacBook
+1. **No text during the war:** while a strike is on, drop the name tags on missiles/drones and the labels on buildings (keep the 3D view clean). Labels can stay in setup / the planner / the enemy-city view between turns.
+2. **Simpler choice:** 4 options per defence level (short, medium, long, top) and 4 per attack group, with **at least 2 Turkish options in every level/group**. Draft lists to confirm with Mert before building:
+   - Short: Korkut (TR), Sungur (TR), Stinger (US), Igla-S (RU)
+   - Medium: Hisar-A+ (TR), Gürz (TR), Pantsir-S1 (RU), Iron Dome (IL)
+   - Long: Hisar-O+ (TR), Siper (TR), NASAMS (US), S-300 (RU)
+   - Top: needs 2 Turkish — real Turkey has no second top-tier system yet; options: Siper Blok-2 as top tier + a planned Siper Blok-3, or relax the rule for Top. Rest: Patriot (US), S-400 (RU).
+   - Attack groups (4 each, ≥2 TR): Find — Aksungur (TR), Bayraktar TB2 survey (TR), mini recon, …; Drones & decoys — Kargu (TR), Alpagu (TR), Shahed, Gerbera/MALD; Rockets & anti-radar — TRG-300 (TR), Akbaba (TR), HIMARS, Grad; Missiles — SOM (TR), Tayfun (TR), Tomahawk, Kinzhal/Iskander.
