@@ -153,6 +153,12 @@ export const RULES = {
   patrolHit: 40,           // % per missile
   patrolMissiles: 1,       // per patrol per strike (tuned: one patrol downs an Aksungur ~33% of the time, two ~57%)
   draftPicks: [0, 2, 2, 2, 1] as number[], // duel: systems each player picks per level (index = tier), free, setup only
+  // Saturation (Mert, 12 Oct): cheap waves tire the defence so the big missiles get through.
+  totSpread: 4,            // s: a planned strike is timed so everything reaches the city within this window
+  channels: [0, 1, 1, 2, 2], // per tier: interceptors a battery can guide at once
+  swampFree: [0, 2, 2, 4, 4], // per tier: contacts in range a battery handles without a penalty
+  swampPenalty: 6,         // hit-chance points lost per extra contact in range
+  swampCap: 36,            // most it can lose
   bigSamRange: 40,         // km: missile systems with this range or more can be switched to manual fire
   startBudget: 600,
   income: 120,

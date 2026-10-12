@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RULES, aiStep, command, createMatch, tick, viewFor, incomeFor, sectorOf } from '../src';
+import { RULES, attack, aiStep, command, createMatch, tick, viewFor, incomeFor, sectorOf } from '../src';
 import type { Match, PlayerIndex } from '../src';
 
 const run = (m: ReturnType<typeof createMatch>, seconds: number) => { for (let i = 0; i < seconds * 10; i++) { aiStep(m); tick(m, 0.1); } };
@@ -449,3 +449,28 @@ describe('chief, hideouts, recon drones and decoys', () => {
     expect(h.locked).toBe(sam.uid);
   });
 });
+
+describe('saturation', () => {
+  it('a planned strike arrives together; a crowded sky swamps radars and full channels hold fire', () => {
+    const m = createMatch(301, ['A', 'B'], [false, false], { timed: false });
+    const start = (x: Match) => { command(x, 0, { c: 'endSetup' }); command(x, 1, { c: 'endSetup' }); };
+    command(m, 0, { c: 'buyLauncher', weapon: 'shahed' }); command(m, 0, { c: 'buyUnits', weapon: 'shahed', n: 10 });
+    command(m, 0, { c: 'buyLauncher', weapon: 'tayfun' }); command(m, 0, { c: 'buyUnits', weapon: 'tayfun', n: 1 });
+    command(m, 1, { c: 'buyBattery', sys: 'hisara', pad: 0 });
+    start(m);
+    expect(command(m, 0, { c: 'go', strikes: [{ weapon: 'shahed', n: 10 }, { weapon: 'tayfun', n: 1 }], scouts: [] }).ok).toBe(true);
+    const th = m.battle!.threats, tay = th.find(t => t.weapon === 'tayfun')!;
+    const arrive = (t: typeof tay) => t.delay + attack(t.weapon).flight;
+    for (const t of th) expect(Math.abs(arrive(t) - arrive(tay))).toBeLessThanOrEqual(RULES.totSpread + 0.01);
+    let maxInFlight = 0, sawSwamp = false;
+    for (let i = 0; i < 600 && m.phase === 'battle'; i++) {
+      tick(m, 0.1);
+      const b = m.players[1].batteries[0]; if (!b || !m.battle) break;
+      maxInFlight = Math.max(maxInFlight, m.battle.interceptors.filter(x => x.battery === b.uid).length);
+      if ((b.contacts ?? 0) > RULES.swampFree[2]) sawSwamp = true;
+    }
+    expect(maxInFlight).toBeLessThanOrEqual(RULES.channels[2]);
+    expect(sawSwamp).toBe(true);
+  });
+});
+

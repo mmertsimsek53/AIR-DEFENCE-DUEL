@@ -116,6 +116,17 @@
     // per patrol per strike (tuned: one patrol downs an Aksungur ~33% of the time, two ~57%)
     draftPicks: [0, 2, 2, 2, 1],
     // duel: systems each player picks per level (index = tier), free, setup only
+    // Saturation (Mert, 12 Oct): cheap waves tire the defence so the big missiles get through.
+    totSpread: 4,
+    // s: a planned strike is timed so everything reaches the city within this window
+    channels: [0, 1, 1, 2, 2],
+    // per tier: interceptors a battery can guide at once
+    swampFree: [0, 2, 2, 4, 4],
+    // per tier: contacts in range a battery handles without a penalty
+    swampPenalty: 6,
+    // hit-chance points lost per extra contact in range
+    swampCap: 36,
+    // most it can lose
     bigSamRange: 40,
     // km: missile systems with this range or more can be switched to manual fire
     startBudget: 600,
@@ -749,15 +760,17 @@
       topUp(def, b);
     }
     for (const b of def.buildings) b.battleDamage = 0;
+    const maxFlight = Math.max(0, ...strikes.filter((s) => s.n >= 1).map((s) => attack(s.weapon).flight));
     for (const s of strikes) {
       const w = attack(s.weapon);
       const n = Math.floor(s.n);
       if (n <= 0) continue;
+      const lead = m.raid ? 0 : maxFlight - w.flight, spread = m.raid ? 8 : RULES.totSpread;
       att.stock[w.id] -= n;
       att.launched[w.id] = (att.launched[w.id] ?? 0) + n;
       for (let i = 0; i < n; i++) {
         if (w.salvo) for (let r = 0; r < w.salvo; r++) spawnStrike(m, bt, att, def, w.id, s.target, rnd(m) * 4);
-        else spawnStrike(m, bt, att, def, w.id, s.target, rnd(m) * 8);
+        else spawnStrike(m, bt, att, def, w.id, s.target, lead + rnd(m) * spread);
       }
       bt.stats.attackSpent = round(bt.stats.attackSpent + (w.reusable ? 0 : w.unit * n));
     }
@@ -1067,6 +1080,10 @@
     if (t.weapon === "recon") p *= RULES.reconHitFactor;
     if (t.weapon === "akbaba" || t.weapon === "harop") p *= RULES.armHitFactor;
     p += (b.level - 1) * 8;
+    if (!m.raid) {
+      const s2 = defence(b.sys), extra = (b.contacts ?? 0) - (RULES.swampFree[s2.tier] ?? 2);
+      if (extra > 0) p -= Math.min(RULES.swampCap, extra * RULES.swampPenalty);
+    }
     return clampHit(p);
   }
   var clampHit = (p) => Math.max(0, Math.min(98, p));
@@ -1120,6 +1137,12 @@
       }
     }
     patrolStep(m, bt, def, dt);
+    if (!m.raid) for (const b of def.batteries) {
+      const pad = def.pads[b.pad], rng = defence(b.sys).range;
+      let n = 0;
+      for (const t of bt.threats) if (t.alive && t.delay <= 0 && t.detected && dist(pad, t) <= rng) n++;
+      b.contacts = n;
+    }
     for (const b of def.batteries) {
       const s = defence(b.sys);
       if (s.kind === "ew") continue;
@@ -1147,6 +1170,7 @@
         continue;
       }
       const pad = def.pads[b.pad];
+      if (!m.raid && s.kind === "sam" && bt.interceptors.filter((i) => i.battery === b.uid && i.target >= 0).length >= (RULES.channels[s.tier] ?? 1)) continue;
       const target = pickTarget(m, bt, def, b, pad);
       if (!target) {
         if (s.kind === "laser") {

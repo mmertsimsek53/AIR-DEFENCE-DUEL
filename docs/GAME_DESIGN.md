@@ -171,3 +171,10 @@ Status: first outline from Mert, 9 Oct 2026. Everything below "Open questions" i
    - Long: Hisar-O+ (TR), Siper Blok-1 (TR, 100 km, $300M), NASAMS (US), S-300 (RU)
    - Top: Siper Blok-2 (TR, 150 km, ballistic 60%, $420M), Siper Blok-3 (TR, 180 km, ballistic 85%, hypersonic 30%, $520M), Patriot (US), S-400 (RU)
    - Find: Aksungur, mini recon · Drones & decoys: Kargu, Alpagu (new: $0.6M, 4/turn, damage 12, precise), Shahed, MALD · Rockets & anti-radar: TRG-300, Akbaba, HIMARS, Harop · Missiles: SOM, Tayfun, Tomahawk, Kinzhal · UAV: TB2
+
+## Saturation — 12 Oct 2026 (Mert: "make Tayfun and Tomahawk useful by tiring the defences with cheaper attacks first")
+- **Time on target:** a planned strike launches slow weapons first so everything reaches the city within 4 s. In a live strike the player times it.
+- **Guidance channels:** a battery guides at most 1 interceptor at a time (short / medium range) or 2 (long range / top level).
+- **Swamped radar:** more contacts in a battery's range than it handles (2 short/medium, 4 long/top) cost 6 hit-chance points each, up to −36.
+- Duel only (My Base raids unchanged). Simulated, 40 strikes per mix vs both AI defence sets: 2 Tayfun + 30 Shahed + 12 MALD gets the Tayfun through 49–78% (was 6–19%); Tomahawk with the same cover 23–48% (was 4–11%); 30 Shahed alone 57–66%; lone Tayfun / Kinzhal unchanged. AI v AI median 7 turns (was 9).
+

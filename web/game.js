@@ -973,7 +973,7 @@ $('sheet').addEventListener('change',e=>{const s=e.target.closest('select');if(!
 /* Attack shop: groups by job, one short line per weapon. */
 const ATK_GROUPS=[{title:'Find',ids:['aksungur','recon']},{title:'Drones & decoys',ids:['kargu','alpagu','shahed','mald']},
   {title:'Rockets & anti-radar',ids:['trg300','akbaba','himars','harop']},{title:'Missiles',ids:['som','tayfun','tomahawk','kinzhal']},{title:'UAV',ids:['tb2']}];
-const WHY_ATK={aksungur:'Maps half their city per flight',recon:'Checks one hideout for the chief',shahed:'Cheap swarm · 3 hits kill a defence',
+const WHY_ATK={aksungur:'Maps half their city per flight',recon:'Checks one hideout for the chief',shahed:'Cheap swarm · crowds their radars so missiles get through',
   kargu:'Small precise drone · picks off guns',alpagu:'Fast precise drone · hits harder than Kargu',gerbera:'Fake drone · soaks up gun fire',mald:'Fake cruise missile · wastes their missiles',
   harop:'Waits over the city, dives on a radar',akbaba:'Homes on any defence that fires',trg300:'Fast guided rocket · kills a defence',
   himars:'Six guided rockets per turn',grad:'40-rocket barrage on an area',som:'Low cruise missile · slips under radar',

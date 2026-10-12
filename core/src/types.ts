@@ -21,7 +21,8 @@ export interface Battery {
   manual?: boolean;       // big systems only: fire only at contacts the player taps
   damage?: number;        // duel: damage taken so far (destroyed at RULES.batteryKillDamage)
   dry?: boolean;          // out of missiles with no reloads left for this strike
-  emitted?: boolean;      // its radar was on during this strike (it fired): anti-radiation weapons can home on it
+  emitted?: boolean;
+  contacts?: number;      // duel: contacts inside its range this moment (swamped radar)      // its radar was on during this strike (it fired): anti-radiation weapons can home on it
 }
 
 export interface Building extends Point {

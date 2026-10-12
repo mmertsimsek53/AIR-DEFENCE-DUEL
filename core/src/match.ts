@@ -425,13 +425,16 @@ function launch(m: Match, pi: PlayerIndex, strikes: { weapon: string; n: number;
   for (const b of def.batteries) { b.cooldown = 0; b.reloading = 0; b.dwell = 0; b.dwellTarget = undefined; b.emitted = false; b.dry = false; topUp(def, b); }
   for (const b of def.buildings) b.battleDamage = 0;
 
+  // Duel: time on target. Slow weapons launch first so the whole strike reaches the city together.
+  const maxFlight = Math.max(0, ...strikes.filter(s => s.n >= 1).map(s => attack(s.weapon).flight));
   for (const s of strikes) {
     const w = attack(s.weapon); const n = Math.floor(s.n); if (n <= 0) continue;
+    const lead = m.raid ? 0 : maxFlight - w.flight, spread = m.raid ? 8 : RULES.totSpread;
     att.stock[w.id] -= n;
     att.launched[w.id] = (att.launched[w.id] ?? 0) + n;
     for (let i = 0; i < n; i++) {
       if (w.salvo) for (let r = 0; r < w.salvo; r++) spawnStrike(m, bt, att, def, w.id, s.target, rnd(m) * 4);
-      else spawnStrike(m, bt, att, def, w.id, s.target, rnd(m) * 8);
+      else spawnStrike(m, bt, att, def, w.id, s.target, lead + rnd(m) * spread);
     }
     bt.stats.attackSpent = round(bt.stats.attackSpent + (w.reusable ? 0 : w.unit * n));
   }
@@ -672,6 +675,10 @@ function hitChance(m: Match, def: PlayerState, b: Battery, t: Threat): number {
   if (t.weapon === 'recon') p *= RULES.reconHitFactor;
   if (t.weapon === 'akbaba' || t.weapon === 'harop') p *= RULES.armHitFactor;
   p += (b.level - 1) * 8;
+  if (!m.raid) { // swamped radar: too many contacts in range spoil every shot
+    const s2 = defence(b.sys), extra = (b.contacts ?? 0) - (RULES.swampFree[s2.tier] ?? 2);
+    if (extra > 0) p -= Math.min(RULES.swampCap, extra * RULES.swampPenalty);
+  }
   return clampHit(p);
 }
 const clampHit = (p: number) => Math.max(0, Math.min(98, p));
@@ -717,6 +724,13 @@ function battleStep(m: Match, bt: Battle, dt: number) {
 
   patrolStep(m, bt, def, dt);
 
+  // Count the contacts inside each battery's range (swamped radar, duel only).
+  if (!m.raid) for (const b of def.batteries) {
+    const pad = def.pads[b.pad], rng = defence(b.sys).range; let n = 0;
+    for (const t of bt.threats) if (t.alive && t.delay <= 0 && t.detected && dist(pad, t) <= rng) n++;
+    b.contacts = n;
+  }
+
   // Defences.
   for (const b of def.batteries) {
     const s = defence(b.sys);
@@ -730,6 +744,7 @@ function battleStep(m: Match, bt: Battle, dt: number) {
       continue;
     }
     const pad = def.pads[b.pad];
+    if (!m.raid && s.kind === 'sam' && bt.interceptors.filter(i => i.battery === b.uid && i.target >= 0).length >= (RULES.channels[s.tier] ?? 1)) continue; // guidance channels full
     const target = pickTarget(m, bt, def, b, pad);
     if (!target) { if (s.kind === 'laser') { b.dwell = 0; b.dwellTarget = undefined; } continue; }
     fire(m, bt, def, b, pad, target, dt);
