@@ -850,15 +850,16 @@ function vsChips(hit,col){return '<div class="vs">'+CLS_ORDER.filter(k=>hit[k]).
 function sig(){const v=view,m=v.me;return [v.phase,v.myTurn,tab,upSeg,m.budget,JSON.stringify(m.stock),JSON.stringify(m.launchers),JSON.stringify(m.scouts),JSON.stringify(m.interceptors),m.patrols,draftOpen,draftTab,draftPage,atkTab,m.chief,JSON.stringify(m.intel),m.surveyed.length,m.batteries.map(b=>b.manual?1:0).join(''),v.enemy.buildings.length,
   m.batteries.map(b=>b.uid+':'+b.ammo).join(','),m.buildings.map(b=>b.down).join(','),v.enemy.buildings.map(b=>b.uid+':'+b.down).join(','),JSON.stringify(plan),placing].join('|');}
 
+let sheetKeyTab='';
 function hideSheet(){$('sheet').hidden=true;document.body.classList.remove('sheet-open');}
 function renderSheet(){
   const sh=$('sheet');
   if(placing||drawMode){sh.hidden=true;document.body.classList.remove('sheet-open');return;}
   if(!tab||!canShop()&&tab!=='city'||!view||(view.phase!=='setup'&&view.phase!=='turn')){hideSheet();return;}
   const s=sig();if(s===sheetSig&&!sh.hidden)return;sheetSig=s;
-  const keep=sh.scrollTop;
+  const keep=sh.scrollTop,inner=[...sh.querySelectorAll('.srows')].map(e=>e.scrollTop); // inner lists scroll too: keep their place after a buy
   sh.hidden=false;document.body.classList.add('sheet-open');sh.innerHTML=sheetHTML();
-  sh.scrollTop=keep;
+  sh.scrollTop=keep;if(sheetKeyTab===tab+'/'+atkTab)sh.querySelectorAll('.srows').forEach((e,i)=>{if(inner[i])e.scrollTop=inner[i];});sheetKeyTab=tab+'/'+atkTab;
 }
 function sheetHTML(){
   const v=view,m=v.me,B=m.budget;
