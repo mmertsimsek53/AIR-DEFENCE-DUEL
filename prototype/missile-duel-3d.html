@@ -96,15 +96,15 @@
 <script src="../web/three.min.js"></script>
 <script src="../web/GLTFLoader.js"></script>
 <script>
-// ---- Numbers (map units: the map is 1000 × 560; heights in the same units; 1 unit ≈ 10 m on the readouts) ----
-const W = 1000, H = 560;
+// ---- Numbers (map units: the map is 1600 × 560; heights in the same units; 1 unit ≈ 10 m on the readouts) ----
+const W = 1600, H = 560;
 const N = {
-  attMin: 45, attMax: 90, attStart: 70, attBoost: 140, attAcc: 40, attTurn: 65, attClimb: 15, attTank: 30, attAlt: 100,
-  intMin: 80, intMax: 140, intStart: 120, intAcc: 60, intTurn: 85, intClimb: 25, intTank: 9,
+  attMin: 29, attMax: 58, attStart: 45, attBoost: 90, attAcc: 26, attTurn: 65, attClimb: 10, attTank: 60, attAlt: 100,
+  intMin: 55, intMax: 90, intStart: 80, intAcc: 38, intTurn: 85, intClimb: 16, intTank: 14,
   // Fuel: a full tank lasts attTank / intTank seconds of calm cruising. FAST burns up to 1.5×, turning or climbing adds up to +0.5×, boost burns 4×.
   // Empty tank: no more control — it coasts on its last heading, slows down and sinks.
   turnEase: 2.2, climbEase: 1.6, diveX: 1.8,                       // how fast turning / climbing builds up and dies away (per second): it flies, it doesn't drive
-  altMax: 300, blast: 28, contact: 8, radar: 520,
+  altMax: 300, blast: 28, contact: 8, radar: 800,
 };
 const PA = { min: N.attMin, max: N.attMax, ref: N.attStart, acc: N.attAcc, turn: N.attTurn, climb: N.attClimb, tank: N.attTank };
 const PI_ = { min: N.intMin, max: N.intMax, ref: N.intStart, acc: N.intAcc, turn: N.intTurn, climb: N.intClimb, tank: N.intTank };
@@ -112,8 +112,8 @@ const D2R = Math.PI / 180;
 // Two sides facing each other. Each has a city with 6 targets, a silo behind it and a defence battery in front of it.
 // Silos and batteries can never be damaged. Whoever destroys all 6 enemy targets first wins.
 const SIDES = [
-  { name: 'Red', city: { x: 140, y: 280 }, silo: { x: 48, y: 330 }, bat: { x: 245, y: 280 } },
-  { name: 'Blue', city: { x: 860, y: 280 }, silo: { x: 952, y: 230 }, bat: { x: 755, y: 280 } },
+  { name: 'Red', city: { x: 200, y: 280 }, silo: { x: 108, y: 330 }, bat: { x: 305, y: 280 } },
+  { name: 'Blue', city: { x: 1400, y: 280 }, silo: { x: 1492, y: 230 }, bat: { x: 1295, y: 280 } },
 ];
 const TARGETS = [['hq', 'Command HQ'], ['radar', 'Radar station'], ['power', 'Power plant'], ['fuel', 'Fuel depot'], ['treasury', 'Treasury'], ['oil', 'Oil field']];
 const T_RING = 60;                                     // targets sit 600 m from the centre and 600 m from each other: one blast can only reach one
@@ -187,7 +187,7 @@ function newRound() {
 function attLaunch() {
   if (!S || S.state !== 'ready') return;
   S.state = 'fly';
-  S.att.launch = { t: 0, ign: 2.4, dur: 7, alt0: S.att.alt, alt1: N.attAlt, sp1: N.attStart, vertical: true };
+  S.att.launch = { t: 0, ign: 2.4, dur: 9, alt0: S.att.alt, alt1: N.attAlt, sp1: N.attStart, vertical: true };
 }
 function defFire() {
   if (!S || S.state !== 'fly') return;
@@ -197,7 +197,7 @@ function defFire() {
     const a = Math.atan2(S.att.y - city.y, S.att.x - city.x);
     const b = SIDES[S.def].bat;
     S.int = { x: b.x, y: b.y, alt: 16, a, spd: N.intStart, cur: 0, yr: 0, vr: 0, fuel: 1, prevD: 1e9,
-      launch: { t: 0, ign: 1.4, dur: 3.1, alt0: 16, alt1: clamp(S.att.alt * .8, 25, 90), sp1: N.intStart } };
+      launch: { t: 0, ign: .6, dur: 1.6, alt0: 16, alt1: clamp(S.att.alt * .8, 25, 90), sp1: N.intStart } };
   } else if (S.int) {                         // second press: detonate
     detonate();
   }
@@ -352,7 +352,7 @@ renderer.setPixelRatio(PR); renderer.setClearColor(0xa9c4dc);
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THR.PCFShadowMap;
 renderer.toneMapping = THR.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.08;
 const scene = new THR.Scene();
-scene.fog = new THR.FogExp2(0xa9c3dc, 0.0007);
+scene.fog = new THR.FogExp2(0xa9c3dc, 0.0005);
 const camera = new THR.PerspectiveCamera(50, 1, 0.5, 5000);
 const SUN = new V(0.55, 0.75, -0.45).normalize();
 scene.add(new THR.Mesh(new THR.SphereGeometry(2000, 32, 16), new THR.ShaderMaterial({
@@ -363,7 +363,7 @@ scene.add(new THR.Mesh(new THR.SphereGeometry(2000, 32, 16), new THR.ShaderMater
 scene.add(new THR.HemisphereLight(0xbfd8ff, 0x3c3424, 0.55));
 const sun = new THR.DirectionalLight(0xffe4bd, 1.7);
 sun.position.copy(SUN).multiplyScalar(500); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
-{ const c = sun.shadow.camera; c.left = -340; c.right = 340; c.top = 340; c.bottom = -340; c.near = 50; c.far = 1200; }
+{ const c = sun.shadow.camera; c.left = -520; c.right = 520; c.top = 520; c.bottom = -520; c.near = 50; c.far = 1200; }
 sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.6; scene.add(sun); scene.add(sun.target);
 const flashes = [0, 1, 2, 3].map(() => { const l = new THR.PointLight(0xffa04a, 0, 220, 1.5); scene.add(l); return l; });
 let flashIdx = 0;
@@ -376,7 +376,7 @@ const fbm = (x, z, o) => { let s = 0, a = .5, f = 1; for (let k = 0; k < o; k++)
 const ridged = (x, z) => { let s = 0, a = .55, f = 1; for (let k = 0; k < 4; k++) { s += a * (1 - Math.abs(NZ(x * f, z * f) * 2 - 1)) ** 2; a *= .5; f *= 2.1; } return s; };
 const sstep = (a, b, t) => { t = Math.min(1, Math.max(0, (t - a) / (b - a))); return t * t * (3 - 2 * t); };
 function terrainH(x, z) {
-  const r = Math.hypot(x / 1.25, z);                          // oval flat zone that fits the wide map
+  const r = Math.hypot(x / 1.75, z);                          // oval flat zone that fits the long map
   if (r < 300) return 0;
   const hills = sstep(300, 420, r) * fbm(x / 170, z / 170, 4) * 45;
   const mtn = sstep(460, 800, r) * (ridged(x / 300 + 3.1, z / 300 - 1.7) * 300 + fbm(x / 110, z / 110, 3) * 40);
@@ -399,14 +399,14 @@ function noise(x, w, h, base, vars, n) { x.fillStyle = base; x.fillRect(0, 0, w,
   const detail = canvasTex(128, 128, (x, w, h) => noise(x, w, h, '#d8d8d8', ['#c4c4c4', '#e6e6e6', '#cfcfcf', '#b9b9b9'], 2600), [110, 110]);
   const g = new THR.Mesh(geo, new THR.MeshLambertMaterial({ vertexColors: true, map: detail })); g.receiveShadow = true; scene.add(g);
   // Forest on the hills, plus scattered copses on the plain.
-  const NT = 1600, crowns = new THR.InstancedMesh(new THR.ConeGeometry(2.6, 7.5, 6).translate(0, 5.2, 0), new THR.MeshLambertMaterial({ color: 0xffffff }), NT);
+  const NT = 2400, crowns = new THR.InstancedMesh(new THR.ConeGeometry(2.6, 7.5, 6).translate(0, 5.2, 0), new THR.MeshLambertMaterial({ color: 0xffffff }), NT);
   const trunks = new THR.InstancedMesh(new THR.CylinderGeometry(.35, .45, 1.8, 5).translate(0, .9, 0), new THR.MeshLambertMaterial({ color: 0x5a4330 }), NT);
   const d = new THR.Object3D(), tc = new THR.Color(); let n = 0;
   const clear = SIDES.flatMap(sd => [[sd.city, 52], [sd.silo, 26], [sd.bat, 26]]).map(([q, r]) => [to3(q.x, q.y, 0, new V()), r]);
   for (let k = 0; k < NT * 4 && n < NT; k++) {
     let x, z;
-    if (k % 12 === 0) { const cx = (rand() - .5) * 560, cz = (rand() - .5) * 300; x = cx + (rand() - .5) * 18; z = cz + (rand() - .5) * 18; if (clear.some(([q, r]) => Math.hypot(x - q.x, z - q.z) < r)) continue; }   // keep the city, the battery and the launch line clear   // keep the city and the launch line clear
-    else { const a = rand() * TAU, r = 330 + rand() * rand() * 500; x = Math.cos(a) * r * 1.25; z = Math.sin(a) * r; }
+    if (k % 12 === 0) { const cx = (rand() - .5) * 900, cz = (rand() - .5) * 300; x = cx + (rand() - .5) * 18; z = cz + (rand() - .5) * 18; if (clear.some(([q, r]) => Math.hypot(x - q.x, z - q.z) < r)) continue; }   // keep the city, the battery and the launch line clear   // keep the city and the launch line clear
+    else { const a = rand() * TAU, r = 330 + rand() * rand() * 500; x = Math.cos(a) * r * 1.75; z = Math.sin(a) * r; }
     const y = terrainH(x, z); if (y > 120) continue;
     d.position.set(x, y - .3, z); const sc = .7 + rand() * .9; d.scale.set(sc, sc * (.85 + rand() * .4), sc); d.rotation.y = rand() * 3; d.updateMatrix(); crowns.setMatrixAt(n, d.matrix); trunks.setMatrixAt(n, d.matrix);
     tc.setHSL(.27 + rand() * .06, .45 + rand() * .15, .17 + rand() * .1); crowns.setColorAt(n, tc); n++; }
@@ -565,7 +565,7 @@ function syncTargets(dt) {
 function placeLabels(side) {
   for (const row of tObjs) for (const t of row) {
     _m.copy(t.g.position).setY(14).project(camera);
-    const d = camera.position.distanceTo(t.g.position), show = _m.z < 1 && Math.abs(_m.x) < 1.05 && Math.abs(_m.y) < 1.05 && d < 420;
+    const d = camera.position.distanceTo(t.g.position), show = _m.z < 1 && Math.abs(_m.x) < 1.05 && Math.abs(_m.y) < 1.05 && d < 600;
     t.el.style.display = show ? '' : 'none'; if (!show) continue;
     t.el.style.left = ((_m.x + 1) / 2 * innerWidth) + 'px'; t.el.style.top = ((1 - _m.y) / 2 * innerHeight) + 'px';
     t.el.classList.toggle('enemy', !!S && side === 'a' && t.side === S.def);
@@ -752,9 +752,9 @@ function draw(dt = 1 / 60) {
       if (!hadInt) { hadInt = true; defTruck.yaw0 = defTruck.turret.rotation.y;      // turret slews toward the target (battery faces west, turret turns relative to it)
         defTruck.yaw1 = angDiff(0, Math.atan2(Math.cos(i.a), Math.sin(i.a)) - defTruck.g.rotation.y); }
       const lt = Li ? Li.t : 99;
-      defTruck.turret.rotation.y = defTruck.yaw0 + angDiff(defTruck.yaw0, defTruck.yaw1) * sstep(0, .7, lt);
-      defTruck.set(ERECT_D * sstep(.35, 1.2, lt));
-      if (Li && lt >= 1.25 && defTruck.lids[1].visible) {                                  // the front cover of the firing canister pops off
+      defTruck.turret.rotation.y = defTruck.yaw0 + angDiff(defTruck.yaw0, defTruck.yaw1) * sstep(0, .35, lt);
+      defTruck.set(ERECT_D * sstep(.08, .5, lt));
+      if (Li && lt >= .52 && defTruck.lids[1].visible) {                                  // the front cover of the firing canister pops off
         const lid = defTruck.lids[1]; lid.visible = false; const m2 = lid.clone(); lid.getWorldPosition(m2.position); lid.getWorldQuaternion(m2.quaternion); m2.scale.setScalar(1.3); m2.visible = true; scene.add(m2);
         tubePose(defTruck); defTruck.flying.push({ m: m2, v: _dir.clone().multiplyScalar(18).add(new V((rand() - .5) * 6, 4, (rand() - .5) * 6)), t: 0 });
         for (let k = 0; k < 20; k++) emit(SMOKE, _mouth.x + _dir.x * 6, _mouth.y + _dir.y * 6, _mouth.z + _dir.z * 6, _dir.x * 8 + (rand() - .5) * 4, _dir.y * 8, _dir.z * 8 + (rand() - .5) * 4, 2, 1.5, 6, .9, .9, .9, .5, 1, 0); }
@@ -785,7 +785,7 @@ function draw(dt = 1 / 60) {
       _c.copy(mesh.position); _c.y = Math.max(_c.y, 2); _p.set(_c.x - cz * 32 - cx * (10 + 14 * f), _c.y + (flying === m ? 11 : 14) + 4 * f, _c.z + cx * 32 - cz * (10 + 14 * f)); _t.set(_c.x + cx * 6, _c.y + 2, _c.z + cz * 6);   // a bit higher at the city, above its trees
       k = Math.min(1, dt * (S.state === 'ready' || flying.launch.t < flying.launch.ign ? 8 : 4)); }
     else if (flying) { chaseCam(flying); k = Math.min(1, dt * 3.5); camRoll = -flying.yr * .14;
-      fovWant = 52 + (flying.cur - 45) * .12 + (side === 'a' && m.boosting ? 10 : 0); }
+      fovWant = 52 + (flying.cur - 30) * .18 + (side === 'a' && m.boosting ? 10 : 0); }
     camTgt.lerp(_t, k); camPos.lerp(_p, k);
     drawMini(!!side);
     hudMarks(side, hide);
