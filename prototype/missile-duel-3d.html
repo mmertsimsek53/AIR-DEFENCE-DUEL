@@ -239,6 +239,10 @@ function attLaunch() {
   S.att.launch = coldLaunch();
   if (NET && S.atk === NET.me) net({ t: 'launch' });
 }
+// Hot launch from the battery: the motor lights inside the canister (ign) and blows the cover off, the interceptor slides out faster
+// and faster along the canister (until exit, 600 m/s), climbs steeply along the canister's angle, then turns smoothly toward the
+// meeting point with the missile; control after dur seconds.
+const hotLaunch = () => ({ t: 0, hot: true, ign: .3, exit: .8, dur: 2.2, v0: 60, el: ERECT_D, sp1: N.intStart });
 function defFire() {
   if (!S || S.state !== 'fly') return;
   if (!S.used) {                              // first press: launch
@@ -247,7 +251,7 @@ function defFire() {
     const a = Math.atan2(S.att.y - city.y, S.att.x - city.x);
     const b = SIDES[S.def].bat;
     S.int = { x: b.x, y: b.y, alt: 16, a, spd: N.intStart, cur: 0, yr: 0, vr: 0, fuel: 1, prevD: 1e9,
-      launch: { t: 0, ign: .6, dur: 1.6, alt0: 16, alt1: clamp(S.att.alt * .8, 25, 90), sp1: N.intStart } };
+      launch: hotLaunch() };
     if (NET) net({ t: 'ilaunch', a });
   } else if (S.int) {                         // second press: detonate
     detonate();
@@ -337,21 +341,35 @@ function leadPoint(i, m) {
   const x = m.x + vx * t, y = m.y + vy * t;
   return { x, y, alt: Math.max(groundAt({ x, y }), m.alt + vz * t), t };
 }
-// Seeker: inside 1 km, if the missile is roughly ahead (within 40°), the interceptor steers itself gently toward the meeting point.
-const SEEKER = 100;
+// Seeker: inside 1.2 km, if the missile is roughly ahead (within 45°), the interceptor steers itself toward the meeting point.
+const SEEKER = 120;
 function seeker(i, m, dt) {
   i.lock = false;
   if (i.launch || i.fuel <= 0 || !m.alive || dist3(i, m) > SEEKER) return;
   const L = leadPoint(i, m), off = angDiff(i.a, Math.atan2(L.y - i.y, L.x - i.x));
-  if (Math.abs(off) > .7) return;
+  if (Math.abs(off) > .8) return;
   i.lock = true;
-  i.a += clamp(off, -1, 1) * Math.min(1, dt * 1.0);
-  i.alt += clamp((L.alt - i.alt) / Math.max(L.t, .4), -PI_.climb * N.diveX, PI_.climb) * .5 * dt;
+  i.a += clamp(off, -1, 1) * Math.min(1, dt * 2.5);
+  i.alt += clamp((L.alt - i.alt) / Math.max(L.t, .4), -PI_.climb * N.diveX, PI_.climb) * .6 * dt;
 }
 
 // ---- Update ----
 function launchFly(o, P, dt) {
   const L = o.launch; L.t += dt;
+  if (L.hot) {                                          // hot launch (see hotLaunch); inside the canister the 3D scene places it
+    if (L.t < L.exit) { o.cur = L.t < L.ign ? 0 : L.v0 * (L.t - L.ign) / (L.exit - L.ign); o.vr = 0; if (L.p == null) L.p = L.el;
+      const ds = o.cur * dt; o.alt += Math.sin(L.el) * ds; o.x += Math.cos(o.a) * Math.cos(L.el) * ds; o.y += Math.sin(o.a) * Math.cos(L.el) * ds; return; }   // along the canister (the 3D scene snaps it to the real canister)
+    const g = clamp((L.t - L.exit) / (L.dur - L.exit), 0, 1), w = sstep(.3, 1, g), m = S.att;   // first straight up the canister line, then the turn
+    if (m && m.alive) { const Ld = leadPoint(o, m), hd = Math.hypot(Ld.x - o.x, Ld.y - o.y);
+      o.a += angDiff(o.a, Math.atan2(Ld.y - o.y, Ld.x - o.x)) * Math.min(1, dt * 3.5 * w);
+      L.p += (clamp(Math.atan2(Ld.alt - o.alt, hd), -.25, .6) - L.p) * Math.min(1, dt * 3.5 * w); }
+    o.cur = L.v0 + (L.sp1 - L.v0) * g;
+    const vz = Math.sin(L.p) * o.cur, vh = Math.cos(L.p) * o.cur;
+    o.alt += vz * dt; o.x += Math.cos(o.a) * vh * dt; o.y += Math.sin(o.a) * vh * dt; o.vr = clamp(vz / P.climb, -1, 3);
+    o.fuel = Math.max(0, o.fuel - dt / P.tank);
+    if (g >= 1) { o.launch = null; o.spd = L.sp1; o.vr = clamp(vz / P.climb, -1, 1); }
+    return;
+  }
   if (L.t < L.ign) { o.cur = 0; o.vr = 0; return; }      // still in the tube
   const f = clamp((L.t - L.ign) / (L.dur - L.ign), 0, 1);
   if (L.vertical) {                                     // cold launch (see coldLaunch)
@@ -438,7 +456,7 @@ function follow(o, r, dt, attacker) {
   const k = Math.min(1, dt * 12);
   o.x += (r.x - o.x) * k; o.y += (r.y - o.y) * k; o.alt += (r.alt - o.alt) * k; o.a += angDiff(o.a, r.a) * k;
   o.cur = r.cur; o.vr = r.vr; o.yr = r.yr; o.fuel = r.fuel; if (attacker) o.boosting = r.boost;
-  if (r.lt >= 0) { o.launch = o.launch || (attacker ? coldLaunch() : { ign: .6, dur: 1.6 }); o.launch.t = r.lt; if (r.lt < o.launch.ign) { o.x = r.x; o.y = r.y; o.alt = r.alt; } }
+  if (r.lt >= 0) { o.launch = o.launch || (attacker ? coldLaunch() : hotLaunch()); o.launch.t = r.lt; if (r.lt < (o.launch.hot ? o.launch.exit : o.launch.ign)) { o.x = r.x; o.y = r.y; o.alt = r.alt; } }
   else o.launch = null;
 }
 setInterval(() => {                                      // stream my own craft
@@ -463,7 +481,7 @@ function onNet(msg) {
   else if (msg.t === 's') NET.remote = msg.o;
   else if (msg.t === 'launch') { if (S && S.state === 'ready') { S.state = 'fly'; S.att.launch = coldLaunch(); } }
   else if (msg.t === 'ilaunch') { if (S && !S.int) { const b = SIDES[S.def].bat; S.used = true;
-    S.int = { x: b.x, y: b.y, alt: 16, a: msg.a, spd: N.intStart, cur: 0, yr: 0, vr: 0, fuel: 1, prevD: 1e9, launch: { t: 0, ign: .6, dur: 1.6, alt0: 16 } }; } }
+    S.int = { x: b.x, y: b.y, alt: 16, a: msg.a, spd: N.intStart, cur: 0, yr: 0, vr: 0, fuel: 1, prevD: 1e9, launch: hotLaunch() }; } }
   else if (msg.t === 'det') { if (S && S.int) { S.blasts.push({ x: msg.x, y: msg.y, alt: msg.alt, r: N.blast, t: 0, c: '10,132,255' }); S.int = null; } }
   else if (msg.t === 'result') {
     if (!S) return; G.hp = msg.hp; if (msg.over != null) G.over = msg.over;
@@ -883,6 +901,21 @@ function dropPlate() {
   attMesh.updateWorldMatrix(true, true); const w = plate.clone(); plate.getWorldPosition(w.position); plate.getWorldQuaternion(w.quaternion); w.scale.setScalar(2.2);
   scene.add(w); plate.visible = false; fallers.push({ m: w, v: new V((rand() - .5) * 3, -1, (rand() - .5) * 3), r: new V(1 + rand() * 3, rand() * 2, 1 + rand() * 3) });
 }
+// Battery hot launch: the motor lights in the canister — flash, shake, and fire and smoke blasting out of the back onto the ground.
+function canisterBlast(mouth, dir) {
+  flash(_a.copy(mouth), 7); shake = Math.max(shake, 1.3);
+  const rx = mouth.x - dir.x * 13, rz = mouth.z - dir.z * 13;                                  // behind the launcher, where the back blast hits the ground
+  for (let k = 0; k < 110; k++) { const a = rand() * TAU, sp = 6 + rand() * 16, c = .72 + rand() * .16;
+    emit(SMOKE, rx + Math.cos(a) * 3, .8 + rand() * 2, rz + Math.sin(a) * 3, Math.cos(a) * sp - dir.x * 6, rand() * 3, Math.sin(a) * sp - dir.z * 6, 5 + rand() * 4, 3, 16, c, c * .97, c * .93, .8, .9, -.25); }
+  for (let k = 0; k < 30; k++) emit(GLOW, rx + (rand() - .5) * 4, 1 + rand() * 2, rz + (rand() - .5) * 4, (rand() - .5) * 14, 2 + rand() * 6, (rand() - .5) * 14, .3 + rand() * .3, 4, 2, 1, .65, .3, 1, 1.5, 0);
+}
+function canisterJet(mouth, dir, pw) {                    // fire out of the back of the canister, while the motor burns inside it
+  const bx = mouth.x - dir.x * 11.7, by = mouth.y - dir.y * 11.7, bz = mouth.z - dir.z * 11.7;
+  for (let k = 0; k < 3; k++) { const sp = 20 + rand() * 20;
+    emit(GLOW, bx, by, bz, -dir.x * sp + (rand() - .5) * 6, -dir.y * sp + (rand() - .5) * 3, -dir.z * sp + (rand() - .5) * 6, .2 + rand() * .2, 3.5 * pw, 1.2, 1, .7, .35, 1, 3, 0); }
+  for (let k = 0; k < 4; k++) { const a = rand() * TAU, sp = 5 + rand() * 10, c = .75 + rand() * .15;
+    emit(SMOKE, bx - dir.x * 2 + Math.cos(a), Math.max(.8, by - dir.y * 2), bz - dir.z * 2 + Math.sin(a), Math.cos(a) * sp, 1 + rand() * 3, Math.sin(a) * sp, 4 + rand() * 3, 2.5, 13, c, c * .97, c * .93, .7 * pw + .2, .9, -.2); }
+}
 // Main motor lights above the silo: flash, a jet of fire, and the exhaust hits the ground, throwing up dust and smoke.
 function motorStart(p, dir, ground) {
   const tx = p.x - dir.x * 4.6, ty = p.y - dir.y * 4.6, tz = p.z - dir.z * 4.6;
@@ -982,19 +1015,30 @@ function draw(dt = 1 / 60) {
       if (!hadInt) { hadInt = true; defTruck.yaw0 = defTruck.turret.rotation.y;      // turret slews toward the target (battery faces west, turret turns relative to it)
         defTruck.yaw1 = turretYaw(defTruck, i.a); }
       const lt = Li ? Li.t : 99;
-      defTruck.turret.rotation.y = defTruck.yaw0 + angDiff(defTruck.yaw0, defTruck.yaw1) * sstep(0, .35, lt);
-      if (Li && lt >= .52 && defTruck.lids[1].visible) {                                  // the front cover of the firing canister pops off
+      defTruck.turret.rotation.y = defTruck.yaw0 + angDiff(defTruck.yaw0, defTruck.yaw1) * sstep(0, Li && Li.hot ? .2 : .35, lt);
+      if (Li && lt >= (Li.hot ? Li.ign : .52) && defTruck.lids[1].visible) {                                  // the front cover of the firing canister pops off
         const lid = defTruck.lids[1]; lid.visible = false; const m2 = lid.clone(); lid.getWorldPosition(m2.position); lid.getWorldQuaternion(m2.quaternion); m2.scale.setScalar(1.3); m2.visible = true; scene.add(m2);
         tubePose(defTruck); defTruck.flying.push({ m: m2, v: _dir.clone().multiplyScalar(18).add(new V((rand() - .5) * 6, 4, (rand() - .5) * 6)), t: 0 });
         for (let k = 0; k < 20; k++) emit(SMOKE, _mouth.x + _dir.x * 6, _mouth.y + _dir.y * 6, _mouth.z + _dir.z * 6, _dir.x * 8 + (rand() - .5) * 4, _dir.y * 8, _dir.z * 8 + (rand() - .5) * 4, 2, 1.5, 6, .9, .9, .9, .5, 1, 0); }
-      if (Li && lt < Li.ign) { tubePose(defTruck); intMesh.position.copy(_mouth); intMesh.lookAt(_t.copy(_mouth).add(_dir)); lastInt.copy(_mouth); setLit(intMesh, false); bubble.visible = bubbleRing.visible = false;
+      if (Li && Li.hot && lt < Li.exit) {                     // in the canister: lit up, sliding out faster and faster; fire blasts out of the back
+        tubePose(defTruck); const sl = Math.max(0, lt - Li.ign), a = 2 * 9.6 / Math.pow(Li.exit - Li.ign, 2), d = .5 * a * sl * sl - 5.6;
+        _p.copy(_mouth).addScaledVector(_dir, d); intMesh.position.copy(_p); intMesh.lookAt(_t.copy(_p).add(_dir)); lastInt.copy(_p);
+        i.x = _p.x / K + W / 2; i.y = _p.z / K + H / 2; i.alt = _p.y / K; i.a = Math.atan2(_dir.z, _dir.x); Li.el = Li.p = Math.asin(clamp(_dir.y, -1, 1));
+        bubble.visible = bubbleRing.visible = false; setLit(intMesh, lt >= Li.ign);
+        if (lt >= Li.ign) { if (!Li.fx) { Li.fx = true; canisterBlast(_mouth, _dir); } canisterJet(_mouth, _dir, 1 - sstep(Li.ign, Li.exit + .3, lt) * .5); flicker(intMesh, 1.2); } }
+      else if (Li && lt < Li.ign) { tubePose(defTruck); intMesh.position.copy(_mouth); intMesh.lookAt(_t.copy(_mouth).add(_dir)); lastInt.copy(_mouth); setLit(intMesh, false); bubble.visible = bubbleRing.visible = false;
         i.x = _mouth.x / K + W / 2; i.y = _mouth.z / K + H / 2; i.alt = Li.alt0 = _mouth.y / K;          // the climb-out starts from the canister mouth
         i.a = Math.atan2(_dir.z, _dir.x); }
       else { to3(i.x, i.y, i.alt, _p);
         if (Li && !Li.fx) { Li.fx = true; ignition(lastInt, _dir, 1); }
+        if (Li && Li.hot && lt < Li.exit + .4) canisterJet(_mouth, _dir, .5);                // the back blast dies away as it leaves
+        if (Li && Li.hot) smokeColumn(lastInt, _p);
         setLit(intMesh, i.fuel > 0);
         if (i.fuel > 0) { const hot = Li ? 1 - sstep(0, 1, Li.t - Li.ign) * .7 : 0; trail(lastInt, _p, false, hot); flicker(intMesh, Math.max(hot, (i.cur - N.intMin) / (N.intMax - N.intMin) * .5)); }
-        intMesh.position.copy(_p); _t.copy(_p).sub(lastInt); if (_t.lengthSq() > 1e-6) intMesh.lookAt(_t.add(_p)); intMesh.rotateZ(i.yr * .9);
+        intMesh.position.copy(_p);
+        if (Li && Li.hot) intMesh.lookAt(_t.set(_p.x + Math.cos(i.a) * Math.cos(Li.p), _p.y + Math.sin(Li.p), _p.z + Math.sin(i.a) * Math.cos(Li.p)));   // nose follows the climb and turn
+        else { _t.copy(_p).sub(lastInt); if (_t.lengthSq() > 1e-6) intMesh.lookAt(_t.add(_p)); }
+        intMesh.rotateZ(i.yr * .9);
         bubble.position.copy(_p); bubbleRing.position.copy(_p); lastInt.copy(_p); } }
     if (!i && inRadar() && S.state === 'fly') {          // radar contact: the raised launcher follows the incoming missile
       const B = SIDES[S.def].bat, tr = defTruck.turret; tr.rotation.y += angDiff(tr.rotation.y, turretYaw(defTruck, Math.atan2(m.y - B.y, m.x - B.x))) * Math.min(1, dt * 2); }
@@ -1022,6 +1066,16 @@ function draw(dt = 1 / 60) {
       _p.lerp(_c, w); _t.lerp(_c.copy(attMesh.position).setY(attMesh.position.y - 3), w);
       _p.lerp(_q1, n); _t.lerp(_q2, n);
       k = Math.min(1, dt * (L && t > L.mot ? 3 : 6)); }
+    else if (flying && flying === i && i.launch && i.launch.hot) {   // battery launch: low behind and beside the launcher, follow the climb, swing behind the interceptor, then the chase view
+      const L = i.launch, t = L.t, B = defTruck.g.position, ca = Math.cos(i.a), sa = Math.sin(i.a);
+      const q = sstep(L.ign, L.exit + .6, t), w = sstep(L.exit + .3, L.exit + 1.1, t), n = sstep(L.dur - .6, L.dur, t);
+      chaseCam(i); _q1.copy(_p); _q2.copy(_t);
+      _p.set(B.x - ca * (52 + 14 * q) - sa * 40, 9 + 10 * q, B.z - sa * (52 + 14 * q) + ca * 40);
+      _t.set(B.x, 8, B.z).lerp(intMesh.position, q);
+      _c.copy(intMesh.position).add(_m.set(-ca * 40 + sa * 10, 9, -sa * 40 - ca * 10));
+      _p.lerp(_c, w); _t.lerp(intMesh.position, w);
+      _p.lerp(_q1, n); _t.lerp(_q2, n);
+      k = Math.min(1, dt * 5); }
     else if (flying && (S.state === 'ready' || flying.launch)) {          // launch: watch from beside the launcher, then follow the climb-out
       const cx = Math.cos(flying.a), cz = Math.sin(flying.a), mesh = flying === m ? attMesh : intMesh, f = flying.launch ? sstep(flying.launch.ign, flying.launch.dur, flying.launch.t) : 0;
       _c.copy(mesh.position); _c.y = Math.max(_c.y, 2); _p.set(_c.x - cz * 32 - cx * (10 + 14 * f), _c.y + (flying === m ? 11 : 14) + 4 * f, _c.z + cx * 32 - cz * (10 + 14 * f)); _t.set(_c.x + cx * 6, _c.y + 2, _c.z + cz * 6);   // a bit higher at the city, above its trees
