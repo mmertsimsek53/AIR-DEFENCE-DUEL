@@ -31,6 +31,10 @@
   #invBtn { position: absolute; left: calc(max(22px, env(safe-area-inset-left)) + 112px); bottom: 214px; height: 36px; padding: 0 12px; font-size: 12px; letter-spacing: .05em; border-radius: 12px; }
   #invBtn.on { background: rgba(255,159,10,.5); }
   #sensBtn { position: absolute; left: calc(max(22px, env(safe-area-inset-left)) + 224px); bottom: 214px; height: 36px; padding: 0 12px; font-size: 12px; letter-spacing: .05em; border-radius: 12px; }
+  #lead { position: absolute; width: 0; height: 0; pointer-events: none; }
+  #lead i { position: absolute; left: -16px; top: -16px; width: 28px; height: 28px; border: 3px solid var(--green); transform: rotate(45deg); box-shadow: 0 0 8px rgba(48,209,88,.7); }
+  #lead span { position: absolute; top: 22px; left: -60px; width: 120px; text-align: center; font-size: 11px; font-weight: 700; letter-spacing: .06em; color: var(--green); text-shadow: 0 1px 2px rgba(0,0,0,.8); }
+  #lead.lock i { background: rgba(48,209,88,.45); }
   #blastRing { position: absolute; border: 1.5px dashed rgba(255,255,255,.75); border-radius: 50%; pointer-events: none; }
   #blastRing.ok { border: 2px solid var(--green); box-shadow: 0 0 12px var(--green); }
   .mark .close { position: absolute; top: 68px; left: 50%; width: 92px; margin-left: -46px; height: 5px; border-radius: 3px; background: rgba(0,0,0,.45); overflow: hidden; }
@@ -93,6 +97,7 @@
 <button class="btn hidden" id="invBtn">▲ CLIMB</button>
 <button class="btn hidden" id="sensBtn">TURN: MID</button>
 <div id="blastRing" class="hidden"></div>
+<div id="lead" class="hidden"><i></i><span id="leadTxt">AIM</span></div>
 <div id="rpad" class="hidden">
   <div class="bar"><i id="fuel"></i></div>
   <button class="btn thr" data-c="W">FAST</button>
@@ -314,6 +319,32 @@ function aiDefender() {
   return { turn: steerTo(i.a, S.aiWant), thr: 1, climb: climbTo(i.alt, S.aiAlt) };
 }
 
+// ---- Interceptor help ----
+// Where the interceptor meets the missile if both keep flying straight on (the green AIM diamond, and what the seeker steers for).
+function leadPoint(i, m) {
+  const vx = Math.cos(m.a) * m.cur, vy = Math.sin(m.a) * m.cur, vz = m.launch ? 0 : sinkRate(m, PA);
+  const dx = m.x - i.x, dy = m.y - i.y, dz = m.alt - i.alt, sp = Math.max(i.cur, 1);
+  const a = vx * vx + vy * vy + vz * vz - sp * sp, b = 2 * (dx * vx + dy * vy + dz * vz), c = dx * dx + dy * dy + dz * dz;
+  let t = Infinity;
+  if (Math.abs(a) < 1e-6) t = b < 0 ? -c / b : Infinity;
+  else { const disc = b * b - 4 * a * c; if (disc >= 0) { const r = Math.sqrt(disc); for (const x of [(-b - r) / (2 * a), (-b + r) / (2 * a)]) if (x > 0 && x < t) t = x; } }
+  if (!isFinite(t)) t = Math.sqrt(c) / sp;            // can't catch it flying straight: aim at where it will be anyway
+  t = Math.min(t, 20);
+  const x = m.x + vx * t, y = m.y + vy * t;
+  return { x, y, alt: Math.max(groundAt({ x, y }), m.alt + vz * t), t };
+}
+// Seeker: inside 1 km, if the missile is roughly ahead (within 40°), the interceptor steers itself gently toward the meeting point.
+const SEEKER = 100;
+function seeker(i, m, dt) {
+  i.lock = false;
+  if (i.launch || i.fuel <= 0 || !m.alive || dist3(i, m) > SEEKER) return;
+  const L = leadPoint(i, m), off = angDiff(i.a, Math.atan2(L.y - i.y, L.x - i.x));
+  if (Math.abs(off) > .7) return;
+  i.lock = true;
+  i.a += clamp(off, -1, 1) * Math.min(1, dt * 1.0);
+  i.alt += clamp((L.alt - i.alt) / Math.max(L.t, .4), -PI_.climb * N.diveX, PI_.climb) * .5 * dt;
+}
+
 // ---- Update ----
 function launchFly(o, P, dt) {
   const L = o.launch; L.t += dt;
@@ -375,9 +406,14 @@ function step(dt) {
   if (i && remD) follow(i, NET.remote, dt, false);
   else if (i) {
     fly(i, cd, PI_, null, dt);
+    seeker(i, m, dt);
     const d = dist3(m, i);
     if (d <= N.contact) { detonate(); return; }
     i.prevD = d;
+    // proximity fuse: goes off by itself at the closest pass inside blast reach (online: measured on the missile's latest report, as the server does)
+    const mf = remA && NET.remote && NET.remote.x != null ? NET.remote : m, df = dist3(mf, i);
+    if (m.alive && (df <= N.blast * .4 || (df <= N.blast * .85 && df > i.prevF))) { detonate(); return; }
+    i.prevF = df;
     if (!i.launch && i.alt <= groundAt(i)) { i.alt = groundAt(i); detonate(); }   // flew into the ground or a hillside
   }
   if (S.state !== 'fly') return;
@@ -1032,6 +1068,7 @@ showSens();
 camBtn.addEventListener('pointerdown', e => { e.preventDefault(); CAM = CAM === 'hud' ? 'chase' : 'hud'; camBtn.textContent = CAM === 'hud' ? 'CHASE VIEW' : 'COCKPIT'; });
 // Target marker (the enemy craft, with distance and height difference) and your speed / height readout.
 const markEl = document.getElementById('mark'), markTxt = document.getElementById('markTxt'), readout = document.getElementById('readout');
+const leadEl = document.getElementById('lead'), leadTxt = document.getElementById('leadTxt');
 const blastRing = document.getElementById('blastRing'), closeBar = document.getElementById('closeBar'), MEET = { prev: null, t: 0, rate: 0 };
 const metres = u => u * 10 >= 1000 ? (u / 100).toFixed(1) + ' km' : Math.round(u * 10) + ' m';
 function hudMarks(side, hide) {
@@ -1039,6 +1076,14 @@ function hudMarks(side, hide) {
   const mine = side === 'a' ? m : side === 'd' ? i : null, tgt = side === 'a' ? i : side === 'd' && !hide && m.alive ? m : null;
   markEl.classList.toggle('hidden', !(fly && tgt));
   blastRing.classList.add('hidden');
+  // green AIM diamond: steer so it sits in the middle of the screen and you meet the missile
+  const showLead = fly && side === 'd' && i && !i.launch && tgt;
+  leadEl.classList.toggle('hidden', !showLead);
+  if (showLead) { const L = leadPoint(i, m); to3(L.x, L.y, L.alt, _m).project(camera);
+    let x = _m.x, y = _m.y; if (_m.z > 1) { x = -x; y = -y; }
+    const s = Math.max(1, Math.abs(x) / .92, Math.abs(y) / .85, _m.z > 1 ? 1.0001 : 0); x /= s; y /= s;
+    leadEl.style.left = ((x + 1) / 2 * innerWidth) + 'px'; leadEl.style.top = ((1 - y) / 2 * innerHeight) + 'px';
+    leadEl.classList.toggle('lock', !!i.lock); leadTxt.textContent = i.lock ? 'SEEKER LOCK' : 'AIM'; }
   if (fly && tgt) {
     to3(tgt.x, tgt.y, tgt.alt, _m).project(camera);
     let x = _m.x, y = _m.y; const behind = _m.z > 1; if (behind) { x = -x; y = -y; }
