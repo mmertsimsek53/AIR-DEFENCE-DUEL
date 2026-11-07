@@ -23,15 +23,21 @@
   .btn.on { background: rgba(255,255,255,.36); }
   .btn:disabled { opacity: .3; }
   /* Joystick: slide anywhere around the circle — sideways turns, up climbs, down dives, diagonals do both; it springs back when let go. */
-  #stick { position: absolute; left: max(22px, env(safe-area-inset-left)); bottom: 22px; width: 150px; height: 150px; border-radius: 50%; touch-action: none;
+  #stick { position: absolute; left: max(22px, env(safe-area-inset-left)); bottom: 22px; width: 180px; height: 180px; border-radius: 50%; touch-action: none;
     background: rgba(255,255,255,.12); border: 2px solid rgba(255,255,255,.28); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
   #stick::before, #stick::after { content: ''; position: absolute; background: rgba(255,255,255,.18); }
   #stick::before { left: 50%; top: 14px; bottom: 14px; width: 2px; margin-left: -1px; } #stick::after { top: 50%; left: 14px; right: 14px; height: 2px; margin-top: -1px; }
-  #camBtn { position: absolute; left: max(22px, env(safe-area-inset-left)); bottom: 186px; height: 36px; padding: 0 14px; font-size: 12px; letter-spacing: .05em; border-radius: 12px; }
-  #invBtn { position: absolute; left: calc(max(22px, env(safe-area-inset-left)) + 118px); bottom: 186px; height: 36px; padding: 0 12px; font-size: 12px; letter-spacing: .05em; border-radius: 12px; }
+  #camBtn { position: absolute; left: max(22px, env(safe-area-inset-left)); bottom: 214px; height: 36px; padding: 0 14px; font-size: 12px; letter-spacing: .05em; border-radius: 12px; }
+  #invBtn { position: absolute; left: calc(max(22px, env(safe-area-inset-left)) + 112px); bottom: 214px; height: 36px; padding: 0 12px; font-size: 12px; letter-spacing: .05em; border-radius: 12px; }
   #invBtn.on { background: rgba(255,159,10,.5); }
+  #sensBtn { position: absolute; left: calc(max(22px, env(safe-area-inset-left)) + 224px); bottom: 214px; height: 36px; padding: 0 12px; font-size: 12px; letter-spacing: .05em; border-radius: 12px; }
+  #blastRing { position: absolute; border: 1.5px dashed rgba(255,255,255,.75); border-radius: 50%; pointer-events: none; }
+  #blastRing.ok { border: 2px solid var(--green); box-shadow: 0 0 12px var(--green); }
+  .mark .close { position: absolute; top: 68px; left: 50%; width: 92px; margin-left: -46px; height: 5px; border-radius: 3px; background: rgba(0,0,0,.45); overflow: hidden; }
+  .mark .close u { display: block; height: 100%; width: 0; background: #fff; }
+  .mark .close::after { content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 12%; background: rgba(48,209,88,.85); }
   #hud { pointer-events: none; }
-  #stick .knob { position: absolute; left: 50%; top: 50%; width: 62px; height: 62px; margin: -31px 0 0 -31px; border-radius: 50%; background: rgba(255,255,255,.5); box-shadow: 0 2px 10px rgba(0,0,0,.3); pointer-events: none; }
+  #stick .knob { position: absolute; left: 50%; top: 50%; width: 70px; height: 70px; margin: -35px 0 0 -35px; border-radius: 50%; background: rgba(255,255,255,.5); box-shadow: 0 2px 10px rgba(0,0,0,.3); pointer-events: none; }
   #rpad { position: absolute; right: max(16px, env(safe-area-inset-right)); bottom: 16px; display: grid; gap: 8px; grid-template-columns: 70px 96px; grid-template-rows: auto 56px 56px; align-items: center; }
   #rpad .bar { grid-column: 1 / -1; height: 6px; background: var(--row); border-radius: 3px; overflow: hidden; }
   #rpad .bar i { display: block; height: 100%; width: 100%; background: var(--red); }
@@ -70,7 +76,7 @@
 <canvas id="c"></canvas>
 <div class="radar" id="radarLbl">RADAR: searching…</div>
 <canvas id="mini" class="hidden" width="360" height="202"></canvas>
-<div class="mark hidden" id="mark"><i></i><span id="markTxt"></span></div>
+<div class="mark hidden" id="mark"><i></i><span id="markTxt"></span><b class="close"><u id="closeBar"></u></b></div>
 <div class="readout hidden" id="readout"></div>
 <div id="tlabels"></div>
 
@@ -85,6 +91,8 @@
 <div id="stick" class="hidden"><div class="knob"></div></div>
 <button class="btn hidden" id="camBtn">COCKPIT</button>
 <button class="btn hidden" id="invBtn">▲ CLIMB</button>
+<button class="btn hidden" id="sensBtn">TURN: MID</button>
+<div id="blastRing" class="hidden"></div>
 <div id="rpad" class="hidden">
   <div class="bar"><i id="fuel"></i></div>
   <button class="btn thr" data-c="W">FAST</button>
@@ -163,17 +171,21 @@ function press(k) {
   if (k === 'aB') attLaunch();
 }
 function release(k) { held.delete(k); }
-const JOY = { x: 0, y: 0, inv: false };                  // joystick: x = turn (right +), y = climb (up +), each −1…1; inv = push up to dive (like a plane)
-try { JOY.inv = localStorage.getItem('duelInvert') === '1'; } catch (e) {}
+const JOY = { x: 0, y: 0, inv: false, sens: 'MID' };     // joystick: x = turn (right +), y = climb (up +), each −1…1; inv = push up to dive (like a plane)
+const SENS = { LOW: .5, MID: .72, HIGH: 1 };              // share of the full 180°/s turn: LOW 90°/s, MID 130°/s, HIGH 180°/s
+try { JOY.inv = localStorage.getItem('duelInvert') === '1'; JOY.sens = SENS[localStorage.getItem('duelSens')] ? localStorage.getItem('duelSens') : 'MID'; } catch (e) {}
 const ctl = s => { const j = s === humanSide() ? JOY : { x: 0, y: 0 };
   return { turn: clamp((held.has(s + 'R') ? 1 : 0) - (held.has(s + 'L') ? 1 : 0) + j.x, -1, 1), thr: (held.has(s + 'W') ? 1 : 0) - (held.has(s + 'S') ? 1 : 0),
     climb: clamp((held.has(s + 'U') ? 1 : 0) - (held.has(s + 'D') ? 1 : 0) + j.y, -1, 1), boost: held.has(s + 'B') }; };
-{ const stick = document.getElementById('stick'), knob = stick.querySelector('.knob'), R = 56;
+{ const stick = document.getElementById('stick'), knob = stick.querySelector('.knob'), R = 70;
   const move = e => { const r = stick.getBoundingClientRect(); let dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
     const d = Math.hypot(dx, dy); if (d > R) { dx *= R / d; dy *= R / d; }
     knob.style.transform = `translate(${dx}px, ${dy}px)`;
-    const dead = v => Math.abs(v) < .08 ? 0 : v;                // a little dead zone in the middle
-    JOY.x = dead(dx / R); JOY.y = dead(-dy / R) * (JOY.inv ? -1 : 1); };
+    let nx = dx / R, ny = -dy / R;
+    if (Math.abs(nx) < Math.abs(ny) * .35) nx = 0; else if (Math.abs(ny) < Math.abs(nx) * .35) ny = 0;   // mostly up/down → no turn; mostly sideways → no climb
+    // Calm response: nothing in the middle 20 %, then a soft curve — half-way out gives about a quarter, only the rim turns hard.
+    const soft = v => { const a = Math.abs(v); return a < .2 ? 0 : Math.sign(v) * Math.pow((a - .2) / .8, 1.4); };
+    JOY.x = soft(nx) * SENS[JOY.sens]; JOY.y = soft(ny) * (JOY.inv ? -1 : 1); };
   const end = () => { JOY.x = JOY.y = 0; knob.style.transform = ''; };
   stick.addEventListener('pointerdown', e => { e.preventDefault(); stick.setPointerCapture(e.pointerId); move(e); });
   stick.addEventListener('pointermove', e => { if (stick.hasPointerCapture(e.pointerId)) move(e); });
@@ -967,14 +979,20 @@ const camBtn = document.getElementById('camBtn'), invBtn = document.getElementBy
 const showInv = () => { invBtn.textContent = JOY.inv ? 'UP = DIVE' : 'UP = CLIMB'; invBtn.classList.toggle('on', JOY.inv); };
 invBtn.addEventListener('pointerdown', e => { e.preventDefault(); JOY.inv = !JOY.inv; try { localStorage.setItem('duelInvert', JOY.inv ? '1' : '0'); } catch (er) {} showInv(); });
 showInv();
+const sensBtn = document.getElementById('sensBtn');                   // turn sensitivity: LOW / MID / HIGH, remembered
+const showSens = () => { sensBtn.textContent = 'TURN: ' + JOY.sens; };
+sensBtn.addEventListener('pointerdown', e => { e.preventDefault(); JOY.sens = { LOW: 'MID', MID: 'HIGH', HIGH: 'LOW' }[JOY.sens]; try { localStorage.setItem('duelSens', JOY.sens); } catch (er) {} showSens(); });
+showSens();
 camBtn.addEventListener('pointerdown', e => { e.preventDefault(); CAM = CAM === 'hud' ? 'chase' : 'hud'; camBtn.textContent = CAM === 'hud' ? 'CHASE VIEW' : 'COCKPIT'; });
 // Target marker (the enemy craft, with distance and height difference) and your speed / height readout.
 const markEl = document.getElementById('mark'), markTxt = document.getElementById('markTxt'), readout = document.getElementById('readout');
+const blastRing = document.getElementById('blastRing'), closeBar = document.getElementById('closeBar'), MEET = { prev: null, t: 0, rate: 0 };
 const metres = u => u * 10 >= 1000 ? (u / 100).toFixed(1) + ' km' : Math.round(u * 10) + ' m';
 function hudMarks(side, hide) {
   const fly = S.state === 'fly', m = S.att, i = S.int;
   const mine = side === 'a' ? m : side === 'd' ? i : null, tgt = side === 'a' ? i : side === 'd' && !hide && m.alive ? m : null;
   markEl.classList.toggle('hidden', !(fly && tgt));
+  blastRing.classList.add('hidden');
   if (fly && tgt) {
     to3(tgt.x, tgt.y, tgt.alt, _m).project(camera);
     let x = _m.x, y = _m.y; const behind = _m.z > 1; if (behind) { x = -x; y = -y; }
@@ -984,8 +1002,19 @@ function hudMarks(side, hide) {
     const ref = mine || { x: city.x, y: city.y, alt: 0 }, d = dist3(tgt, ref), dh = tgt.alt - ref.alt;
     const inRange = side === 'd' && i && d <= N.blast;
     markEl.className = 'mark' + (side === 'a' ? ' int' : '') + (inRange ? ' ok' : '') + (edge ? ' edge' : '');
-    markTxt.textContent = inRange ? 'IN RANGE — DETONATE' : `ALT ${metres(tgt.alt)} ${Math.abs(dh) < 2 ? 'level' : (dh > 0 ? '▲' : '▼') + metres(Math.abs(dh))} · ${metres(d)}`;
-  }
+    // how fast we are closing → time until the gap is down to blast reach
+    const now = S.t, cl = MEET.prev != null && now > MEET.t ? (MEET.prev - d) / (now - MEET.t) : 0;
+    if (now - MEET.t > .2 || MEET.prev == null) { MEET.rate = MEET.prev == null ? 0 : MEET.rate * .5 + cl * .5; MEET.prev = d; MEET.t = now; }
+    const meet = !mine ? '' : d <= N.blast ? '' : MEET.rate > 2 ? ` · MEET IN ${((d - N.blast) / MEET.rate).toFixed(1)} s` : MEET.rate < -2 ? ' · MOVING APART' : '';
+    markTxt.textContent = inRange ? 'IN RANGE — DETONATE' : `ALT ${metres(tgt.alt)} ${Math.abs(dh) < 2 ? 'level' : (dh > 0 ? '▲' : '▼') + metres(Math.abs(dh))} · ${metres(d)}${meet}`;
+    // closing bar: empty at 3 km, full at blast reach (the green end)
+    closeBar.style.width = (100 * clamp(1 - (d - N.blast) / (300 - N.blast), 0, 1)) + '%';
+    // dashed ring: how big the 280 m blast looks around the other craft at this distance
+    if (mine && !edge) { const dc = camera.position.distanceTo(_c.copy(to3(tgt.x, tgt.y, tgt.alt, _p)));
+      const r = clamp(N.blast * K / Math.max(dc, 1) * innerHeight / 2 / Math.tan(camera.fov * Math.PI / 360), 8, 420);
+      blastRing.style.width = blastRing.style.height = (2 * r) + 'px'; blastRing.style.left = (parseFloat(markEl.style.left) - r) + 'px'; blastRing.style.top = (parseFloat(markEl.style.top) - r) + 'px';
+      blastRing.classList.remove('hidden'); blastRing.classList.toggle('ok', d <= N.blast); }
+  } else MEET.prev = null;
   readout.classList.toggle('hidden', !((fly || S.state === 'ready') && side));
   if (S.state === 'ready' && side === 'a') { readout.textContent = 'In the silo — tap LAUNCH'; return; }
   if (fly && side) {
@@ -1022,7 +1051,7 @@ function hud() {
   document.getElementById('sa').textContent = alive(0); document.getElementById('sd').textContent = alive(1);
   if (!S) return;
   const side = humanSide(), live = S.state !== 'over';
-  dpad.classList.toggle('hidden', !(side && live)); camBtn.classList.toggle('hidden', !(side && live)); invBtn.classList.toggle('hidden', !(side && live)); rpad.classList.toggle('hidden', !(side && live)); rpad.classList.toggle('d', side === 'd');
+  dpad.classList.toggle('hidden', !(side && live)); camBtn.classList.toggle('hidden', !(side && live)); invBtn.classList.toggle('hidden', !(side && live)); sensBtn.classList.toggle('hidden', !(side && live)); rpad.classList.toggle('hidden', !(side && live)); rpad.classList.toggle('d', side === 'd');
   roleLbl.classList.toggle('hidden', !side); roleLbl.className = 'role ' + (side || '') + (side ? '' : ' hidden');
   roleLbl.textContent = side === 'a' ? `You attack ${SIDES[S.def].name}` : side === 'd' ? `You defend ${SIDES[S.def].name}` : '';
   if (side === 'a') { document.getElementById('fuel').style.width = (100 * S.att.fuel) + '%'; actBtn.textContent = S.state === 'ready' ? 'LAUNCH' : 'BOOST'; actBtn.disabled = false; }
