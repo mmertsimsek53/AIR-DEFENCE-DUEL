@@ -14,21 +14,23 @@
     background: var(--card); border-radius: 14px; padding: 6px 10px; font-size: 14px; }
   .score { font-weight: 600; font-variant-numeric: tabular-nums; padding: 0 6px; }
   .score .a { color: var(--red); } .score .d { color: var(--blue); }
-  .seg { white-space: nowrap; background: var(--row); border-radius: 10px; padding: 5px 9px; color: #fff; border: 0; font: inherit; font-size: 13px; }
-  .pad { position: absolute; bottom: 12px; display: grid; gap: 6px; grid-template-columns: 54px 54px 54px; }
-  .pad.att { left: max(12px, env(safe-area-inset-left)); } .pad.def { right: max(12px, env(safe-area-inset-right)); }
-  .pad .lbl { grid-column: 1 / -1; font-size: 11px; color: var(--grey); text-transform: uppercase; letter-spacing: .06em; text-align: center; }
-  .btn { height: 50px; border-radius: 14px; border: 0; background: rgba(255,255,255,.14); color: #fff; font: inherit;
-    font-size: 20px; font-weight: 600; touch-action: none; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
-  .btn.small { font-size: 11px; letter-spacing: .03em; }
-  .btn.wide { grid-column: 1 / -1; height: 42px; }
-  .btn.on { background: rgba(255,255,255,.34); }
-  .att .btn.act { background: rgba(255,69,58,.4); } .def .btn.act { background: rgba(10,132,255,.45); }
+  .top .side { font-size: 11px; font-weight: 700; letter-spacing: .06em; color: var(--grey); }
+  .role { background: var(--row); border-radius: 10px; padding: 4px 9px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .role.a { color: #ff8a80; } .role.d { color: #64b5ff; }
+  /* Controls for your side only: directions on the left, speed and the action button on the right. */
+  .btn { border-radius: 16px; border: 0; background: rgba(255,255,255,.16); color: #fff; font: inherit; font-size: 22px; font-weight: 600;
+    touch-action: none; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+  .btn.on { background: rgba(255,255,255,.36); }
   .btn:disabled { opacity: .3; }
-  .ai .btn { opacity: .22; pointer-events: none; }
-  .bar { grid-column: 1 / -1; height: 5px; background: var(--row); border-radius: 3px; overflow: hidden; }
-  .bar i { display: block; height: 100%; width: 100%; }
-  .att .bar i { background: var(--red); } .def .bar i { background: var(--blue); }
+  #dpad { position: absolute; left: max(16px, env(safe-area-inset-left)); bottom: 16px; display: grid; gap: 6px; grid-template-columns: repeat(3, 58px); grid-template-rows: repeat(3, 58px); }
+  #dpad .u { grid-area: 1 / 2; } #dpad .l { grid-area: 2 / 1; } #dpad .r { grid-area: 2 / 3; } #dpad .d { grid-area: 3 / 2; }
+  #rpad { position: absolute; right: max(16px, env(safe-area-inset-right)); bottom: 16px; display: grid; gap: 8px; grid-template-columns: 70px 96px; grid-template-rows: auto 56px 56px; align-items: center; }
+  #rpad .bar { grid-column: 1 / -1; height: 6px; background: var(--row); border-radius: 3px; overflow: hidden; }
+  #rpad .bar i { display: block; height: 100%; width: 100%; background: var(--red); }
+  #rpad.d .bar i { background: var(--blue); }
+  #rpad .thr { height: 56px; font-size: 12px; letter-spacing: .04em; }
+  #rpad .act { grid-column: 2; grid-row: 2 / 4; width: 96px; height: 96px; border-radius: 50%; font-size: 13px; letter-spacing: .04em; background: rgba(255,69,58,.55); }
+  #rpad.d .act { background: rgba(10,132,255,.6); }
   .dim { position: absolute; inset: 0; background: rgba(0,0,0,.35); display: flex; align-items: center; justify-content: center; }
   .win { width: 420px; max-width: calc(100% - 32px); background: var(--card); border-radius: 20px; padding: 18px; text-align: center; }
   .win h2 { margin: 0 0 6px; font-size: 22px; } .win p { margin: 0 0 14px; color: var(--grey); font-size: 14px; line-height: 1.4; }
@@ -62,34 +64,28 @@
 <div id="tlabels"></div>
 
 <div class="top">
-  <button class="seg" id="attMode">Red: You</button>
+  <span class="side">RED</span>
   <div class="score" title="targets left"><span class="a" id="sa">6</span> : <span class="d" id="sd">6</span></div>
-  <button class="seg" id="defMode">Blue: AI</button>
-  <button class="seg" id="fogMode">Radar fog: On</button>
+  <span class="side">BLUE</span>
+  <span class="role hidden" id="roleLbl"></span>
 </div>
 
-<div class="pad att" id="attPad">
-  <div class="lbl">Attack missile</div>
-  <div class="bar"><i id="fuelA"></i></div>
-  <button class="btn small" data-k="aS">SLOW</button><button class="btn" data-k="aU">▲</button><button class="btn small" data-k="aW">FAST</button>
-  <button class="btn" data-k="aL">◀</button><button class="btn" data-k="aD">▼</button><button class="btn" data-k="aR">▶</button>
-  <button class="btn small act wide" data-k="aB">BOOST</button>
+<div id="dpad" class="hidden">
+  <button class="btn u" data-c="U">▲</button><button class="btn l" data-c="L">◀</button><button class="btn r" data-c="R">▶</button><button class="btn d" data-c="D">▼</button>
 </div>
-
-<div class="pad def" id="defPad">
-  <div class="lbl">Interceptor</div>
-  <div class="bar"><i id="fuelD"></i></div>
-  <button class="btn small" data-k="dS">SLOW</button><button class="btn" data-k="dU">▲</button><button class="btn small" data-k="dW">FAST</button>
-  <button class="btn" data-k="dL">◀</button><button class="btn" data-k="dD">▼</button><button class="btn" data-k="dR">▶</button>
-  <button class="btn small act wide" data-k="dX" id="fireBtn">LAUNCH</button>
+<div id="rpad" class="hidden">
+  <div class="bar"><i id="fuel"></i></div>
+  <button class="btn thr" data-c="W">FAST</button>
+  <button class="btn act" data-c="X" id="actBtn">LAUNCH</button>
+  <button class="btn thr" data-c="S">SLOW</button>
 </div>
 
 <div class="dim" id="dim">
   <div class="win">
     <h2 id="title">Missile Duel</h2>
     <p id="msg">Each side has a city with 6 targets. The sides take turns: one launches a missile from its silo and dives it onto an enemy target, the other launches one interceptor and detonates it near the missile. The closer the impact, the more damage. Destroy all 6 enemy targets to win.<br>
-      Keys for your side: W faster · S slower · A / D turn · ↑ climb · ↓ dive · Space launch, then boost (attacker) or launch, then detonate (defender).</p>
-    <button class="go" id="go">Start</button>
+      Left: steer and climb or dive. Right: faster, slower, and the big button — launch, then boost (attacking) or launch, then detonate (defending).</p>
+    <button class="go" id="go">Play vs computer</button>
   </div>
 </div>
 
@@ -129,42 +125,31 @@ const dist3 = (p, q) => Math.hypot(p.x - q.x, p.y - q.y, p.alt - q.alt);
 const held = new Set();
 const KEYS = { KeyW: 'W', KeyS: 'S', KeyA: 'L', KeyD: 'R', ArrowLeft: 'L', ArrowRight: 'R', ArrowUp: 'U', ArrowDown: 'D', Space: 'X' };
 const humanSide = () => !ai.att ? 'a' : !ai.def ? 'd' : null;
-function keyBtn(code) { const c = KEYS[code], side = humanSide(); if (!c || !side) return null; return side === 'a' && c === 'X' ? 'aB' : side + c; }
+const btnKey = c => { const side = humanSide(); if (!side) return null; return side === 'a' && c === 'X' ? 'aB' : side + c; };
+function keyBtn(code) { const c = KEYS[code]; return c ? btnKey(c) : null; }
 addEventListener('keydown', e => { const k = keyBtn(e.code); if (!k) return; e.preventDefault(); if (!e.repeat) press(k); });
 addEventListener('keyup', e => { const k = keyBtn(e.code); if (k) release(k); });
 addEventListener('blur', () => [...held].forEach(release));
 document.querySelectorAll('.btn').forEach(b => {
-  const k = b.dataset.k;
-  b.addEventListener('pointerdown', e => { e.preventDefault(); b.setPointerCapture(e.pointerId); press(k); });
-  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => b.addEventListener(ev, () => release(k)));
+  let k = null;
+  b.addEventListener('pointerdown', e => { e.preventDefault(); b.setPointerCapture(e.pointerId); k = btnKey(b.dataset.c); if (k) { press(k); b.classList.add('on'); } });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => b.addEventListener(ev, () => { if (k) release(k); k = null; b.classList.remove('on'); }));
 });
 function isAI(k) { return (k[0] === 'a' && ai.att) || (k[0] === 'd' && ai.def); }
 function press(k) {
   if (isAI(k)) return;
-  held.add(k); markBtn(k, true);
+  held.add(k);
   if (k === 'dX') defFire();
   if (k === 'aB') attLaunch();
 }
-function release(k) { held.delete(k); markBtn(k, false); }
-function markBtn(k, on) { const b = document.querySelector(`[data-k="${k}"]`); if (b) b.classList.toggle('on', on); }
+function release(k) { held.delete(k); }
 const ctl = s => ({ turn: (held.has(s + 'R') ? 1 : 0) - (held.has(s + 'L') ? 1 : 0), thr: (held.has(s + 'W') ? 1 : 0) - (held.has(s + 'S') ? 1 : 0),
   climb: (held.has(s + 'U') ? 1 : 0) - (held.has(s + 'D') ? 1 : 0), boost: held.has(s + 'B') });
 
 const sideAI = [false, true];                           // who plays Red / Blue
 const ai = { att: false, def: true };                   // this round's roles, from sideAI and whose turn it is
-const attModeBtn = document.getElementById('attMode'), defModeBtn = document.getElementById('defMode');
-function refreshModes() {
-  if (S) { ai.att = sideAI[S.atk]; ai.def = sideAI[S.def]; }
-  attModeBtn.textContent = 'Red: ' + (sideAI[0] ? 'AI' : 'You');
-  defModeBtn.textContent = 'Blue: ' + (sideAI[1] ? 'AI' : 'You');
-  document.getElementById('attPad').classList.toggle('ai', ai.att);
-  document.getElementById('defPad').classList.toggle('ai', ai.def);
-}
-attModeBtn.onclick = () => { sideAI[0] = !sideAI[0]; refreshModes(); };
-defModeBtn.onclick = () => { sideAI[1] = !sideAI[1]; refreshModes(); };
-const fogBtn = document.getElementById('fogMode');
-let fog = true;
-fogBtn.onclick = () => { fog = !fog; fogBtn.textContent = 'Radar fog: ' + (fog ? 'On' : 'Off'); };
+function refreshModes() { if (S) { ai.att = sideAI[S.atk]; ai.def = sideAI[S.def]; } [...held].forEach(release); }
+const fog = true;                                        // the defender only sees the missile inside radar range
 
 // ---- Game state ----
 let S = null, G;
@@ -828,12 +813,12 @@ function hudMarks(side, hide) {
     markTxt.textContent = inRange ? 'IN RANGE — DETONATE' : `${metres(d)} · ${Math.abs(dh) < 2 ? 'level' : (dh > 0 ? '▲ ' : '▼ ') + metres(Math.abs(dh))}`;
   }
   readout.classList.toggle('hidden', !((fly || S.state === 'ready') && side));
-  if (S.state === 'ready' && side === 'a') { readout.textContent = 'On the launcher — press Space (or LAUNCH) to fire'; return; }
+  if (S.state === 'ready' && side === 'a') { readout.textContent = 'In the silo — tap LAUNCH'; return; }
   if (fly && side) {
     if (mine && mine.launch) readout.innerHTML = mine.launch.t < mine.launch.ign ? 'Launching…' : `Climbing out &nbsp; <b>ALT</b>${Math.round(mine.alt * 10)} m`;
     else if (mine) readout.innerHTML = `<b>SPD</b>${Math.round(mine.cur * 10)} m/s &nbsp; <b>ALT</b>${Math.round(mine.alt * 10)} m &nbsp; <b>FUEL</b>` + (mine.fuel > 0 ? Math.ceil(mine.fuel * 100) + '%' : '<span class="pull">EMPTY</span>') + (side === 'a' && m.boosting ? ' &nbsp;<span class="boost">BOOST</span>' : '')
       + (mine.alt < 12 && mine.vr < -.05 && !(side === 'a' && Math.hypot(m.x - city.x, m.y - city.y) < 60) ? ' &nbsp;<span class="pull">PULL UP</span>' : '');
-    else readout.textContent = S.used ? 'Interceptor gone' : inRadar() ? 'Contact — press Space to launch' : 'Waiting for radar contact';
+    else readout.textContent = S.used ? 'Interceptor gone' : inRadar() ? 'Contact — tap LAUNCH' : 'Waiting for radar contact';
   }
 }
 // Small map: city, radar ring, the missile (if seen) and the interceptor.
@@ -855,21 +840,23 @@ function drawMini(show) {
 to3(W / 2, H / 2, 0, camTgt); camPos.set(camTgt.x - 60, 330, camTgt.z + 420);
 
 // ---- HUD ----
-const fireBtn = document.getElementById('fireBtn'), attBtn = document.querySelector('[data-k="aB"]');
+const actBtn = document.getElementById('actBtn'), dpad = document.getElementById('dpad'), rpad = document.getElementById('rpad'), roleLbl = document.getElementById('roleLbl');
 function hud() {
   document.getElementById('sa').textContent = alive(0); document.getElementById('sd').textContent = alive(1);
   if (!S) return;
-  document.getElementById('fuelA').style.width = (100 * S.att.fuel) + '%';
-  document.getElementById('fuelD').style.width = (S.int ? 100 * S.int.fuel : S.used ? 0 : 100) + '%';
-  attBtn.textContent = S.state === 'ready' ? 'LAUNCH' : 'BOOST';
-  fireBtn.textContent = S.int ? 'DETONATE' : 'LAUNCH';
-  fireBtn.disabled = S.state === 'fly' && ((!S.used && !inRadar()) || (S.used && !S.int));
+  const side = humanSide(), live = S.state !== 'over';
+  dpad.classList.toggle('hidden', !(side && live)); rpad.classList.toggle('hidden', !(side && live)); rpad.classList.toggle('d', side === 'd');
+  roleLbl.classList.toggle('hidden', !side); roleLbl.className = 'role ' + (side || '') + (side ? '' : ' hidden');
+  roleLbl.textContent = side === 'a' ? `You attack ${SIDES[S.def].name}` : side === 'd' ? `You defend ${SIDES[S.def].name}` : '';
+  if (side === 'a') { document.getElementById('fuel').style.width = (100 * S.att.fuel) + '%'; actBtn.textContent = S.state === 'ready' ? 'LAUNCH' : 'BOOST'; actBtn.disabled = false; }
+  if (side === 'd') { document.getElementById('fuel').style.width = (S.int ? 100 * S.int.fuel : S.used ? 0 : 100) + '%'; actBtn.textContent = S.int ? 'DETONATE' : 'LAUNCH';
+    actBtn.disabled = S.state === 'fly' && ((!S.used && !inRadar()) || (S.used && !S.int)); }
   if (S.state === 'over' && S.t - S.end.at > 1.6 && dim.classList.contains('hidden')) {
     const A = SIDES[S.atk].name, D = SIDES[S.def].name;
     if (G.over != null) {
       document.getElementById('title').textContent = `${SIDES[G.over].name} wins the war!`;
       document.getElementById('msg').textContent = `${S.end.why} All 6 of ${D}'s targets are destroyed.`;
-      document.getElementById('go').textContent = 'New game';
+      document.getElementById('go').textContent = 'Play again';
     } else {
       document.getElementById('title').textContent = S.end.who === 'a' ? `${A} hits ${D}` : `${D} holds`;
       document.getElementById('msg').textContent = `${S.end.why} Targets left — Red ${alive(0)}, Blue ${alive(1)}. Next: ${D} attacks.`;
