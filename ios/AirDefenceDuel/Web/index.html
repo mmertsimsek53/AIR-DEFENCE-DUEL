@@ -1007,11 +1007,11 @@ function rcsJets(p, dir, a, pitch, sg) {         // RCS: thin, sharp, fast jets 
   const sp_ = Math.sin(pitch), cp = Math.cos(pitch), ca = Math.cos(a), sa = Math.sin(a);
   const ux = -sp_ * ca * sg, uy = cp * sg, uz = -sp_ * sa * sg;                           // across the body, in the turning plane
   const jet = (x, y, z, dx, dy, dz, len, n) => {                                          // a narrow streak: particles laid along the jet line, very fast, gone almost at once
-    for (let k = 0; k < n; k++) { const d = rand() * len, sp = 70 + rand() * 40, j = () => (rand() - .5) * .25, c = .86 + rand() * .1;
-      emit(SMOKE, x + dx * d, y + dy * d, z + dz * d, dx * sp + j(), dy * sp + j(), dz * sp + j(), .07 + rand() * .07, .22 + d * .05, .6 + d * .1, c, c, c * 1.03, .75 - d / len * .4, 9, 0); }
-    emit(GLOW, x, y, z, 0, 0, 0, .04, .9, .3, .9, .95, 1, 1, 0, 0); };             // tiny bright flash at the nozzle
-  jet(p.x + dir.x * 5.6 + ux * .8, p.y + dir.y * 5.6 + uy * .8, p.z + dir.z * 5.6 + uz * .8, ux, uy, uz, 6, 9);
-  jet(p.x - dir.x * 3.4 - ux * .7, p.y - dir.y * 3.4 - uy * .7, p.z - dir.z * 3.4 - uz * .7, -ux, -uy, -uz, 4, 6);
+    for (let k = 0; k < n; k++) { const d = Math.pow(rand(), 1.3) * len, sp = 60 + rand() * 35, j = () => (rand() - .5) * .5, c = .93 + rand() * .06;   // denser near the nozzle
+      emit(SMOKE, x + dx * d, y + dy * d, z + dz * d, dx * sp + j(), dy * sp + j(), dz * sp + j(), .12 + rand() * .1, .7 + d * .12, 1.6 + d * .2, c, c, c * 1.02, .95 - d / len * .35, 7, 0); }
+    emit(GLOW, x, y, z, 0, 0, 0, .05, 2.2, .6, .95, .97, 1, 1, 0, 0); };             // tiny bright flash at the nozzle
+  jet(p.x + dir.x * 5.6 + ux * .8, p.y + dir.y * 5.6 + uy * .8, p.z + dir.z * 5.6 + uz * .8, ux, uy, uz, 9, 22);
+  jet(p.x - dir.x * 3.4 - ux * .7, p.y - dir.y * 3.4 - uy * .7, p.z - dir.z * 3.4 - uz * .7, -ux, -uy, -uz, 6.5, 15);
 }
 // Gas piston plate under the missile: thrown out with it, then it drops off and tumbles back into the silo.
 const plate = new THR.Mesh(new THR.CylinderGeometry(.5, .6, .22, 16).rotateX(Math.PI / 2), new THR.MeshLambertMaterial({ color: 0x3b4046 }));
