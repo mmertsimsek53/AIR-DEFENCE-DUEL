@@ -229,11 +229,13 @@ function newRound() {
 // at the top); then the gas piston plate drops off its tail (plate), and the main motor lights with the missile flat (mot). It speeds
 // away almost level, climbing gently; control after dur seconds.
 const coldLaunch = () => ({ t: 0, ign: 1.2, exit: 1.7, rcs: 2.3, plate: 3.35, mot: 3.5, dur: 7.6, peak: 40, alt0: SILO_DEPTH, sp1: N.attStart, vertical: true });
-const RCS_T = [0, .2, .4, .6, .8], RCS_LEN = .12;         // the RCS bursts: start (s after rcs) and length; each one turns the nose a fifth of the way
-const rcsBurst = L => { for (const o of RCS_T) { const u = (L.t - L.rcs - o) / RCS_LEN; if (u >= 0 && u < 1) return u; } return -1; };
+// RCS bursts (s after rcs, and which way): three start the turn, then the missile keeps turning on its own, and two opposite bursts stop it flat.
+const RCS_T = [[0, 1], [.14, 1], [.28, 1], [.78, -1], [.9, -1]], RCS_LEN = .12, RCS_TURN = 1.05;
+const rcsBurst = L => { for (let k = 0; k < RCS_T.length; k++) { const u = (L.t - L.rcs - RCS_T[k][0]) / RCS_LEN; if (u >= 0 && u < 1) return k; } return -1; };
+const smoother = e => e * e * e * (e * (e * 6 - 15) + 10);
 function launchPitch(L) {                                 // nose angle above the horizon during the cold launch
   if (L.t < L.rcs) return Math.PI / 2;
-  if (L.t < L.mot) return Math.PI / 2 * (1 - RCS_T.reduce((q, o) => q + sstep(L.rcs + o, L.rcs + o + .2, L.t), 0) / RCS_T.length);
+  if (L.t < L.mot) return Math.PI / 2 * (1 - smoother(clamp((L.t - L.rcs) / RCS_TURN, 0, 1)));   // one smooth turn: speeds up, then slows to a stop flat
   return .3 * Math.sin(Math.PI * clamp((L.t - L.mot) / (L.dur - L.mot), 0, 1));   // after ignition: a gentle climb, level again by the hand-over
 }
 function attLaunch() {
@@ -978,13 +980,15 @@ function gasEject(p) {
     emit(SMOKE, p.x + Math.cos(a) * 2.5, up ? 1 + rand() * 4 : .8, p.z + Math.sin(a) * 2.5, Math.cos(a) * sp + WIND.x, up ? 12 + rand() * 12 : rand() * 1.5, Math.sin(a) * sp + WIND.z, 3 + rand() * 3, 2.5, up ? 11 : 14, c, c, c * 1.01, .75, up ? .8 : 1.1, -.2); }
 }
 // RCS: a short white jet out of the side of the nose (sd = which side), pushing it over.
-function rcsJets(p, dir, a) {                     // RCS: a sharp jet out of the nose blowing AWAY from the target, a smaller one at the tail blowing toward it — together they tip the nose over
-  const ca = Math.cos(a), sa = Math.sin(a), nx = p.x + dir.x * 5.6, ny = p.y + dir.y * 5.6, nz = p.z + dir.z * 5.6, tx = p.x - dir.x * 3.4, ty = p.y - dir.y * 3.4, tz = p.z - dir.z * 3.4;
+function rcsJets(p, dir, a, pitch, sg) {         // RCS: jets across the body — out of the nose one way, out of the tail the other — that turn it (sg 1 = start the turn, -1 = stop it)
+  const ca = Math.cos(a), sa = Math.sin(a), sp_ = Math.sin(pitch), cp = Math.cos(pitch);
+  const ux = -sp_ * ca * sg, uy = cp * sg, uz = -sp_ * sa * sg;                           // across the body, in the turning plane
+  const nx = p.x + dir.x * 5.6, ny = p.y + dir.y * 5.6, nz = p.z + dir.z * 5.6, tx = p.x - dir.x * 3.4, ty = p.y - dir.y * 3.4, tz = p.z - dir.z * 3.4;
   for (let k = 0; k < 5; k++) { const sp = 24 + rand() * 14, j = () => (rand() - .5) * 2.5;
-    emit(SMOKE, nx - ca * .8, ny, nz - sa * .8, -ca * sp + j(), j() * .6, -sa * sp + j(), .3 + rand() * .3, .35, 2.6, .98, .98, 1, .95, 5, -1); }
-  emit(GLOW, nx - ca * .8, ny, nz - sa * .8, 0, 0, 0, .05, 1.4, .4, .9, .95, 1, .9, 0, 0);
-  for (let k = 0; k < 2; k++) { const sp = 14 + rand() * 8, j = () => (rand() - .5) * 2;
-    emit(SMOKE, tx + ca * .7, ty, tz + sa * .7, ca * sp + j(), j() * .5, sa * sp + j(), .25 + rand() * .2, .25, 1.6, .98, .98, 1, .85, 5, -1); }
+    emit(SMOKE, nx + ux * .8, ny + uy * .8, nz + uz * .8, ux * sp + j(), uy * sp + j() * .6, uz * sp + j(), .3 + rand() * .3, .35, 2.6, .98, .98, 1, .95, 5, -1); }
+  emit(GLOW, nx + ux * .8, ny + uy * .8, nz + uz * .8, 0, 0, 0, .05, 1.4, .4, .9, .95, 1, .9, 0, 0);
+  for (let k = 0; k < 3; k++) { const sp = 18 + rand() * 10, j = () => (rand() - .5) * 2;
+    emit(SMOKE, tx - ux * .7, ty - uy * .7, tz - uz * .7, -ux * sp + j(), -uy * sp + j() * .5, -uz * sp + j(), .25 + rand() * .2, .3, 2, .98, .98, 1, .9, 5, -1); }
 }
 // Gas piston plate under the missile: thrown out with it, then it drops off and tumbles back into the silo.
 const plate = new THR.Mesh(new THR.CylinderGeometry(.5, .6, .22, 16).rotateX(Math.PI / 2), new THR.MeshLambertMaterial({ color: 0x3b4046 }));
@@ -1085,7 +1089,7 @@ function draw(dt = 1 / 60) {
       _dir.set(ca * Math.cos(pt), Math.sin(pt), sa * Math.cos(pt));
       if (!La.gx) { La.gx = true; gasEject(silo.g.position); }
       if (lt >= La.plate && !La.px) { La.px = true; dropPlate(); }                          // the gas piston plate falls away
-      if (rcsBurst(La) >= 0) { rcsJets(_p, _dir, m.a); const bi = Math.floor((lt - La.rcs) / .2); if (!((La.rs || 0) >> bi & 1)) { La.rs = (La.rs || 0) | 1 << bi; sRcs(); } }
+      { const bi = rcsBurst(La); if (bi >= 0) { rcsJets(_p, _dir, m.a, pt, RCS_T[bi][1]); if (!((La.rs || 0) >> bi & 1)) { La.rs = (La.rs || 0) | 1 << bi; sRcs(); } } }
       attMesh.position.copy(_p); attMesh.lookAt(_t.copy(_p).add(_dir)); setLit(attMesh, false); lastAtt.copy(_p);
     }
     else {
