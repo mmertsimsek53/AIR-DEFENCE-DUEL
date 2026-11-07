@@ -1001,15 +1001,15 @@ function gasEject(p) {
     emit(SMOKE, p.x + Math.cos(a) * 2.5, up ? 1 + rand() * 4 : .8, p.z + Math.sin(a) * 2.5, Math.cos(a) * sp + WIND.x, up ? 12 + rand() * 12 : rand() * 1.5, Math.sin(a) * sp + WIND.z, 3 + rand() * 3, 2.5, up ? 11 : 14, c, c, c * 1.01, .75, up ? .8 : 1.1, -.2); }
 }
 // RCS: a short white jet out of the side of the nose (sd = which side), pushing it over.
-function rcsJets(p, dir, a, pitch, sg) {         // RCS: jets across the body — out of the nose one way, out of the tail the other — that turn it (sg 1 = start the turn, -1 = stop it)
-  const ca = Math.cos(a), sa = Math.sin(a), sp_ = Math.sin(pitch), cp = Math.cos(pitch);
+function rcsJets(p, dir, a, pitch, sg) {         // RCS: thin, sharp, fast jets across the body — out of the nose one way, out of the tail the other — that turn it (sg 1 = start the turn, -1 = stop it)
+  const sp_ = Math.sin(pitch), cp = Math.cos(pitch), ca = Math.cos(a), sa = Math.sin(a);
   const ux = -sp_ * ca * sg, uy = cp * sg, uz = -sp_ * sa * sg;                           // across the body, in the turning plane
-  const nx = p.x + dir.x * 5.6, ny = p.y + dir.y * 5.6, nz = p.z + dir.z * 5.6, tx = p.x - dir.x * 3.4, ty = p.y - dir.y * 3.4, tz = p.z - dir.z * 3.4;
-  for (let k = 0; k < 5; k++) { const sp = 24 + rand() * 14, j = () => (rand() - .5) * 2.5;
-    emit(SMOKE, nx + ux * .8, ny + uy * .8, nz + uz * .8, ux * sp + j(), uy * sp + j() * .6, uz * sp + j(), .3 + rand() * .3, .35, 2.6, .98, .98, 1, .95, 5, -1); }
-  emit(GLOW, nx + ux * .8, ny + uy * .8, nz + uz * .8, 0, 0, 0, .05, 1.4, .4, .9, .95, 1, .9, 0, 0);
-  for (let k = 0; k < 3; k++) { const sp = 18 + rand() * 10, j = () => (rand() - .5) * 2;
-    emit(SMOKE, tx - ux * .7, ty - uy * .7, tz - uz * .7, -ux * sp + j(), -uy * sp + j() * .5, -uz * sp + j(), .25 + rand() * .2, .3, 2, .98, .98, 1, .9, 5, -1); }
+  const jet = (x, y, z, dx, dy, dz, len, n) => {                                          // a narrow streak: particles laid along the jet line, very fast, gone almost at once
+    for (let k = 0; k < n; k++) { const d = rand() * len, sp = 70 + rand() * 40, j = () => (rand() - .5) * .25, c = .86 + rand() * .1;
+      emit(SMOKE, x + dx * d, y + dy * d, z + dz * d, dx * sp + j(), dy * sp + j(), dz * sp + j(), .07 + rand() * .07, .22 + d * .05, .6 + d * .1, c, c, c * 1.03, .75 - d / len * .4, 9, 0); }
+    emit(GLOW, x, y, z, 0, 0, 0, .04, .9, .3, .9, .95, 1, 1, 0, 0); };             // tiny bright flash at the nozzle
+  jet(p.x + dir.x * 5.6 + ux * .8, p.y + dir.y * 5.6 + uy * .8, p.z + dir.z * 5.6 + uz * .8, ux, uy, uz, 6, 9);
+  jet(p.x - dir.x * 3.4 - ux * .7, p.y - dir.y * 3.4 - uy * .7, p.z - dir.z * 3.4 - uz * .7, -ux, -uy, -uz, 4, 6);
 }
 // Gas piston plate under the missile: thrown out with it, then it drops off and tumbles back into the silo.
 const plate = new THR.Mesh(new THR.CylinderGeometry(.5, .6, .22, 16).rotateX(Math.PI / 2), new THR.MeshLambertMaterial({ color: 0x3b4046 }));
