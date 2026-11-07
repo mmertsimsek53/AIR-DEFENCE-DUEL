@@ -229,11 +229,11 @@ function newRound() {
 // at the top); then the gas piston plate drops off its tail (plate), and the main motor lights with the missile flat (mot). Before the turn,
 // right after it leaves the shaft, the four holder segments that kept it steady in the shaft are blown off one after another (segs). It speeds
 // away almost level, climbing gently; control after dur seconds.
-const coldLaunch = () => ({ t: 0, ign: 1.2, exit: 1.7, segs: [1.95, 2.07, 2.19, 2.31], rcs: 2.75, plate: 3.57, mot: 3.65, dur: 8.0, peak: 60, alt0: SILO_DEPTH, sp1: N.attStart, vertical: true });
-// RCS turn from straight up to flat, like a heavy body: a short hard kick (first burst) spins it up, it coasts while the air slowly
-// eats its spin, a firm counter-kick from the other side (second burst) brakes it a touch past flat, and it wobbles back and settles.
+const coldLaunch = () => ({ t: 0, ign: 1.2, exit: 1.7, segs: [1.95, 2.07, 2.19, 2.31], rcs: 2.45, plate: 4.3, mot: 4.4, dur: 8.8, peak: 75, alt0: SILO_DEPTH, sp1: N.attStart, vertical: true });
+// RCS turn from straight up to flat, like a heavy body: a long steady push (first burst) slowly spins it up, it coasts while the air slowly
+// eats its spin, a long counter-push from the other side (second burst) brakes it a little past flat, and it sways slowly back and settles.
 // RCS_T: [start (s after rcs), which way (1 = start the turn, -1 = stop it), length (s)].
-const RCS_T = [[0, 1, .12], [.65, -1, .15]], RCS_DAMP = .9, RCS_OVER = 2 * Math.PI / 180;
+const RCS_T = [[0, 1, .35], [1.4, -1, .4]], RCS_DAMP = .35, RCS_OVER = 3 * Math.PI / 180;   // long pushes, slow turn: it is heavy
 const rcsBurst = L => { for (let k = 0; k < RCS_T.length; k++) { const u = (L.t - L.rcs - RCS_T[k][0]) / RCS_T[k][2]; if (u >= 0 && u < 1) return k; } return -1; };
 const RCS_W0 = (() => { const [, , a] = RCS_T[0], [c, , b] = RCS_T[1], e = Math.exp(-RCS_DAMP * (c - a));   // spin after the kick that lands it 2° past flat
   return (Math.PI / 2 + RCS_OVER) / (a / 2 + (1 - e) / RCS_DAMP + e * b / 2); })();
@@ -245,14 +245,14 @@ function rcsTurn(t) {                                     // angle turned from s
   if (t < c) return th1 + w0 / RCS_DAMP * (1 - e(t - a));                         // coasting, the air slowly slowing it
   const wc = w0 * e(c - a), th2 = th1 + w0 / RCS_DAMP * (1 - e(c - a));
   if (t < c + b) { const u = t - c; return th2 + wc * u - wc / b * u * u / 2; }   // counter-kick: braking hard
-  const z = 8, w = 21, u = t - c - b;                                             // a touch past flat: wobbles back and settles
+  const z = 3.5, w = 9, u = t - c - b;                                             // a touch past flat: wobbles back and settles
   return Math.PI / 2 + RCS_OVER * Math.exp(-z * u) * (Math.cos(w * u) + z / w * Math.sin(w * u));
 }
 const smoother = e => e * e * e * (e * (e * 6 - 15) + 10);
 function launchPitch(L) {                                 // nose angle above the horizon during the cold launch
   if (L.t < L.rcs) return Math.PI / 2;
   if (L.t < L.mot) return Math.PI / 2 - rcsTurn(L.t - L.rcs);   // kick, coast, counter-kick, settle
-  return .3 * Math.sin(Math.PI * clamp((L.t - L.mot) / (L.dur - L.mot), 0, 1));   // after ignition: a gentle climb, level again by the hand-over
+  return .3 * Math.sin(Math.PI * clamp((L.t - L.mot) / (L.dur - L.mot), 0, 1)) + Math.PI / 2 - rcsTurn(L.t - L.rcs);   // after ignition: a gentle climb (the last of the settling sway carries on), level again by the hand-over
 }
 function attLaunch() {
   if (!S || S.state !== 'ready') return;
