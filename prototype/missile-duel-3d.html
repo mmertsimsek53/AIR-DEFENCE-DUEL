@@ -239,10 +239,11 @@ function attLaunch() {
   S.att.launch = coldLaunch();
   if (NET && S.atk === NET.me) net({ t: 'launch' });
 }
-// Hot launch from the battery: the motor lights inside the canister (ign) and blows the cover off, the interceptor slides out faster
-// and faster along the canister (until exit, 600 m/s), climbs steeply along the canister's angle, then turns smoothly toward the
-// meeting point with the missile; control after dur seconds.
-const hotLaunch = () => ({ t: 0, hot: true, ign: .3, exit: .8, dur: 2.2, v0: 60, el: ERECT_D, sp1: N.intStart });
+// Hot launch from the battery: the motor lights inside the canister (ign) and blows the cover off; the heavy interceptor heaves itself
+// out, slowly at first (until exit, about two body lengths a second), sags a little, then speeds up harder and harder while it climbs
+// steeply along the canister's angle and turns smoothly toward the meeting point with the missile; control after dur seconds.
+const hotLaunch = () => ({ t: 0, hot: true, ign: .3, exit: 1.35, dur: 3.2, v0: 30, el: ERECT_D, sp1: N.intStart });
+const hotSag = L => -.08 * sstep(0, .25, L.t - L.exit) * (1 - sstep(.3, .8, L.t - L.exit));   // nose dips as it leaves the canister, before the thrust wins
 function defFire() {
   if (!S || S.state !== 'fly') return;
   if (!S.used) {                              // first press: launch
@@ -341,13 +342,13 @@ function leadPoint(i, m) {
   const x = m.x + vx * t, y = m.y + vy * t;
   return { x, y, alt: Math.max(groundAt({ x, y }), m.alt + vz * t), t };
 }
-// Seeker: inside 1.2 km, if the missile is roughly ahead (within 45°), the interceptor steers itself toward the meeting point.
+// Seeker: inside 1.2 km, if the missile is roughly ahead (within 55°), the interceptor steers itself toward the meeting point.
 const SEEKER = 120;
 function seeker(i, m, dt) {
   i.lock = false;
   if (i.launch || i.fuel <= 0 || !m.alive || dist3(i, m) > SEEKER) return;
   const L = leadPoint(i, m), off = angDiff(i.a, Math.atan2(L.y - i.y, L.x - i.x));
-  if (Math.abs(off) > .8) return;
+  if (Math.abs(off) > .96) return;
   i.lock = true;
   i.a += clamp(off, -1, 1) * Math.min(1, dt * 2.5);
   i.alt += clamp((L.alt - i.alt) / Math.max(L.t, .4), -PI_.climb * N.diveX, PI_.climb) * .6 * dt;
@@ -363,8 +364,8 @@ function launchFly(o, P, dt) {
     if (m && m.alive) { const Ld = leadPoint(o, m), hd = Math.hypot(Ld.x - o.x, Ld.y - o.y);
       o.a += angDiff(o.a, Math.atan2(Ld.y - o.y, Ld.x - o.x)) * Math.min(1, dt * 3.5 * w);
       L.p += (clamp(Math.atan2(Ld.alt - o.alt, hd), -.25, .6) - L.p) * Math.min(1, dt * 3.5 * w); }
-    o.cur = L.v0 + (L.sp1 - L.v0) * g;
-    const vz = Math.sin(L.p) * o.cur, vh = Math.cos(L.p) * o.cur;
+    o.cur = L.v0 + (L.sp1 - L.v0) * Math.pow(g, 1.4);                       // speeds up harder and harder
+    const pe = L.p + hotSag(L), vz = Math.sin(pe) * o.cur, vh = Math.cos(pe) * o.cur;
     o.alt += vz * dt; o.x += Math.cos(o.a) * vh * dt; o.y += Math.sin(o.a) * vh * dt; o.vr = clamp(vz / P.climb, -1, 3);
     o.fuel = Math.max(0, o.fuel - dt / P.tank);
     if (g >= 1) { o.launch = null; o.spd = L.sp1; o.vr = clamp(vz / P.climb, -1, 1); }
@@ -1016,6 +1017,9 @@ function draw(dt = 1 / 60) {
         defTruck.yaw1 = turretYaw(defTruck, i.a); }
       const lt = Li ? Li.t : 99;
       defTruck.turret.rotation.y = defTruck.yaw0 + angDiff(defTruck.yaw0, defTruck.yaw1) * sstep(0, Li && Li.hot ? .2 : .35, lt);
+      if (Li && Li.hot) { const kick = u => u > 0 ? Math.exp(-u * 4) * Math.sin(u * 22) : 0;            // the launcher rocks under the blast, and again when the weight leaves it
+        defTruck.set(ERECT_D + .05 * kick(lt - Li.ign) - .035 * kick(lt - Li.exit)); defTruck.g.position.y = -.25 * Math.abs(kick(lt - Li.ign)); }
+      else if (!Li) { defTruck.set(ERECT_D); defTruck.g.position.y = 0; }
       if (Li && lt >= (Li.hot ? Li.ign : .52) && defTruck.lids[1].visible) {                                  // the front cover of the firing canister pops off
         const lid = defTruck.lids[1]; lid.visible = false; const m2 = lid.clone(); lid.getWorldPosition(m2.position); lid.getWorldQuaternion(m2.quaternion); m2.scale.setScalar(1.3); m2.visible = true; scene.add(m2);
         tubePose(defTruck); defTruck.flying.push({ m: m2, v: _dir.clone().multiplyScalar(18).add(new V((rand() - .5) * 6, 4, (rand() - .5) * 6)), t: 0 });
@@ -1025,18 +1029,20 @@ function draw(dt = 1 / 60) {
         _p.copy(_mouth).addScaledVector(_dir, d); intMesh.position.copy(_p); intMesh.lookAt(_t.copy(_p).add(_dir)); lastInt.copy(_p);
         i.x = _p.x / K + W / 2; i.y = _p.z / K + H / 2; i.alt = _p.y / K; i.a = Math.atan2(_dir.z, _dir.x); Li.el = Li.p = Math.asin(clamp(_dir.y, -1, 1));
         bubble.visible = bubbleRing.visible = false; setLit(intMesh, lt >= Li.ign);
-        if (lt >= Li.ign) { if (!Li.fx) { Li.fx = true; canisterBlast(_mouth, _dir); } canisterJet(_mouth, _dir, 1 - sstep(Li.ign, Li.exit + .3, lt) * .5); flicker(intMesh, 1.2); } }
+        if (lt >= Li.ign) { if (!Li.fx) { Li.fx = true; canisterBlast(_mouth, _dir); } canisterJet(_mouth, _dir, 1 - sstep(Li.ign, Li.exit + .3, lt) * .5); flicker(intMesh, 1.2); shake = Math.max(shake, .35); } }
       else if (Li && lt < Li.ign) { tubePose(defTruck); intMesh.position.copy(_mouth); intMesh.lookAt(_t.copy(_mouth).add(_dir)); lastInt.copy(_mouth); setLit(intMesh, false); bubble.visible = bubbleRing.visible = false;
         i.x = _mouth.x / K + W / 2; i.y = _mouth.z / K + H / 2; i.alt = Li.alt0 = _mouth.y / K;          // the climb-out starts from the canister mouth
         i.a = Math.atan2(_dir.z, _dir.x); }
       else { to3(i.x, i.y, i.alt, _p);
         if (Li && !Li.fx) { Li.fx = true; ignition(lastInt, _dir, 1); }
         if (Li && Li.hot && lt < Li.exit + .4) canisterJet(_mouth, _dir, .5);                // the back blast dies away as it leaves
-        if (Li && Li.hot) smokeColumn(lastInt, _p);
+        if (Li && Li.hot) { smokeColumn(lastInt, _p); const slow = 1 - clamp((i.cur - 30) / 40, 0, 1);   // still slow: smoke piles up thick round it
+          for (let k = 0; k < 4 * slow; k++) { const c = .82 + rand() * .1; emit(SMOKE, _p.x + (rand() - .5) * 3, _p.y - 3 + (rand() - .5) * 2, _p.z + (rand() - .5) * 3, (rand() - .5) * 6 + WIND.x, -2 + rand() * 3, (rand() - .5) * 6 + WIND.z, 5 + rand() * 4, 4, 15, c, c, c, .7, .9, -.1); }
+          shake = Math.max(shake, .25 + .45 * sstep(Li.exit, Li.dur, lt)); }
         setLit(intMesh, i.fuel > 0);
         if (i.fuel > 0) { const hot = Li ? 1 - sstep(0, 1, Li.t - Li.ign) * .7 : 0; trail(lastInt, _p, false, hot); flicker(intMesh, Math.max(hot, (i.cur - N.intMin) / (N.intMax - N.intMin) * .5)); }
         intMesh.position.copy(_p);
-        if (Li && Li.hot) intMesh.lookAt(_t.set(_p.x + Math.cos(i.a) * Math.cos(Li.p), _p.y + Math.sin(Li.p), _p.z + Math.sin(i.a) * Math.cos(Li.p)));   // nose follows the climb and turn
+        if (Li && Li.hot) { const pe = Li.p + hotSag(Li); intMesh.lookAt(_t.set(_p.x + Math.cos(i.a) * Math.cos(pe), _p.y + Math.sin(pe), _p.z + Math.sin(i.a) * Math.cos(pe))); }   // nose follows the sag, climb and turn
         else { _t.copy(_p).sub(lastInt); if (_t.lengthSq() > 1e-6) intMesh.lookAt(_t.add(_p)); }
         intMesh.rotateZ(i.yr * .9);
         bubble.position.copy(_p); bubbleRing.position.copy(_p); lastInt.copy(_p); } }
@@ -1075,7 +1081,7 @@ function draw(dt = 1 / 60) {
       _c.copy(intMesh.position).add(_m.set(-ca * 40 + sa * 10, 9, -sa * 40 - ca * 10));
       _p.lerp(_c, w); _t.lerp(intMesh.position, w);
       _p.lerp(_q1, n); _t.lerp(_q2, n);
-      k = Math.min(1, dt * 5); }
+      k = Math.min(1, dt * (t < L.exit ? 5 : 1.6 + 2.4 * n)); }                                // after the exit the camera falls behind: it pulls away from you
     else if (flying && (S.state === 'ready' || flying.launch)) {          // launch: watch from beside the launcher, then follow the climb-out
       const cx = Math.cos(flying.a), cz = Math.sin(flying.a), mesh = flying === m ? attMesh : intMesh, f = flying.launch ? sstep(flying.launch.ign, flying.launch.dur, flying.launch.t) : 0;
       _c.copy(mesh.position); _c.y = Math.max(_c.y, 2); _p.set(_c.x - cz * 32 - cx * (10 + 14 * f), _c.y + (flying === m ? 11 : 14) + 4 * f, _c.z + cx * 32 - cz * (10 + 14 * f)); _t.set(_c.x + cx * 6, _c.y + 2, _c.z + cz * 6);   // a bit higher at the city, above its trees
