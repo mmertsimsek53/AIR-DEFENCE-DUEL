@@ -228,7 +228,7 @@ function newRound() {
 // to the top of its arc (about 400 m). On the way up, RCS bursts turn it from straight up to flat, pointing at the target (rcs →, done
 // at the top); then the gas piston plate drops off its tail (plate), and the main motor lights with the missile flat (mot). It speeds
 // away almost level, climbing gently; control after dur seconds.
-const coldLaunch = () => ({ t: 0, ign: 1.2, exit: 1.7, rcs: 2.3, plate: 3.35, mot: 3.5, dur: 7.6, peak: 40, alt0: SILO_DEPTH, sp1: N.attStart, vertical: true });
+const coldLaunch = () => ({ t: 0, ign: 1.2, exit: 1.7, rcs: 2.3, plate: 3.12, mot: 3.2, dur: 7.6, peak: 40, alt0: SILO_DEPTH, sp1: N.attStart, vertical: true });
 // RCS turn from straight up to flat, like a heavy body: a short hard kick (first burst) spins it up, it coasts while the air slowly
 // eats its spin, a firm counter-kick from the other side (second burst) brakes it a touch past flat, and it wobbles back and settles.
 // RCS_T: [start (s after rcs), which way (1 = start the turn, -1 = stop it), length (s)].
