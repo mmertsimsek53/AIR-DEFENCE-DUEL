@@ -117,13 +117,13 @@
 // ---- Numbers (map units: the map is 1600 × 560; heights in the same units; 1 unit ≈ 10 m on the readouts) ----
 const W = 1600, H = 560;
 const N = {
-  attMin: 29, attMax: 58, attStart: 45, attBoost: 90, attAcc: 26, attTurn: 180, attClimb: 10, attTank: 60, attAlt: 100,
+  attMin: 35, attMax: 71, attStart: 55, attBoost: 110, attAcc: 32, attTurn: 180, attClimb: 10, attTank: 60, attAlt: 100,
   intMin: 55, intMax: 90, intStart: 80, intAcc: 38, intTurn: 180, intClimb: 16, intTank: 14,
   // Fuel: a full tank lasts attTank / intTank seconds of calm cruising. FAST burns up to 1.5×, turning or climbing adds up to +0.5×, boost burns 4×.
   // Empty tank: no more control — it coasts on its last heading, slows down and sinks.
   turnEase: 2.2, climbEase: 1.6, diveX: 1.8,   // how fast turning / climbing builds up and dies away (per second): it flies, it doesn't drive
   turnDrag: 14, stall: 20,   // a full hard turn bleeds 140 m/s each second (gentle turns far less); below 200 m/s (stall) it starts to sink
-  altMax: 300, blast: 28, contact: 8, radar: 800,
+  altMax: 300, blast: 28, contact: 8, radar: 1100,
 };
 const PA = { min: N.attMin, max: N.attMax, ref: N.attStart, acc: N.attAcc, turn: N.attTurn, climb: N.attClimb, tank: N.attTank };
 const PI_ = { min: N.intMin, max: N.intMax, ref: N.intStart, acc: N.intAcc, turn: N.intTurn, climb: N.intClimb, tank: N.intTank };
@@ -213,11 +213,20 @@ function newRound() {
   };
   refreshModes();
 }
-// Launch: tube rises (until ign), the motor lights, then a steep climb-out that levels off at cruise height; control after dur seconds.
+// Cold launch from the silo: doors open (until ign), a gas charge throws the missile straight up out of the shaft with no flame
+// (ign → hang), it hangs at the top while small RCS jets tip the nose toward the target (hang → mot), then the main motor
+// lights and it speeds away, climbing and slowly levelling off; control after dur seconds.
+const coldLaunch = () => ({ t: 0, ign: 1.2, hang: 2.0, mot: 2.7, dur: 7, peak: 7, tilt: 80 * Math.PI / 180, alt0: SILO_DEPTH, sp1: N.attStart, vertical: true });
+const smoother = e => e * e * e * (e * (e * 6 - 15) + 10);
+function launchPitch(L) {                                 // nose angle above the horizon during the cold launch
+  if (L.t < L.hang) return Math.PI / 2;
+  if (L.t < L.mot) return Math.PI / 2 + (L.tilt - Math.PI / 2) * smoother(clamp((L.t - L.hang) / (L.mot - L.hang), 0, 1));
+  return L.tilt * (1 - smoother(clamp(((L.t - L.mot) / (L.dur - L.mot) - .35) / .65, 0, 1)));
+}
 function attLaunch() {
   if (!S || S.state !== 'ready') return;
   S.state = 'fly';
-  S.att.launch = { t: 0, ign: 2.4, dur: 9, alt0: S.att.alt, alt1: N.attAlt, sp1: N.attStart, vertical: true };
+  S.att.launch = coldLaunch();
   if (NET && S.atk === NET.me) net({ t: 'launch' });
 }
 function defFire() {
@@ -309,13 +318,15 @@ function launchFly(o, P, dt) {
   const L = o.launch; L.t += dt;
   if (L.t < L.ign) { o.cur = 0; o.vr = 0; return; }      // still in the tube
   const f = clamp((L.t - L.ign) / (L.dur - L.ign), 0, 1);
-  if (L.vertical) {                                     // straight up, then one smooth pitch-over to level flight; the nose follows the path
-    const e = clamp((f - .1) / .85, 0, 1), pitch = Math.PI / 2 * (1 - e * e * e * (e * (e * 6 - 15) + 10));
-    o.cur = L.sp1 * Math.min(1, .25 + f * 1.1);
-    const vz = Math.sin(pitch) * o.cur, vh = Math.cos(pitch) * o.cur;
+  if (L.vertical) {                                     // cold launch (see coldLaunch)
+    if (L.t < L.hang) { const g = (L.t - L.ign) / (L.hang - L.ign); o.alt = L.alt0 + (L.peak - L.alt0) * (1 - (1 - g) * (1 - g)); o.cur = 0; o.vr = 0; return; }   // thrown up, slowing near the top
+    if (L.t < L.mot) { const s = L.t - L.hang; o.alt = L.peak - 1.6 * s * s; o.cur = 0; o.vr = 0; return; }    // hangs and starts to drop back
+    const g = (L.t - L.mot) / (L.dur - L.mot), pitch = launchPitch(L);                  // motor: slow at first, faster and faster
+    o.cur = L.sp1 * Math.min(1, .04 + .2 * g + 1.5 * g * g);
+    const vz = Math.sin(pitch) * o.cur - 3 * Math.max(0, 1 - (L.t - L.mot) / .5), vh = Math.cos(pitch) * o.cur;   // a small dip as the motor catches
     o.alt += vz * dt; o.x += Math.cos(o.a) * vh * dt; o.y += Math.sin(o.a) * vh * dt; o.vr = clamp(vz / P.climb, -1, 3);
     o.fuel = Math.max(0, o.fuel - dt / P.tank);
-    if (f >= 1) { o.launch = null; o.spd = L.sp1; o.vr = 0; }
+    if (g >= 1) { o.launch = null; o.spd = L.sp1; o.vr = 0; }
     return;
   }
   const alt = L.alt0 + (L.alt1 - L.alt0) * (1 - (1 - f) * (1 - f));
@@ -385,7 +396,7 @@ function follow(o, r, dt, attacker) {
   const k = Math.min(1, dt * 12);
   o.x += (r.x - o.x) * k; o.y += (r.y - o.y) * k; o.alt += (r.alt - o.alt) * k; o.a += angDiff(o.a, r.a) * k;
   o.cur = r.cur; o.vr = r.vr; o.yr = r.yr; o.fuel = r.fuel; if (attacker) o.boosting = r.boost;
-  if (r.lt >= 0) { o.launch = o.launch || (attacker ? { ign: 2.4, dur: 9, vertical: true } : { ign: .6, dur: 1.6 }); o.launch.t = r.lt; if (r.lt < o.launch.ign) { o.x = r.x; o.y = r.y; o.alt = r.alt; } }
+  if (r.lt >= 0) { o.launch = o.launch || (attacker ? coldLaunch() : { ign: .6, dur: 1.6 }); o.launch.t = r.lt; if (r.lt < o.launch.ign) { o.x = r.x; o.y = r.y; o.alt = r.alt; } }
   else o.launch = null;
 }
 setInterval(() => {                                      // stream my own craft
@@ -408,7 +419,7 @@ function onNet(msg) {
     G.hp = msg.hp; G.turn = msg.atk; NET.remote = null; NET.waiting = false; dim.classList.add('hidden'); newRound(); G.round = msg.n;
   }
   else if (msg.t === 's') NET.remote = msg.o;
-  else if (msg.t === 'launch') { if (S && S.state === 'ready') { S.state = 'fly'; S.att.launch = { t: 0, ign: 2.4, dur: 9, vertical: true }; } }
+  else if (msg.t === 'launch') { if (S && S.state === 'ready') { S.state = 'fly'; S.att.launch = coldLaunch(); } }
   else if (msg.t === 'ilaunch') { if (S && !S.int) { const b = SIDES[S.def].bat; S.used = true;
     S.int = { x: b.x, y: b.y, alt: 16, a: msg.a, spd: N.intStart, cur: 0, yr: 0, vr: 0, fuel: 1, prevD: 1e9, launch: { t: 0, ign: .6, dur: 1.6, alt0: 16 } }; } }
   else if (msg.t === 'det') { if (S && S.int) { S.blasts.push({ x: msg.x, y: msg.y, alt: msg.alt, r: N.blast, t: 0, c: '10,132,255' }); S.int = null; } }
@@ -599,6 +610,7 @@ const _mouth = new V(), _dir = new V();
 function alignMouth(tr, o) {                           // slide the truck so the raised tube's mouth sits where the missile starts
   tr.set(ERECT); tubePose(tr); to3(o.x, o.y, o.alt, _c); tr.g.position.x += _c.x - _mouth.x; tr.g.position.z += _c.z - _mouth.z;
 }
+const turretYaw = (tr, a) => angDiff(0, Math.atan2(Math.cos(a), Math.sin(a)) - tr.g.rotation.y);   // turret angle (relative to the vehicle) for map heading a
 function tubePose(tr) { const L = tr.mouthL || _c.set(0, 0, 4.5); tr.pivot.updateWorldMatrix(true, false); const ml = L.clone(); tr.pivot.localToWorld(_mouth.copy(ml)); tr.pivot.localToWorld(_dir.copy(ml).setZ(ml.z + 5)).sub(_mouth).normalize(); }
 
 // The defended city: a compact block of Turkish apartments and a few towers, on a concrete disc.
@@ -796,6 +808,26 @@ function siloIgnition(p) {
   for (let k = 0; k < 140; k++) { const a = rand() * TAU, up = rand() < .45, sp = up ? 3 + rand() * 6 : 8 + rand() * 16, c = .7 + rand() * .2;
     emit(SMOKE, p.x + Math.cos(a) * 3, up ? 2 + rand() * 6 : 1, p.z + Math.sin(a) * 3, Math.cos(a) * sp, up ? 10 + rand() * 14 : rand() * 2, Math.sin(a) * sp, 6 + rand() * 5, 3, up ? 14 : 18, c, c * .97, c * .92, .8, up ? .5 : .9, -.3); }
 }
+// Cold launch effects. Gas charge: a white cloud bursts up out of the shaft and rolls over the apron (no fire).
+function gasEject(p) {
+  shake = Math.max(shake, .9);
+  for (let k = 0; k < 110; k++) { const a = rand() * TAU, up = rand() < .5, sp = up ? 2 + rand() * 4 : 6 + rand() * 12, c = .9 + rand() * .07;
+    emit(SMOKE, p.x + Math.cos(a) * 2.5, up ? 1 + rand() * 4 : .8, p.z + Math.sin(a) * 2.5, Math.cos(a) * sp + WIND.x, up ? 12 + rand() * 12 : rand() * 1.5, Math.sin(a) * sp + WIND.z, 3 + rand() * 3, 2.5, up ? 11 : 14, c, c, c * 1.01, .75, up ? .8 : 1.1, -.2); }
+}
+// RCS: a short white jet out of the side of the nose (sd = which side), pushing it over.
+function rcsPuff(p, dir, a, sd) {
+  const nx = p.x + dir.x * 1.6, ny = p.y + dir.y * 1.6, nz = p.z + dir.z * 1.6, px = -Math.sin(a) * sd, pz = Math.cos(a) * sd;
+  for (let k = 0; k < 3; k++) { const sp = 7 + rand() * 5;
+    emit(SMOKE, nx, ny, nz, px * sp + (rand() - .5), (rand() - .5) * 2 + 1.5, pz * sp + (rand() - .5), .35 + rand() * .25, .25, 1.4, .97, .97, .98, .8, 2.5, 0); }
+  for (let k = 0; k < 2; k++) { const sp = 5 + rand() * 4; emit(SMOKE, nx - dir.x * .4, ny, nz - dir.z * .4, -dir.x * sp * .6 - px * 2, 2, -dir.z * sp * .6 - pz * 2, .3, .2, 1, .97, .97, .98, .7, 2.5, 0); }
+}
+// Main motor lights above the silo: flash, a jet of fire, and the exhaust hits the ground, throwing up dust and smoke.
+function motorStart(p, dir, ground) {
+  ignition(p, dir, 1.3); silo.scorch.material.opacity = .55; flash(_a.set(ground.x, 3, ground.z), 6); shake = Math.max(shake, 1.7);
+  for (let k = 0; k < 120; k++) { const a = rand() * TAU, sp = 9 + rand() * 18, c = .55 + rand() * .2;
+    emit(SMOKE, ground.x + Math.cos(a) * 3, .8 + rand() * 1.5, ground.z + Math.sin(a) * 3, Math.cos(a) * sp, rand() * 3, Math.sin(a) * sp, 6 + rand() * 5, 3, 18, c, c * .93, c * .85, .8, .9, -.3); }
+  for (let k = 0; k < 30; k++) emit(GLOW, ground.x + (rand() - .5) * 5, 1 + rand() * 2, ground.z + (rand() - .5) * 5, (rand() - .5) * 14, 3 + rand() * 6, (rand() - .5) * 14, .4 + rand() * .4, 4, 2, 1, .62, .28, 1, 1.5, 0);
+}
 function setLit(g, on) { const u = g.userData; u.flame.visible = u.core.visible = u.glow.visible = on; if (!on) u.light.intensity = 0; }
 function burnNear(p, r) {
   for (const b of buildings) { if (b.dead || Math.hypot(b.x - p.x, b.z - p.z) > r) continue;
@@ -833,7 +865,9 @@ function draw(dt = 1 / 60) {
   if (S && seenRound !== S) { seenRound = S; if (G.round === 1) healCity(); hadInt = false; to3(S.att.x, S.att.y, S.att.alt, lastAtt);
     silo = silos[S.atk]; defTruck = bats[S.def]; to3(city.x, city.y, 0, CITY3);
     for (const o of silos) { o.set(0, false, 0); o.scorch.material.opacity = 0; }
-    for (const b of bats) { b.reset(); for (const f of b.flying) scene.remove(f.m); b.flying = []; } }
+    for (const b of bats) { b.reset(); for (const f of b.flying) scene.remove(f.m); b.flying = []; }
+    const sl = SIDES[S.atk].silo, bp = SIDES[S.def].bat;              // the defending launcher stands ready all round: pack raised, turret toward the enemy silo
+    defTruck.set(ERECT_D); defTruck.turret.rotation.y = turretYaw(defTruck, Math.atan2(sl.y - bp.y, sl.x - bp.x)); }
   if (S) {
     // blasts the rules just created → fireballs
     for (const b of S.blasts) if (!b.fx) { b.fx = true;
@@ -842,30 +876,40 @@ function draw(dt = 1 / 60) {
       else { explode(to3(b.x, b.y, b.alt || 0, _p).clone(), b.r > 30 ? 2.8 : 2.2, !!b.ground); shake = Math.max(shake, b.ground ? 1.8 : 1.2); } }
     // radar fog hides the missile from the defender only (when you fly it, you always see it)
     const m = S.att, hide = fog && side !== 'a' && S.state === 'fly' && !inRadar();
-    const La = m.launch, inTube = S.state === 'ready' || (La && La.t < La.ign);
+    const La = m.launch, inTube = S.state === 'ready' || (La && La.t < La.ign), cold = !!La && !!La.mot && La.t >= La.ign && La.t < La.mot;
     const lt = La ? La.t : S.state === 'ready' ? 0 : 99;
-    silo.set(sstep(.2, 1.8, lt), !!La && lt < La.ign + 1.5, lt);
-    if (La && lt > 1.9 && lt < La.ign) for (let k = 0; k < 3; k++) {                    // venting before ignition: white vapour curls out of the shaft
+    silo.set(sstep(.1, 1.1, lt), !!La && lt < (La.mot || La.ign) + 1.5, lt);
+    if (La && lt > .7 && lt < La.ign) for (let k = 0; k < 3; k++) {                     // doors open: white vapour curls out of the shaft
       const a = rand() * TAU; emit(SMOKE, silo.g.position.x + Math.cos(a) * 2, .8, silo.g.position.z + Math.sin(a) * 2, Math.cos(a) * 3 + WIND.x, 3 + rand() * 3, Math.sin(a) * 3 + WIND.z, 3 + rand() * 2, 2, 9, .92, .92, .94, .45, .6, -.4); }
     attMesh.visible = m.alive && !hide;
     if (inTube) { to3(m.x, m.y, m.alt, _p); attMesh.position.copy(_p); attMesh.lookAt(_t.copy(_p).setY(_p.y + 10)); lastAtt.copy(_p); setLit(attMesh, false); _dir.set(0, 1, 0); }
+    else if (cold) {                                                // thrown out by gas, then hanging while the RCS jets tip it over: no flame yet
+      to3(m.x, m.y, m.alt, _p); const pt = launchPitch(La), ca = Math.cos(m.a), sa = Math.sin(m.a);
+      _dir.set(ca * Math.cos(pt), Math.sin(pt), sa * Math.cos(pt));
+      if (!La.gx) { La.gx = true; gasEject(silo.g.position); }
+      if (lt >= La.hang - .1 && rand() < .55) rcsPuff(_p, _dir, m.a, Math.floor(lt * 7) % 2 ? 1 : -1);
+      attMesh.position.copy(_p); attMesh.lookAt(_t.copy(_p).add(_dir)); setLit(attMesh, false); lastAtt.copy(_p);
+    }
     else {
       to3(m.x, m.y, m.alt, _p);
-      if (La && !La.fx) { La.fx = true; siloIgnition(silo.g.position); }
-      const hot = La ? 1 - sstep(0, 1.6, La.t - La.ign) * .7 : 0;      // the first seconds of the climb-out burn hardest
+      if (La && La.mot && !La.fx) { La.fx = true; const pt = launchPitch(La); _dir.set(Math.cos(m.a) * Math.cos(pt), Math.sin(pt), Math.sin(m.a) * Math.cos(pt)); motorStart(_p, _dir, silo.g.position); }
+      else if (La && !La.fx) { La.fx = true; siloIgnition(silo.g.position); }
+      const hot = La ? 1 - sstep(0, 1.6, La.t - (La.mot || La.ign)) * .7 : 0;      // the first seconds of the climb-out burn hardest
       if (attMesh.visible) { setLit(attMesh, m.fuel > 0);
         if (m.fuel > 0) { trail(lastAtt, _p, true, Math.max(hot, m.boosting ? 1 : 0)); flicker(attMesh, Math.max(hot, m.boosting ? 1 : (m.cur - N.attMin) / (N.attMax - N.attMin) * .4)); }
-        attMesh.position.copy(_p); _t.copy(_p).sub(lastAtt); if (_t.lengthSq() > 1e-6) attMesh.lookAt(_t.add(_p)); attMesh.rotateZ(m.yr * .9); }   // banks into turns
+        attMesh.position.copy(_p);
+        if (La && La.mot) { const pt = launchPitch(La); attMesh.lookAt(_t.set(_p.x + Math.cos(m.a) * Math.cos(pt), _p.y + Math.sin(pt), _p.z + Math.sin(m.a) * Math.cos(pt))); }   // climb-out: nose follows the planned pitch
+        else { _t.copy(_p).sub(lastAtt); if (_t.lengthSq() > 1e-6) attMesh.lookAt(_t.add(_p)); }
+        attMesh.rotateZ(m.yr * .9); }   // banks into turns
       lastAtt.copy(_p);
     }
     const i = S.int;
     intMesh.visible = !!i; bubble.visible = bubbleRing.visible = !!i && side !== 'd';   // flying it yourself, the IN RANGE marker replaces the bubble
     if (i) { const Li = i.launch;
       if (!hadInt) { hadInt = true; defTruck.yaw0 = defTruck.turret.rotation.y;      // turret slews toward the target (battery faces west, turret turns relative to it)
-        defTruck.yaw1 = angDiff(0, Math.atan2(Math.cos(i.a), Math.sin(i.a)) - defTruck.g.rotation.y); }
+        defTruck.yaw1 = turretYaw(defTruck, i.a); }
       const lt = Li ? Li.t : 99;
       defTruck.turret.rotation.y = defTruck.yaw0 + angDiff(defTruck.yaw0, defTruck.yaw1) * sstep(0, .35, lt);
-      defTruck.set(ERECT_D * sstep(.08, .5, lt));
       if (Li && lt >= .52 && defTruck.lids[1].visible) {                                  // the front cover of the firing canister pops off
         const lid = defTruck.lids[1]; lid.visible = false; const m2 = lid.clone(); lid.getWorldPosition(m2.position); lid.getWorldQuaternion(m2.quaternion); m2.scale.setScalar(1.3); m2.visible = true; scene.add(m2);
         tubePose(defTruck); defTruck.flying.push({ m: m2, v: _dir.clone().multiplyScalar(18).add(new V((rand() - .5) * 6, 4, (rand() - .5) * 6)), t: 0 });
@@ -879,6 +923,8 @@ function draw(dt = 1 / 60) {
         if (i.fuel > 0) { const hot = Li ? 1 - sstep(0, 1, Li.t - Li.ign) * .7 : 0; trail(lastInt, _p, false, hot); flicker(intMesh, Math.max(hot, (i.cur - N.intMin) / (N.intMax - N.intMin) * .5)); }
         intMesh.position.copy(_p); _t.copy(_p).sub(lastInt); if (_t.lengthSq() > 1e-6) intMesh.lookAt(_t.add(_p)); intMesh.rotateZ(i.yr * .9);
         bubble.position.copy(_p); bubbleRing.position.copy(_p); lastInt.copy(_p); } }
+    if (!i && inRadar() && S.state === 'fly') {          // radar contact: the raised launcher follows the incoming missile
+      const B = SIDES[S.def].bat, tr = defTruck.turret; tr.rotation.y += angDiff(tr.rotation.y, turretYaw(defTruck, Math.atan2(m.y - B.y, m.x - B.x))) * Math.min(1, dt * 2); }
     for (const f of fires) if (rand() < .6) { emit(GLOW, f.x + (rand() - .5) * 3, f.y + 1, f.z + (rand() - .5) * 3, 0, 3, 0, .5, 2.5, .5, 1, .5, .15, .9, 0, -2); emit(SMOKE, f.x, f.y + 2, f.z, (rand() - .5) + WIND.x, 4 + rand() * 2, (rand() - .5) + WIND.z, 7, 2, 16, .13, .13, .14, .6, .1, -.5); }
 
     // camera: overview framing the city and what the defender can see …
@@ -1017,7 +1063,7 @@ function hudMarks(side, hide) {
   readout.classList.toggle('hidden', !((fly || S.state === 'ready') && side));
   if (S.state === 'ready' && side === 'a') { readout.textContent = 'In the silo — tap LAUNCH'; return; }
   if (fly && side) {
-    if (mine && mine.launch) readout.innerHTML = mine.launch.t < mine.launch.ign ? 'Launching…' : `Climbing out &nbsp; <b>ALT</b>${Math.round(mine.alt * 10)} m`;
+    if (mine && mine.launch) readout.innerHTML = mine.launch.t < mine.launch.ign ? (mine.launch.mot ? 'Doors opening…' : 'Launching…') : mine.launch.mot && mine.launch.t < mine.launch.hang ? 'Ejected' : mine.launch.mot && mine.launch.t < mine.launch.mot ? 'RCS — turning to target' : `Climbing out &nbsp; <b>ALT</b>${Math.round(mine.alt * 10)} m`;
     else if (mine) readout.innerHTML = `<b>SPD</b>${Math.round(mine.cur * 10)} m/s &nbsp; <b>ALT</b>${Math.round(mine.alt * 10)} m &nbsp; <b>FUEL</b>` + (mine.fuel > 0 ? Math.ceil(mine.fuel * 100) + '%' : '<span class="pull">EMPTY</span>') + (side === 'a' && m.boosting ? ' &nbsp;<span class="boost">BOOST</span>' : '')
       + (nearEdge(mine) ? ' &nbsp;<span class="pull">EDGE — TURN BACK</span>' : '')
       + (mine.alt < 12 && mine.vr < -.05 && !(side === 'a' && Math.hypot(m.x - city.x, m.y - city.y) < 60) ? ' &nbsp;<span class="pull">PULL UP</span>' : '');
@@ -1066,17 +1112,23 @@ function hud() {
   }
 }
 const dim = document.getElementById('dim');
+let autoNext = 0;                                        // time (ms) when "Next round" presses itself; 0 = off
 function card(title, msg, btn, menu) {
   document.getElementById('title').textContent = title; document.getElementById('msg').textContent = msg;
-  document.getElementById('go').textContent = btn; document.getElementById('onlineMenu').classList.toggle('hidden', !menu);
+  document.getElementById('go').textContent = btn; autoNext = btn === 'Next round' ? performance.now() + 4000 : 0; document.getElementById('onlineMenu').classList.toggle('hidden', !menu);
   dim.classList.remove('hidden');
 }
 function nextRound() {                                    // sides take turns; after a finished war, start a new one
   if (G.over != null) newGame(); else if (S) G.turn = 1 - G.turn;
   dim.classList.add('hidden'); newRound();
 }
+setInterval(() => {                                      // count down on the button, then go
+  if (!autoNext) return; const left = Math.ceil((autoNext - performance.now()) / 1000), go = document.getElementById('go');
+  if (dim.classList.contains('hidden')) { autoNext = 0; return; }
+  if (left <= 0) { autoNext = 0; go.click(); } else go.textContent = 'Next round (' + left + ')';
+}, 200);
 document.getElementById('go').onclick = () => {
-  const label = document.getElementById('go').textContent;
+  const label = document.getElementById('go').textContent.replace(/ \(\d\)$/, ''); autoNext = 0;
   if (NET && label === 'Next round') { NET.waiting = true; net({ t: 'ready' }); card('Waiting…', `Waiting for ${NET.names[1 - NET.me]} to be ready.`, 'Leave game'); return; }
   if (NET) { NET.done = true; NET.ws.close(); NET = null; }                     // Cancel / Leave game
   if (['Back', 'Back to menu', 'Cancel', 'Leave game'].includes(label)) { newGame(); card('Missile Duel', MENU_TEXT, 'Play vs computer', true); return; }

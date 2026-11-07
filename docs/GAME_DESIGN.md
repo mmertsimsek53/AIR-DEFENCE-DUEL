@@ -181,7 +181,9 @@ Status: first outline from Mert, 9 Oct 2026. Everything below "Open questions" i
 
 ## Missile duel (prototype, decided Nov 2026)
 - Two bases 12 km apart, each with 6 targets (Command HQ, Radar station, Power plant, Fuel depot, Treasury, Oil field) 600 m apart, a silo and a defence battery. Silos and batteries can't be damaged.
-- Turns alternate: the attacker launches one missile from its silo and flies it (steer, climb/dive, faster/slower, boost; fuel runs out = no control, it coasts down); the defender launches one interceptor after radar contact (8 km) and detonates it near the missile (blast reach 280 m).
+- Turns alternate: the attacker launches one missile from its silo and flies it (steer, climb/dive, faster/slower, boost; fuel runs out = no control, it coasts down); the defender launches one interceptor after radar contact (11 km) and detonates it near the missile (blast reach 280 m). The defence launcher stands raised all round.
+- Cold launch from the silo: doors open, gas throws the missile up out of the shaft, small RCS jets tip it toward the target, then the main motor lights; control after 7 s. Cruise 550 m/s (350–710, boost 1100).
+- After each result the next round starts by itself after 4 s (tap to go sooner).
 - Damage from the missile's ground impact: 100 within 50 m, falling to 0 at 400 m. Destroy all 6 enemy targets to win.
 - Online: one phone per side via the game server (server/), which pairs players (optional invite code) and decides impacts and interceptions. Also vs computer.
 - Numbers: prototype/missile-duel-3d.html (N, SIDES) and server/src/duel.ts.
