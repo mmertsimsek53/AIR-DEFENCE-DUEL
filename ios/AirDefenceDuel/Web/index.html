@@ -27,6 +27,7 @@
     background: rgba(255,255,255,.12); border: 2px solid rgba(255,255,255,.28); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
   #stick::before, #stick::after { content: ''; position: absolute; background: rgba(255,255,255,.18); }
   #stick::before { left: 50%; top: 14px; bottom: 14px; width: 2px; margin-left: -1px; } #stick::after { top: 50%; left: 14px; right: 14px; height: 2px; margin-top: -1px; }
+  #viewBtn { position: absolute; left: max(22px, env(safe-area-inset-left)); bottom: 262px; height: 32px; padding: 0 12px; font-size: 11px; letter-spacing: .05em; border-radius: 10px; }
   #camBtn { position: absolute; left: max(22px, env(safe-area-inset-left)); bottom: 214px; height: 36px; padding: 0 14px; font-size: 12px; letter-spacing: .05em; border-radius: 12px; }
   #invBtn { position: absolute; left: calc(max(22px, env(safe-area-inset-left)) + 112px); bottom: 214px; height: 36px; padding: 0 12px; font-size: 12px; letter-spacing: .05em; border-radius: 12px; }
   #invBtn.on { background: rgba(255,159,10,.5); }
@@ -94,6 +95,7 @@
 <canvas id="hud" class="hidden"></canvas>
 <div id="stick" class="hidden"><div class="knob"></div></div>
 <button class="btn hidden" id="camBtn">COCKPIT</button>
+<button class="btn hidden" id="viewBtn">RESET VIEW</button>
 <button class="btn hidden" id="invBtn">▲ CLIMB</button>
 <button class="btn hidden" id="sensBtn">TURN: MID</button>
 <div id="blastRing" class="hidden"></div>
@@ -219,16 +221,17 @@ function newRound() {
   };
   refreshModes();
 }
-// Cold launch from the silo: doors open (until ign), a gas charge throws the missile straight up out of the shaft with no flame
-// (ign → hang), it hangs at the top while small RCS jets tip the nose toward the target (hang → mot), then the main motor
-// lights and it speeds away, climbing and slowly levelling off; control after dur seconds.
-const coldLaunch = () => ({ t: 0, ign: 1.2, hang: 2.6, mot: 3.6, dur: 7.6, peak: 20, tilt: 80 * Math.PI / 180, alt0: SILO_DEPTH, sp1: N.attStart, vertical: true });
+// Cold launch from the silo, like a real ballistic missile: doors open (until ign); a gas charge pushes the missile up the shaft,
+// faster and faster (ign → exit), and throws it out at about 500 m/s with no flame. From there nothing holds it up: it slows all the way
+// to the top of its arc (about 400 m), dropping the gas piston plate just after it leaves (plate). Near the top, three short RCS bursts
+// tip the nose toward the target (rcs →), and the main motor lights right at the top (mot); control after dur seconds.
+const coldLaunch = () => ({ t: 0, ign: 1.2, exit: 1.7, plate: 1.85, rcs: 2.45, mot: 3.2, dur: 7.6, peak: 40, tilt: 80 * Math.PI / 180, alt0: SILO_DEPTH, sp1: N.attStart, vertical: true });
 const smoother = e => e * e * e * (e * (e * 6 - 15) + 10);
-const RCS_T = [.1, .4, .7], RCS_LEN = .14;                // the three RCS bursts: start (s after the throw peaks) and length
-const rcsBurst = L => { for (const o of RCS_T) { const u = (L.t - L.hang - o) / RCS_LEN; if (u >= 0 && u < 1) return u; } return -1; };
+const RCS_T = [0, .25, .5], RCS_LEN = .14;                // the three RCS bursts: start (s after rcs) and length
+const rcsBurst = L => { for (const o of RCS_T) { const u = (L.t - L.rcs - o) / RCS_LEN; if (u >= 0 && u < 1) return u; } return -1; };
 function launchPitch(L) {                                 // nose angle above the horizon during the cold launch
-  if (L.t < L.hang) return Math.PI / 2;
-  if (L.t < L.mot) return Math.PI / 2 + (L.tilt - Math.PI / 2) * RCS_T.reduce((q, o) => q + sstep(L.hang + o, L.hang + o + .3, L.t), 0) / RCS_T.length;   // each RCS burst kicks the nose a bit further over
+  if (L.t < L.rcs) return Math.PI / 2;
+  if (L.t < L.mot) return Math.PI / 2 + (L.tilt - Math.PI / 2) * RCS_T.reduce((q, o) => q + sstep(L.rcs + o, L.rcs + o + .25, L.t), 0) / RCS_T.length;   // each RCS burst kicks the nose a bit further over
   return L.tilt * (1 - smoother(clamp(((L.t - L.mot) / (L.dur - L.mot) - .35) / .65, 0, 1)));
 }
 function attLaunch() {
@@ -353,11 +356,12 @@ function launchFly(o, P, dt) {
   if (L.t < L.ign) { o.cur = 0; o.vr = 0; return; }      // still in the tube
   const f = clamp((L.t - L.ign) / (L.dur - L.ign), 0, 1);
   if (L.vertical) {                                     // cold launch (see coldLaunch)
-    if (L.t < L.hang) { const g = (L.t - L.ign) / (L.hang - L.ign); o.alt = L.alt0 + (L.peak - L.alt0) * (1 - (1 - g) * (1 - g)); o.cur = 0; o.vr = 0; return; }   // thrown up, slowing near the top
-    if (L.t < L.mot) { const s = L.t - L.hang; o.alt = L.peak - 1.6 * s * s; o.cur = 0; o.vr = 0; return; }    // hangs and starts to drop back
+    const PW = 2.8, v0 = -L.alt0 * PW / (L.exit - L.ign);           // speed leaving the shaft (map units/s)
+    if (L.t < L.exit) { o.alt = L.alt0 * (1 - Math.pow((L.t - L.ign) / (L.exit - L.ign), PW)); o.cur = 0; o.vr = 0; return; }   // gas push up the shaft
+    if (L.t < L.mot) { const f = L.t - L.exit; o.alt = v0 * f - v0 * v0 / (4 * L.peak) * f * f; o.cur = 0; o.vr = 0; return; }   // free flight: slows all the way to the top of the arc
     const g = (L.t - L.mot) / (L.dur - L.mot), pitch = launchPitch(L);                  // motor: slow at first, faster and faster
     o.cur = L.sp1 * Math.min(1, .04 + .2 * g + 1.5 * g * g);
-    const vz = Math.sin(pitch) * o.cur - 3 * Math.max(0, 1 - (L.t - L.mot) / .5), vh = Math.cos(pitch) * o.cur;   // a small dip as the motor catches
+    const vz = Math.sin(pitch) * o.cur - 1.5 * Math.max(0, 1 - (L.t - L.mot) / .5), vh = Math.cos(pitch) * o.cur;   // a small dip as the motor catches
     o.alt += vz * dt; o.x += Math.cos(o.a) * vh * dt; o.y += Math.sin(o.a) * vh * dt; o.vr = clamp(vz / P.climb, -1, 3);
     o.fuel = Math.max(0, o.fuel - dt / P.tank);
     if (g >= 1) { o.launch = null; o.spd = L.sp1; o.vr = 0; }
@@ -953,7 +957,7 @@ function draw(dt = 1 / 60) {
       to3(m.x, m.y, m.alt, _p); const pt = launchPitch(La), ca = Math.cos(m.a), sa = Math.sin(m.a);
       _dir.set(ca * Math.cos(pt), Math.sin(pt), sa * Math.cos(pt));
       if (!La.gx) { La.gx = true; gasEject(silo.g.position); }
-      if (lt >= La.hang && !La.px) { La.px = true; dropPlate(); }                          // the gas piston plate falls away
+      if (lt >= La.plate && !La.px) { La.px = true; dropPlate(); }                          // the gas piston plate falls away
       if (rcsBurst(La) >= 0) rcsJets(_p, _dir, m.a);
       attMesh.position.copy(_p); attMesh.lookAt(_t.copy(_p).add(_dir)); setLit(attMesh, false); lastAtt.copy(_p);
     }
@@ -1014,6 +1018,7 @@ function draw(dt = 1 / 60) {
       chaseCam(m); _q1.copy(_p); _q2.copy(_t);                                           // the chase view it ends in
       _p.set(B.x - sa * (40 + 24 * q) - ca * (16 + 8 * q), 4 + 10 * q, B.z + ca * (40 + 24 * q) - sa * (16 + 8 * q));   // beside the silo
       _t.set(B.x, 7, B.z).lerp(attMesh.position, q);
+      if (SCAM.a) { const piv = orbitPos('a', _p); _p.sub(piv).multiplyScalar(1 + .5 * q).add(piv); _p.y += 10 * q; _t.copy(piv).lerp(attMesh.position, q); }   // your own start angle, pulling back for the throw
       _c.copy(attMesh.position).add(_m.set(-ca * 44 - sa * 12, 9, -sa * 44 + ca * 12));            // behind and a bit to the side, looking along the smoke column
       _p.lerp(_c, w); _t.lerp(_c.copy(attMesh.position).setY(attMesh.position.y - 3), w);
       _p.lerp(_q1, n); _t.lerp(_q2, n);
@@ -1031,10 +1036,12 @@ function draw(dt = 1 / 60) {
       fovWant = 52 + (flying.cur - 30) * .18 + (side === 'a' && m.boosting ? 10 : 0); }
     else if (side === 'd' && !i && S.state !== 'over') {           // defending, interceptor not launched yet: stand behind your battery
       const B = defTruck.g.position, out = S.def ? -1 : 1;           // "out" = toward the enemy along x
-      if (attMesh.visible) {                                         // radar contact: turn toward the incoming missile, battery still in front
+      if (SCAM.d && startCamRole() === 'd') _t.copy(orbitPos('d', _p));     // before contact: your own start angle
+      else if (attMesh.visible) {                                    // radar contact: turn toward the incoming missile, battery still in front
         _c.copy(attMesh.position).sub(B).setY(0); const dl = Math.max(1, _c.length()); _c.divideScalar(dl);
         _p.set(B.x - _c.x * 46, 32, B.z - _c.z * 46); _t.copy(B).addScaledVector(_c, Math.min(dl, 220) * .6); _t.y = Math.max(4, attMesh.position.y * .4);
-      } else { _p.set(B.x - out * 46, 32, B.z + 6); _t.set(B.x + out * 140, 2, B.z); }
+      }
+      else { _p.set(B.x - out * 46, 32, B.z + 6); _t.set(B.x + out * 140, 2, B.z); }
       k = Math.min(1, dt * 2.5); }
     camTgt.lerp(_t, k); camPos.lerp(_p, k);
     drawMini(!!side);
@@ -1108,6 +1115,42 @@ const sensBtn = document.getElementById('sensBtn');                   // turn se
 const showSens = () => { sensBtn.textContent = 'TURN: ' + JOY.sens; };
 sensBtn.addEventListener('pointerdown', e => { e.preventDefault(); JOY.sens = { LOW: 'MID', MID: 'HIGH', HIGH: 'LOW' }[JOY.sens]; try { localStorage.setItem('duelSens', JOY.sens); } catch (er) {} showSens(); });
 showSens();
+// Start camera: before your launch (attack) or before radar contact (defence), drag on empty screen to circle round your silo or
+// battery, pinch to zoom. Remembered separately for attack and defence (localStorage duelStartCam); RESET VIEW goes back to the default.
+const viewBtn = document.getElementById('viewBtn');
+const SCAM = (() => { try { return JSON.parse(localStorage.getItem('duelStartCam')) || {}; } catch (e) { return {}; } })();
+const saveScam = () => { try { localStorage.setItem('duelStartCam', JSON.stringify(SCAM)); } catch (e) {} };
+function startCamRole() {
+  const side = humanSide(); if (!S || !side) return null;
+  if (side === 'a' && S.state === 'ready') return 'a';
+  if (side === 'd' && !S.int && !S.used && (S.state === 'ready' || (S.state === 'fly' && !inRadar()))) return 'd';
+  return null;
+}
+function startCamFrame(role) {                            // the point the camera circles, and the heading toward the enemy
+  const sl = SIDES[S.atk].silo;
+  if (role === 'a') return { p: to3(sl.x, sl.y, 0, new V()).setY(6), a: S.att.a };
+  const b = SIDES[S.def].bat; return { p: to3(b.x, b.y, 0, new V()).setY(5), a: Math.atan2(sl.y - b.y, sl.x - b.x) };
+}
+function orbitPos(role, out) {
+  const c = SCAM[role], fr = startCamFrame(role), cp = Math.cos(c.pitch);
+  out.set(fr.p.x + Math.cos(fr.a + c.yaw) * cp * c.dist, fr.p.y + Math.sin(c.pitch) * c.dist, fr.p.z + Math.sin(fr.a + c.yaw) * cp * c.dist); return fr.p;
+}
+function initScam(role) {                                  // start from wherever the camera is now
+  const fr = startCamFrame(role), d = camPos.clone().sub(fr.p), dist = Math.max(14, d.length());
+  SCAM[role] = { yaw: Math.atan2(d.z, d.x) - fr.a, pitch: clamp(Math.asin(clamp(d.y / dist, -1, 1)), .02, 1.4), dist: Math.min(dist, 240) };
+}
+const ptrs = new Map(); let pinch0 = 0;
+cv.addEventListener('pointerdown', e => { const r = startCamRole(); if (!r) return; e.preventDefault(); try { cv.setPointerCapture(e.pointerId); } catch (er) {}
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (!SCAM[r]) initScam(r); pinch0 = 0; });
+cv.addEventListener('pointermove', e => { const p = ptrs.get(e.pointerId); if (!p) return; const r = startCamRole(); if (!r || !SCAM[r]) { ptrs.clear(); return; }
+  const c = SCAM[r];
+  if (ptrs.size === 1) { c.yaw -= (e.clientX - p.x) * .008; c.pitch = clamp(c.pitch + (e.clientY - p.y) * .006, .02, 1.4); }
+  p.x = e.clientX; p.y = e.clientY;
+  if (ptrs.size >= 2) { const [a, b] = [...ptrs.values()], d = Math.hypot(a.x - b.x, a.y - b.y); if (pinch0) c.dist = clamp(c.dist * pinch0 / d, 14, 240); pinch0 = d; } });
+const endPtr = e => { if (ptrs.delete(e.pointerId)) { pinch0 = 0; saveScam(); } };
+cv.addEventListener('pointerup', endPtr); cv.addEventListener('pointercancel', endPtr);
+cv.addEventListener('wheel', e => { const r = startCamRole(); if (!r) return; if (!SCAM[r]) initScam(r); SCAM[r].dist = clamp(SCAM[r].dist * Math.exp(e.deltaY * .001), 14, 240); saveScam(); }, { passive: true });
+viewBtn.addEventListener('pointerdown', e => { e.preventDefault(); const r = startCamRole(); if (r) { delete SCAM[r]; saveScam(); } });
 camBtn.addEventListener('pointerdown', e => { e.preventDefault(); CAM = CAM === 'hud' ? 'chase' : 'hud'; camBtn.textContent = CAM === 'hud' ? 'CHASE VIEW' : 'COCKPIT'; });
 // Target marker (the enemy craft, with distance and height difference) and your speed / height readout.
 const markEl = document.getElementById('mark'), markTxt = document.getElementById('markTxt'), readout = document.getElementById('readout');
@@ -1150,13 +1193,13 @@ function hudMarks(side, hide) {
       blastRing.classList.remove('hidden'); blastRing.classList.toggle('ok', d <= N.blast); }
   } else MEET.prev = null;
   readout.classList.toggle('hidden', !((fly || S.state === 'ready') && side));
-  if (S.state === 'ready' && side === 'a') { readout.textContent = 'In the silo — tap LAUNCH'; return; }
+  if (S.state === 'ready' && side === 'a') { readout.textContent = 'Tap LAUNCH · drag to look around'; return; }
   if (fly && side) {
-    if (mine && mine.launch) readout.innerHTML = mine.launch.t < mine.launch.ign ? (mine.launch.mot ? 'Doors opening…' : 'Launching…') : mine.launch.mot && mine.launch.t < mine.launch.hang ? 'Ejected' : mine.launch.mot && mine.launch.t < mine.launch.mot ? 'RCS — turning to target' : `Climbing out &nbsp; <b>ALT</b>${Math.round(mine.alt * 10)} m`;
+    if (mine && mine.launch) readout.innerHTML = mine.launch.t < mine.launch.ign ? (mine.launch.mot ? 'Doors opening…' : 'Launching…') : mine.launch.mot && mine.launch.t < mine.launch.rcs ? 'Ejected' : mine.launch.mot && mine.launch.t < mine.launch.mot ? 'RCS — turning to target' : `Climbing out &nbsp; <b>ALT</b>${Math.round(mine.alt * 10)} m`;
     else if (mine) readout.innerHTML = `<b>SPD</b>${Math.round(mine.cur * 10)} m/s &nbsp; <b>ALT</b>${Math.round(mine.alt * 10)} m &nbsp; <b>FUEL</b>` + (mine.fuel > 0 ? Math.ceil(mine.fuel * 100) + '%' : '<span class="pull">EMPTY</span>') + (side === 'a' && m.boosting ? ' &nbsp;<span class="boost">BOOST</span>' : '')
       + (nearEdge(mine) ? ' &nbsp;<span class="pull">EDGE — TURN BACK</span>' : '')
       + (mine.alt < 12 && mine.vr < -.05 && !(side === 'a' && Math.hypot(m.x - city.x, m.y - city.y) < 60) ? ' &nbsp;<span class="pull">PULL UP</span>' : '');
-    else readout.textContent = S.used ? 'Interceptor gone' : inRadar() ? 'Contact — tap LAUNCH' : 'Waiting for radar contact';
+    else readout.textContent = S.used ? 'Interceptor gone' : inRadar() ? 'Contact — tap LAUNCH' : 'Waiting for contact · drag to look around';
   }
 }
 // Small map: city, radar ring, the missile (if seen) and the interceptor.
@@ -1186,6 +1229,7 @@ function hud() {
   if (!S) return;
   const side = humanSide(), live = S.state !== 'over';
   dpad.classList.toggle('hidden', !(side && live)); camBtn.classList.toggle('hidden', !(side && live)); invBtn.classList.toggle('hidden', !(side && live)); sensBtn.classList.toggle('hidden', !(side && live)); rpad.classList.toggle('hidden', !(side && live)); rpad.classList.toggle('d', side === 'd');
+  { const r = startCamRole(); viewBtn.classList.toggle('hidden', !(r && SCAM[r])); }
   roleLbl.classList.toggle('hidden', !side); roleLbl.className = 'role ' + (side || '') + (side ? '' : ' hidden');
   roleLbl.textContent = side === 'a' ? `You attack ${SIDES[S.def].name}` : side === 'd' ? `You defend ${SIDES[S.def].name}` : '';
   if (side === 'a') { document.getElementById('fuel').style.width = (100 * S.att.fuel) + '%'; actBtn.textContent = S.state === 'ready' ? 'LAUNCH' : 'BOOST'; actBtn.disabled = false; }
