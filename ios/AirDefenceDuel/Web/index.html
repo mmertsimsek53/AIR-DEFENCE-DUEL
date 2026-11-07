@@ -224,9 +224,11 @@ function newRound() {
 // lights and it speeds away, climbing and slowly levelling off; control after dur seconds.
 const coldLaunch = () => ({ t: 0, ign: 1.2, hang: 2.6, mot: 3.6, dur: 7.6, peak: 20, tilt: 80 * Math.PI / 180, alt0: SILO_DEPTH, sp1: N.attStart, vertical: true });
 const smoother = e => e * e * e * (e * (e * 6 - 15) + 10);
+const RCS_T = [.1, .4, .7], RCS_LEN = .14;                // the three RCS bursts: start (s after the throw peaks) and length
+const rcsBurst = L => { for (const o of RCS_T) { const u = (L.t - L.hang - o) / RCS_LEN; if (u >= 0 && u < 1) return u; } return -1; };
 function launchPitch(L) {                                 // nose angle above the horizon during the cold launch
   if (L.t < L.hang) return Math.PI / 2;
-  if (L.t < L.mot) return Math.PI / 2 + (L.tilt - Math.PI / 2) * smoother(clamp((L.t - L.hang) / (L.mot - L.hang), 0, 1));
+  if (L.t < L.mot) return Math.PI / 2 + (L.tilt - Math.PI / 2) * RCS_T.reduce((q, o) => q + sstep(L.hang + o, L.hang + o + .3, L.t), 0) / RCS_T.length;   // each RCS burst kicks the nose a bit further over
   return L.tilt * (1 - smoother(clamp(((L.t - L.mot) / (L.dur - L.mot) - .35) / .65, 0, 1)));
 }
 function attLaunch() {
@@ -821,6 +823,12 @@ function explode(p, size, ground) {
   if (ground) for (let i = 0; i < n * .6; i++) { _a.set(rand() - .5, rand() * .9 + .2, rand() - .5); const sp = 10 + rand() * 18; emit(GLOW, p.x, p.y + .5, p.z, _a.x * sp, _a.y * sp, _a.z * sp, .8 + rand() * .8, .6, .3, 1, .6, .25, 1, .4, 26); }
   shockwave(p, size, ground); flash(p, 3.2 * size);
 }
+// Launch smoke column: thick smoke that hangs where the missile climbed, white high up, greyer low down, drifting in the wind.
+function smokeColumn(a, b) {
+  const n = Math.min(8, Math.max(1, Math.ceil(a.distanceTo(b) / .7)));
+  for (let k = 1; k <= n; k++) { _c.copy(a).lerp(b, k / n); const c = clamp(.55 + _c.y / 70, .55, .95), j = () => (rand() - .5) * 1.2;
+    emit(SMOKE, _c.x + j(), _c.y + j(), _c.z + j(), WIND.x * .5 + j(), .15, WIND.z * .5 + j(), 14 + rand() * 6, 3, 13 + rand() * 6, c, c, c * 1.02, .6, .3, -.04); }
+}
 function trail(a, b, attacker, power) {
   const L = a.distanceTo(b), n = Math.min(10, Math.max(1, Math.ceil(L / 0.6)));
   for (let k = 1; k <= n; k++) { _c.copy(a).lerp(b, k / n); const x = _c.x, y = _c.y, z = _c.z, j = () => (rand() - .5) * .8;
@@ -847,19 +855,36 @@ function siloIgnition(p) {
 }
 // Cold launch effects. Gas charge: a white cloud bursts up out of the shaft and rolls over the apron (no fire).
 function gasEject(p) {
-  shake = Math.max(shake, .9);
+  shake = Math.max(shake, 1.4); shockwave(_a.set(p.x, .6, p.z), 1.6, true); flash(_a.set(p.x, 2, p.z), 2.5);
+  for (let k = 0; k < 90; k++) { const a = k / 90 * TAU + rand() * .1, sp = 20 + rand() * 12;                         // dust ring racing out over the ground
+    emit(SMOKE, p.x + Math.cos(a) * 6, .7, p.z + Math.sin(a) * 6, Math.cos(a) * sp, .5 + rand(), Math.sin(a) * sp, 2.2 + rand() * 1.5, 2, 9, .62, .56, .46, .6, 1.6, -.1); }
+  for (let k = 0; k < 70; k++) { const c = .8 + rand() * .1;                                                           // brownish gas column out of the shaft
+    emit(SMOKE, p.x + (rand() - .5) * 5, 1 + rand() * 3, p.z + (rand() - .5) * 5, (rand() - .5) * 3 + WIND.x, 16 + rand() * 18, (rand() - .5) * 3 + WIND.z, 3 + rand() * 3, 3, 12, c, c * .93, c * .84, .8, 1.1, -.2); }
   for (let k = 0; k < 110; k++) { const a = rand() * TAU, up = rand() < .5, sp = up ? 2 + rand() * 4 : 6 + rand() * 12, c = .9 + rand() * .07;
     emit(SMOKE, p.x + Math.cos(a) * 2.5, up ? 1 + rand() * 4 : .8, p.z + Math.sin(a) * 2.5, Math.cos(a) * sp + WIND.x, up ? 12 + rand() * 12 : rand() * 1.5, Math.sin(a) * sp + WIND.z, 3 + rand() * 3, 2.5, up ? 11 : 14, c, c, c * 1.01, .75, up ? .8 : 1.1, -.2); }
 }
 // RCS: a short white jet out of the side of the nose (sd = which side), pushing it over.
-function rcsPuff(p, dir, a, sd) {
-  const nx = p.x + dir.x * 1.6, ny = p.y + dir.y * 1.6, nz = p.z + dir.z * 1.6, px = -Math.sin(a) * sd, pz = Math.cos(a) * sd;
-  for (let k = 0; k < 3; k++) { const sp = 7 + rand() * 5;
-    emit(SMOKE, nx, ny, nz, px * sp + (rand() - .5), (rand() - .5) * 2 + 1.5, pz * sp + (rand() - .5), .35 + rand() * .25, .25, 1.4, .97, .97, .98, .8, 2.5, 0); }
-  for (let k = 0; k < 2; k++) { const sp = 5 + rand() * 4; emit(SMOKE, nx - dir.x * .4, ny, nz - dir.z * .4, -dir.x * sp * .6 - px * 2, 2, -dir.z * sp * .6 - pz * 2, .3, .2, 1, .97, .97, .98, .7, 2.5, 0); }
+function rcsJets(p, dir, a) {                     // RCS: a sharp jet out of the nose blowing AWAY from the target, a smaller one at the tail blowing toward it — together they tip the nose over
+  const ca = Math.cos(a), sa = Math.sin(a), nx = p.x + dir.x * 5.6, ny = p.y + dir.y * 5.6, nz = p.z + dir.z * 5.6, tx = p.x - dir.x * 3.4, ty = p.y - dir.y * 3.4, tz = p.z - dir.z * 3.4;
+  for (let k = 0; k < 5; k++) { const sp = 24 + rand() * 14, j = () => (rand() - .5) * 2.5;
+    emit(SMOKE, nx - ca * .8, ny, nz - sa * .8, -ca * sp + j(), j() * .6, -sa * sp + j(), .3 + rand() * .3, .35, 2.6, .98, .98, 1, .95, 5, -1); }
+  emit(GLOW, nx - ca * .8, ny, nz - sa * .8, 0, 0, 0, .05, 1.4, .4, .9, .95, 1, .9, 0, 0);
+  for (let k = 0; k < 2; k++) { const sp = 14 + rand() * 8, j = () => (rand() - .5) * 2;
+    emit(SMOKE, tx + ca * .7, ty, tz + sa * .7, ca * sp + j(), j() * .5, sa * sp + j(), .25 + rand() * .2, .25, 1.6, .98, .98, 1, .85, 5, -1); }
+}
+// Gas piston plate under the missile: thrown out with it, then it drops off and tumbles back into the silo.
+const plate = new THR.Mesh(new THR.CylinderGeometry(.5, .6, .22, 16).rotateX(Math.PI / 2), new THR.MeshLambertMaterial({ color: 0x3b4046 }));
+plate.position.z = -2.1; plate.castShadow = true; attMesh.add(plate);
+const fallers = [];
+function dropPlate() {
+  attMesh.updateWorldMatrix(true, true); const w = plate.clone(); plate.getWorldPosition(w.position); plate.getWorldQuaternion(w.quaternion); w.scale.setScalar(2.2);
+  scene.add(w); plate.visible = false; fallers.push({ m: w, v: new V((rand() - .5) * 3, -1, (rand() - .5) * 3), r: new V(1 + rand() * 3, rand() * 2, 1 + rand() * 3) });
 }
 // Main motor lights above the silo: flash, a jet of fire, and the exhaust hits the ground, throwing up dust and smoke.
 function motorStart(p, dir, ground) {
+  const tx = p.x - dir.x * 4.6, ty = p.y - dir.y * 4.6, tz = p.z - dir.z * 4.6;
+  for (let k = 0; k < 6; k++) emit(GLOW, tx, ty, tz, (rand() - .5) * 4, (rand() - .5) * 4, (rand() - .5) * 4, .35 + rand() * .2, 16, 3, 1, .95, .85, 1, 0, 0);   // white-hot bloom at the nozzle
+  flash(_a.set(ground.x, 2, ground.z), 9);
   ignition(p, dir, 1.3); silo.scorch.material.opacity = .4; flash(_a.copy(p), 6); shake = Math.max(shake, 1.7);
   for (let k = 0; k < 50; k++) { const a = rand() * TAU, sp = 7 + rand() * 14, c = .6 + rand() * .2;
     emit(SMOKE, ground.x + Math.cos(a) * 3, .8 + rand() * 1.5, ground.z + Math.sin(a) * 3, Math.cos(a) * sp, rand() * 3, Math.sin(a) * sp, 6 + rand() * 5, 3, 18, c, c * .93, c * .85, .8, .9, -.3); }
@@ -875,6 +900,7 @@ let fires = [];
 function healCity() { for (const b of buildings) { b.dead = false; b.g.scale.y = 1; b.part.material = b.mats; } fires = []; }
 
 // ---- Per-frame 3D update ----
+const _q1 = new V(), _q2 = new V();
 const camPos = new V(0, 300, 380), camTgt = new V(0, 0, 0), _t = new V(), _p = new V(), _m = new V(), lastAtt = new V(), lastInt = new V();
 let seenRound = null, hadInt = false, camRoll = 0, rollNow = 0;
 function fit() {
@@ -898,10 +924,13 @@ function draw(dt = 1 / 60) {
   let fovWant = 50;
   for (const b of bats) b.rotor.rotation.y += dt * 1.8;
   if (G) syncTargets(dt);
+  for (let k = fallers.length - 1; k >= 0; k--) { const f = fallers[k]; f.v.y -= 20 * dt; f.m.position.addScaledVector(f.v, dt); f.m.rotation.x += f.r.x * dt; f.m.rotation.y += f.r.y * dt; f.m.rotation.z += f.r.z * dt;
+    if (f.m.position.y < -6) { scene.remove(f.m); fallers.splice(k, 1); } }                                   // back down into the shaft
   for (const f of defTruck.flying) { f.t += dt; f.v.y -= 20 * dt; if (f.m.position.y > .3) { f.m.position.addScaledVector(f.v, dt); f.m.rotation.x += dt * 6; f.m.rotation.z += dt * 3; } }
   if (S && seenRound !== S) { seenRound = S; if (G.round === 1) healCity(); hadInt = false; to3(S.att.x, S.att.y, S.att.alt, lastAtt);
     silo = silos[S.atk]; defTruck = bats[S.def]; to3(city.x, city.y, 0, CITY3);
     for (const o of silos) { o.set(0, false, 0); o.scorch.material.opacity = 0; }
+    plate.visible = true; for (const f of fallers) scene.remove(f.m); fallers.length = 0;
     for (const b of bats) { b.reset(); for (const f of b.flying) scene.remove(f.m); b.flying = []; }
     const sl = SIDES[S.atk].silo, bp = SIDES[S.def].bat;              // the defending launcher stands ready all round: pack raised, turret toward the enemy silo
     defTruck.set(ERECT_D); defTruck.turret.rotation.y = turretYaw(defTruck, Math.atan2(sl.y - bp.y, sl.x - bp.x)); }
@@ -924,7 +953,8 @@ function draw(dt = 1 / 60) {
       to3(m.x, m.y, m.alt, _p); const pt = launchPitch(La), ca = Math.cos(m.a), sa = Math.sin(m.a);
       _dir.set(ca * Math.cos(pt), Math.sin(pt), sa * Math.cos(pt));
       if (!La.gx) { La.gx = true; gasEject(silo.g.position); }
-      if (lt >= La.hang - .1 && rand() < .55) rcsPuff(_p, _dir, m.a, Math.floor(lt * 7) % 2 ? 1 : -1);
+      if (lt >= La.hang && !La.px) { La.px = true; dropPlate(); }                          // the gas piston plate falls away
+      if (rcsBurst(La) >= 0) rcsJets(_p, _dir, m.a);
       attMesh.position.copy(_p); attMesh.lookAt(_t.copy(_p).add(_dir)); setLit(attMesh, false); lastAtt.copy(_p);
     }
     else {
@@ -933,7 +963,10 @@ function draw(dt = 1 / 60) {
       else if (La && !La.fx) { La.fx = true; siloIgnition(silo.g.position); }
       const hot = La ? 1 - sstep(0, 1.6, La.t - (La.mot || La.ign)) * .7 : 0;      // the first seconds of the climb-out burn hardest
       if (attMesh.visible) { setLit(attMesh, m.fuel > 0);
-        if (m.fuel > 0) { trail(lastAtt, _p, true, Math.max(hot, m.boosting ? 1 : 0)); flicker(attMesh, Math.max(hot, m.boosting ? 1 : (m.cur - N.attMin) / (N.attMax - N.attMin) * .4)); }
+        if (m.fuel > 0) { trail(lastAtt, _p, true, Math.max(hot, m.boosting ? 1 : 0)); flicker(attMesh, Math.max(hot, m.boosting ? 1 : (m.cur - N.attMin) / (N.attMax - N.attMin) * .4));
+          if (La && La.mot) { const u = attMesh.userData, gr = .15 + .85 * sstep(La.mot, La.mot + .5, La.t);   // the flame grows over half a second
+            u.flame.scale.z *= gr; u.core.scale.z *= gr; u.glow.scale.multiplyScalar(.5 + .5 * gr);
+            smokeColumn(lastAtt, _p); } }
         attMesh.position.copy(_p);
         if (La && La.mot) { const pt = launchPitch(La); attMesh.lookAt(_t.set(_p.x + Math.cos(m.a) * Math.cos(pt), _p.y + Math.sin(pt), _p.z + Math.sin(m.a) * Math.cos(pt))); }   // climb-out: nose follows the planned pitch
         else { _t.copy(_p).sub(lastAtt); if (_t.lengthSq() > 1e-6) attMesh.lookAt(_t.add(_p)); }
@@ -975,7 +1008,17 @@ function draw(dt = 1 / 60) {
     let k = Math.min(1, dt * 1.8);
     // … or a chase camera behind whatever you are flying
     const flying = (S.state === 'fly' || (S.state === 'ready' && side === 'a')) && (side === 'a' ? m : side === 'd' ? i : null);
-    if (flying && (S.state === 'ready' || flying.launch)) {          // launch: watch from beside the launcher, then follow the climb-out
+    if (flying && flying === m && (S.state === 'ready' || (m.launch && m.launch.mot))) {   // silo launch: low and wide beside the silo, pull back and look up for the throw, swing behind at ignition, then settle into the chase view
+      const L = m.launch, t = L ? L.t : 0, B = silo.g.position, ca = Math.cos(m.a), sa = Math.sin(m.a);
+      const q = L ? sstep(L.ign, L.mot, t) : 0, w = L ? sstep(L.mot, L.mot + 1.2, t) : 0, n = L ? sstep(L.mot + 2.2, L.dur, t) : 0;
+      chaseCam(m); _q1.copy(_p); _q2.copy(_t);                                           // the chase view it ends in
+      _p.set(B.x - sa * (40 + 24 * q) - ca * (16 + 8 * q), 4 + 10 * q, B.z + ca * (40 + 24 * q) - sa * (16 + 8 * q));   // beside the silo
+      _t.set(B.x, 7, B.z).lerp(attMesh.position, q);
+      _c.copy(attMesh.position).add(_m.set(-ca * 44 - sa * 12, 9, -sa * 44 + ca * 12));            // behind and a bit to the side, looking along the smoke column
+      _p.lerp(_c, w); _t.lerp(_c.copy(attMesh.position).setY(attMesh.position.y - 3), w);
+      _p.lerp(_q1, n); _t.lerp(_q2, n);
+      k = Math.min(1, dt * (L && t > L.mot ? 3 : 6)); }
+    else if (flying && (S.state === 'ready' || flying.launch)) {          // launch: watch from beside the launcher, then follow the climb-out
       const cx = Math.cos(flying.a), cz = Math.sin(flying.a), mesh = flying === m ? attMesh : intMesh, f = flying.launch ? sstep(flying.launch.ign, flying.launch.dur, flying.launch.t) : 0;
       _c.copy(mesh.position); _c.y = Math.max(_c.y, 2); _p.set(_c.x - cz * 32 - cx * (10 + 14 * f), _c.y + (flying === m ? 11 : 14) + 4 * f, _c.z + cx * 32 - cz * (10 + 14 * f)); _t.set(_c.x + cx * 6, _c.y + 2, _c.z + cz * 6);   // a bit higher at the city, above its trees
       k = Math.min(1, dt * (S.state === 'ready' || flying.launch.t < flying.launch.ign ? 8 : 4)); }
