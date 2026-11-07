@@ -16,7 +16,7 @@
   .score .a { color: var(--red); } .score .d { color: var(--blue); }
   .seg { white-space: nowrap; background: var(--row); border-radius: 10px; padding: 5px 9px; color: #fff; border: 0; font: inherit; font-size: 13px; }
   .pad { position: absolute; bottom: 12px; display: grid; gap: 6px; grid-template-columns: 54px 54px 54px; }
-  .pad.att { left: 12px; } .pad.def { right: 12px; }
+  .pad.att { left: max(12px, env(safe-area-inset-left)); } .pad.def { right: max(12px, env(safe-area-inset-right)); }
   .pad .lbl { grid-column: 1 / -1; font-size: 11px; color: var(--grey); text-transform: uppercase; letter-spacing: .06em; text-align: center; }
   .btn { height: 50px; border-radius: 14px; border: 0; background: rgba(255,255,255,.14); color: #fff; font: inherit;
     font-size: 20px; font-weight: 600; touch-action: none; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
@@ -34,9 +34,9 @@
   .win h2 { margin: 0 0 6px; font-size: 22px; } .win p { margin: 0 0 14px; color: var(--grey); font-size: 14px; line-height: 1.4; }
   .go { width: 100%; height: 46px; border-radius: 12px; border: 0; background: var(--blue); color: #fff; font: inherit; font-size: 16px; font-weight: 600; }
   .hidden { display: none !important; }
-  .radar { position: absolute; top: 14px; left: 14px; background: var(--card); border-radius: 10px; padding: 6px 10px; font-size: 12px; font-weight: 600; color: var(--grey); }
+  .radar { position: absolute; top: 14px; left: max(14px, env(safe-area-inset-left)); background: var(--card); border-radius: 10px; padding: 6px 10px; font-size: 12px; font-weight: 600; color: var(--grey); }
   .radar.on { color: var(--blue); } .radar.warn { color: var(--red); }
-  #mini { position: absolute; inset: 12px 12px auto auto; width: 160px; height: 90px; border-radius: 12px; background: var(--card); }
+  #mini { position: absolute; inset: 12px max(12px, env(safe-area-inset-right)) auto auto; width: 160px; height: 90px; border-radius: 12px; background: var(--card); }
   .readout { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); background: var(--card); border-radius: 12px; padding: 7px 12px;
     font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .readout b { color: var(--grey); font-weight: 600; margin-right: 3px; } .readout .boost { color: #ff9f0a; } .readout .pull { color: var(--red); }
@@ -536,15 +536,22 @@ const tObjs = SIDES.map((sd, side) => TARGETS.map(([id, name], k) => {
   const el = document.createElement('div'); el.className = 'tl'; el.innerHTML = `<b>${name}</b><i><u></u></i>`; el.style.display = 'none'; document.getElementById('tlabels').appendChild(el);
   return { side, k, g, ph, model: null, rotor: null, el, bar: el.querySelector('u'), shown: 100 };
 }));
+// In the browser the models load from web/models; in the iPhone app they come built into duel-models.js (window.DUEL_MODELS, base64).
+function loadModel(ld, file, done) {
+  const b64 = window.DUEL_MODELS && window.DUEL_MODELS[file];
+  if (!b64) return ld.load(`../web/models/${file}.glb`, done, undefined, e => console.log('model ' + file + ': ' + e));
+  const bin = atob(b64), buf = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+  ld.parse(buf.buffer, '', done, e => console.log('model ' + file + ': ' + e));
+}
 if (THR.GLTFLoader) { const ld = new THR.GLTFLoader();
-  for (const [id, file] of Object.entries(T_MODEL)) ld.load(`../web/models/${file}.glb`, gl => {
+  for (const [id, file] of Object.entries(T_MODEL)) loadModel(ld, file, gl => {
     const src = gl.scene; src.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
     const box = new THR.Box3().setFromObject(src), sz = box.getSize(new V()), sc = 16 / Math.max(sz.x, sz.z);
     for (const row of tObjs) for (const t of row) if (TARGETS[t.k][0] === id) {
       const m = src.clone(true); m.scale.setScalar(sc); m.position.y = -box.min.y * sc; t.g.add(m); t.model = m; t.ph.visible = false;
       m.traverse(o => { if (o.isMesh) o.userData.mat = o.material; });
       t.rotor = m.getObjectByName('radar_rotor') || null; t.shown = -1; }
-  }, undefined, e => console.log('model ' + file + ': ' + e)); }
+  }); }
 // Bring each target's look in line with its health: damaged ones smoke, destroyed ones are blackened ruins that burn.
 function syncTargets(dt) {
   for (const row of tObjs) for (const t of row) {

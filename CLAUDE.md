@@ -24,6 +24,7 @@ Owner: Mert (non-technical — explain in plain words, give click-by-click steps
 ## Build & test
 - Rules: `cd core && npm run typecheck && npm test`.
 - After any change in `web/` or `core/`: `web/sync-ios.sh` (rebundles core into `web/core.js` and copies `web/` flat into `ios/AirDefenceDuel/Web/`).
+- The iOS app currently ships the missile duel instead (TestFlight build 4): `prototype/sync-ios-duel.sh` fills `ios/AirDefenceDuel/Web/` from `prototype/missile-duel-3d.html` (models built into `duel-models.js`). Running `web/sync-ios.sh` puts the main game back.
 - Web in a desktop browser: serve `web/` (e.g. `python3 -m http.server`) and open `index.html` (`?demo=1` = AI vs AI). In tests, `window.__advance(sec)` steps the game.
 - iOS: `cd ios && xcodebuild -project AirDefenceDuel.xcodeproj -scheme AirDefenceDuel -destination 'generic/platform=iOS Simulator' -derivedDataPath build/SimDD build`
 - Launch the app with `-demo` to make the AI play both sides (screenshots via `xcrun simctl io <udid> screenshot`).
