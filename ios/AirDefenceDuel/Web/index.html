@@ -825,7 +825,7 @@ function draw(dt = 1 / 60) {
     // camera: overview framing the city and what the defender can see …
     let x0 = CITY3.x - 30, x1 = CITY3.x + 30, z0 = CITY3.z - 30, z1 = CITY3.z + 30;
     const add = (x, z) => { x0 = Math.min(x0, x - 25); x1 = Math.max(x1, x + 25); z0 = Math.min(z0, z - 25); z1 = Math.max(z1, z + 25); };
-    if (attMesh.visible) add(attMesh.position.x, attMesh.position.z); else if (S.state === 'fly') add(CITY3.x - RR * .8, CITY3.z);
+    if (attMesh.visible) add(attMesh.position.x, attMesh.position.z); else if (S.state === 'fly') add(CITY3.x + (S.def ? -1 : 1) * RR * .8, CITY3.z);   // the side the attack comes from
     if (i) add(intMesh.position.x, intMesh.position.z);
     const span = Math.max(x1 - x0, (z1 - z0) * camera.aspect * .9, 140), dist = span / camera.aspect * 1.05 + 40;
     _t.set((x0 + x1) / 2, 0, (z0 + z1) / 2 + 10);
@@ -839,6 +839,13 @@ function draw(dt = 1 / 60) {
       k = Math.min(1, dt * (S.state === 'ready' || flying.launch.t < flying.launch.ign ? 8 : 4)); }
     else if (flying) { chaseCam(flying); k = Math.min(1, dt * 3.5); camRoll = -flying.yr * .14;
       fovWant = 52 + (flying.cur - 30) * .18 + (side === 'a' && m.boosting ? 10 : 0); }
+    else if (side === 'd' && !i && S.state !== 'over') {           // defending, interceptor not launched yet: stand behind your battery
+      const B = defTruck.g.position, out = S.def ? -1 : 1;           // "out" = toward the enemy along x
+      if (attMesh.visible) {                                         // radar contact: turn toward the incoming missile, battery still in front
+        _c.copy(attMesh.position).sub(B).setY(0); const dl = Math.max(1, _c.length()); _c.divideScalar(dl);
+        _p.set(B.x - _c.x * 46, 32, B.z - _c.z * 46); _t.copy(B).addScaledVector(_c, Math.min(dl, 220) * .6); _t.y = Math.max(4, attMesh.position.y * .4);
+      } else { _p.set(B.x - out * 46, 32, B.z + 6); _t.set(B.x + out * 140, 2, B.z); }
+      k = Math.min(1, dt * 2.5); }
     camTgt.lerp(_t, k); camPos.lerp(_p, k);
     drawMini(!!side);
     hudMarks(side, hide);
