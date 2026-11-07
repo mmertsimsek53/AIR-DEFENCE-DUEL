@@ -228,9 +228,10 @@ function newRound() {
 // Cold launch from the silo, like a real ballistic missile: doors open (until ign); a gas charge pushes the missile up the shaft,
 // faster and faster (ign → exit), and throws it out at about 500 m/s with no flame. From there nothing holds it up: it slows all the way
 // to the top of its arc (about 400 m). On the way up, RCS bursts turn it from straight up to flat, pointing at the target (rcs →, done
-// at the top); then the gas piston plate drops off its tail (plate), and the main motor lights with the missile flat (mot). It speeds
+// at the top); then the gas piston plate drops off its tail (plate), and the main motor lights with the missile flat (mot). Before the turn,
+// right after it leaves the shaft, the four holder segments that kept it steady in the shaft are blown off one after another (segs). It speeds
 // away almost level, climbing gently; control after dur seconds.
-const coldLaunch = () => ({ t: 0, ign: 1.2, exit: 1.7, rcs: 2.3, plate: 3.12, mot: 3.2, dur: 7.6, peak: 40, alt0: SILO_DEPTH, sp1: N.attStart, vertical: true });
+const coldLaunch = () => ({ t: 0, ign: 1.2, exit: 1.7, segs: [1.95, 2.07, 2.19, 2.31], rcs: 2.75, plate: 3.57, mot: 3.65, dur: 8.0, peak: 60, alt0: SILO_DEPTH, sp1: N.attStart, vertical: true });
 // RCS turn from straight up to flat, like a heavy body: a short hard kick (first burst) spins it up, it coasts while the air slowly
 // eats its spin, a firm counter-kick from the other side (second burst) brakes it a touch past flat, and it wobbles back and settles.
 // RCS_T: [start (s after rcs), which way (1 = start the turn, -1 = stop it), length (s)].
@@ -396,7 +397,7 @@ function launchFly(o, P, dt) {
   if (L.t < L.ign) { o.cur = 0; o.vr = 0; return; }      // still in the tube
   const f = clamp((L.t - L.ign) / (L.dur - L.ign), 0, 1);
   if (L.vertical) {                                     // cold launch (see coldLaunch)
-    const PW = 2.8, v0 = -L.alt0 * PW / (L.exit - L.ign);           // speed leaving the shaft (map units/s)
+    const v0 = 2 * L.peak / (L.mot - L.exit), PW = v0 * (L.exit - L.ign) / -L.alt0;   // speed leaving the shaft (map units/s) that puts the top of the arc at the motor start
     if (L.t < L.exit) { o.alt = L.alt0 * (1 - Math.pow((L.t - L.ign) / (L.exit - L.ign), PW)); o.cur = 0; o.vr = 0; return; }   // gas push up the shaft
     if (L.t < L.mot) { const f = L.t - L.exit; o.alt = v0 * f - v0 * v0 / (4 * L.peak) * f * f; o.cur = 0; o.vr = 0; return; }   // free flight: slows all the way to the top of the arc
     const g = (L.t - L.mot) / (L.dur - L.mot), pitch = launchPitch(L);                  // motor: slow at first, faster and faster
@@ -1015,6 +1016,19 @@ function dropPlate() {
   attMesh.updateWorldMatrix(true, true); const w = plate.clone(); plate.getWorldPosition(w.position); plate.getWorldQuaternion(w.quaternion); w.scale.setScalar(2.2);
   scene.add(w); plate.visible = false; fallers.push({ m: w, v: new V((rand() - .5) * 3, -1, (rand() - .5) * 3), r: new V(1 + rand() * 3, rand() * 2, 1 + rand() * 3) });
 }
+// Holder segments: four curved pieces round the middle of the missile that held it steady in the shaft; blown off one by one after it leaves.
+const segs = [0, 1, 2, 3].map(k => { const m = new THR.Mesh(new THR.CylinderGeometry(.44, .44, 1.3, 8, 1, true, k * Math.PI / 2 + .12, Math.PI / 2 - .24).rotateX(Math.PI / 2),
+  new THR.MeshLambertMaterial({ color: 0x3a3f45, side: THR.DoubleSide })); m.position.z = .2; m.castShadow = true; attMesh.add(m); return m; });
+function shedSeg(k) {
+  const sg = segs[k]; if (!sg.visible) return;
+  attMesh.updateWorldMatrix(true, true); const w = sg.clone(); sg.getWorldPosition(w.position); sg.getWorldQuaternion(w.quaternion); w.scale.setScalar(2.2);
+  const a = k * Math.PI / 2 + Math.PI / 4, out = new V(Math.cos(a), Math.sin(a), 0).applyQuaternion(attMesh.quaternion).setY(0).normalize();   // its outward side
+  w.position.addScaledVector(out, 1); scene.add(w); sg.visible = false;
+  fallers.push({ m: w, v: out.clone().multiplyScalar(16 + rand() * 5).add(new V(0, 3 + rand() * 3, 0)), r: new V(3 + rand() * 4, rand() * 3, 3 + rand() * 4), land: true });
+  for (let i = 0; i < 14; i++) { const sp = 6 + rand() * 10; emit(SMOKE, w.position.x, w.position.y, w.position.z, out.x * sp + (rand() - .5) * 3, (rand() - .5) * 3, out.z * sp + (rand() - .5) * 3, .6 + rand() * .5, .5, 3, .95, .95, .96, .85, 3, -.3); }
+  emit(GLOW, w.position.x, w.position.y, w.position.z, 0, 0, 0, .07, 2, .5, 1, .8, .5, 1, 0, 0);
+  play('thump', { vol: .35, rate: 2.4, at: w.position, minVol: .3 }); play('rcs', { vol: .4, rate: .75, at: w.position, minVol: .3 });
+}
 // Battery hot launch: the motor lights in the canister — flash, shake, and fire and smoke blasting out of the back onto the ground.
 function canisterBlast(mouth, dir) {
   sCanister(Math.max(.35, near(mouth)));
@@ -1076,12 +1090,13 @@ function draw(dt = 1 / 60) {
   for (const b of bats) b.rotor.rotation.y += dt * 1.8;
   if (G) syncTargets(dt);
   for (let k = fallers.length - 1; k >= 0; k--) { const f = fallers[k]; f.v.y -= 20 * dt; f.m.position.addScaledVector(f.v, dt); f.m.rotation.x += f.r.x * dt; f.m.rotation.y += f.r.y * dt; f.m.rotation.z += f.r.z * dt;
-    if (f.m.position.y < -6) { scene.remove(f.m); fallers.splice(k, 1); } }                                   // back down into the shaft
+    if (f.land && f.m.position.y < .4) { f.m.position.y = .4; f.v.set(0, 0, 0); f.r.set(0, 0, 0); }               // holder segments come to rest on the ground
+    else if (f.m.position.y < -6) { scene.remove(f.m); fallers.splice(k, 1); } }                                   // back down into the shaft
   for (const f of defTruck.flying) { f.t += dt; f.v.y -= 20 * dt; if (f.m.position.y > .3) { f.m.position.addScaledVector(f.v, dt); f.m.rotation.x += dt * 6; f.m.rotation.z += dt * 3; } }
   if (S && seenRound !== S) { seenRound = S; if (G.round === 1) healCity(); hadInt = false; to3(S.att.x, S.att.y, S.att.alt, lastAtt);
     silo = silos[S.atk]; defTruck = bats[S.def]; to3(city.x, city.y, 0, CITY3);
     for (const o of silos) { o.set(0, false, 0); o.scorch.material.opacity = 0; }
-    plate.visible = true; for (const f of fallers) scene.remove(f.m); fallers.length = 0;
+    plate.visible = true; for (const sg of segs) sg.visible = true; for (const f of fallers) scene.remove(f.m); fallers.length = 0;
     for (const b of bats) { b.reset(); for (const f of b.flying) scene.remove(f.m); b.flying = []; }
     const sl = SIDES[S.atk].silo, bp = SIDES[S.def].bat;              // the defending launcher stands ready all round: pack raised, turret toward the enemy silo
     defTruck.set(ERECT_D); defTruck.turret.rotation.y = turretYaw(defTruck, Math.atan2(sl.y - bp.y, sl.x - bp.x)); }
@@ -1105,6 +1120,7 @@ function draw(dt = 1 / 60) {
       to3(m.x, m.y, m.alt, _p); const pt = launchPitch(La), ca = Math.cos(m.a), sa = Math.sin(m.a);
       _dir.set(ca * Math.cos(pt), Math.sin(pt), sa * Math.cos(pt));
       if (!La.gx) { La.gx = true; gasEject(silo.g.position); }
+      if (La.segs) La.segs.forEach((ts, k) => { if (lt >= ts && segs[k].visible) shedSeg(k); });   // holder segments blown off, one after another
       if (lt >= La.plate && !La.px) { La.px = true; dropPlate(); }                          // the gas piston plate falls away
       { const bi = rcsBurst(La); if (bi >= 0) { rcsJets(_p, _dir, m.a, pt, RCS_T[bi][1]); if (!((La.rs || 0) >> bi & 1)) { La.rs = (La.rs || 0) | 1 << bi; sRcs(); } } }
       attMesh.position.copy(_p); attMesh.lookAt(_t.copy(_p).add(_dir)); setLit(attMesh, false); lastAtt.copy(_p);
