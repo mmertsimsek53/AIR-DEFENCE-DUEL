@@ -227,16 +227,16 @@ function newRound() {
 }
 // Cold launch from the silo, like a real ballistic missile: doors open (until ign); a gas charge pushes the missile up the shaft,
 // faster and faster (ign → exit), and throws it out at about 500 m/s with no flame. From there nothing holds it up: it slows all the way
-// to the top of its arc (about 400 m), dropping the gas piston plate just after it leaves (plate). Near the top, three short RCS bursts
-// tip the nose toward the target (rcs →), and the main motor lights right at the top (mot); control after dur seconds.
-const coldLaunch = () => ({ t: 0, ign: 1.2, exit: 1.7, plate: 1.85, rcs: 2.45, mot: 3.2, dur: 7.6, peak: 40, tilt: 80 * Math.PI / 180, alt0: SILO_DEPTH, sp1: N.attStart, vertical: true });
-const smoother = e => e * e * e * (e * (e * 6 - 15) + 10);
-const RCS_T = [0, .25, .5], RCS_LEN = .14;                // the three RCS bursts: start (s after rcs) and length
+// to the top of its arc (about 400 m). On the way up, RCS bursts turn it from straight up to flat, pointing at the target (rcs →, done
+// at the top); then the gas piston plate drops off its tail (plate), and the main motor lights with the missile flat (mot). It speeds
+// away almost level, climbing gently; control after dur seconds.
+const coldLaunch = () => ({ t: 0, ign: 1.2, exit: 1.7, rcs: 2.3, plate: 3.35, mot: 3.5, dur: 7.6, peak: 40, alt0: SILO_DEPTH, sp1: N.attStart, vertical: true });
+const RCS_T = [0, .2, .4, .6, .8], RCS_LEN = .12;         // the RCS bursts: start (s after rcs) and length; each one turns the nose a fifth of the way
 const rcsBurst = L => { for (const o of RCS_T) { const u = (L.t - L.rcs - o) / RCS_LEN; if (u >= 0 && u < 1) return u; } return -1; };
 function launchPitch(L) {                                 // nose angle above the horizon during the cold launch
   if (L.t < L.rcs) return Math.PI / 2;
-  if (L.t < L.mot) return Math.PI / 2 + (L.tilt - Math.PI / 2) * RCS_T.reduce((q, o) => q + sstep(L.rcs + o, L.rcs + o + .25, L.t), 0) / RCS_T.length;   // each RCS burst kicks the nose a bit further over
-  return L.tilt * (1 - smoother(clamp(((L.t - L.mot) / (L.dur - L.mot) - .35) / .65, 0, 1)));
+  if (L.t < L.mot) return Math.PI / 2 * (1 - RCS_T.reduce((q, o) => q + sstep(L.rcs + o, L.rcs + o + .2, L.t), 0) / RCS_T.length);
+  return .3 * Math.sin(Math.PI * clamp((L.t - L.mot) / (L.dur - L.mot), 0, 1));   // after ignition: a gentle climb, level again by the hand-over
 }
 function attLaunch() {
   if (!S || S.state !== 'ready') return;
@@ -1012,16 +1012,15 @@ function canisterJet(mouth, dir, pw) {                    // fire out of the bac
   for (let k = 0; k < 4; k++) { const a = rand() * TAU, sp = 5 + rand() * 10, c = .75 + rand() * .15;
     emit(SMOKE, bx - dir.x * 2 + Math.cos(a), Math.max(.8, by - dir.y * 2), bz - dir.z * 2 + Math.sin(a), Math.cos(a) * sp, 1 + rand() * 3, Math.sin(a) * sp, 4 + rand() * 3, 2.5, 13, c, c * .97, c * .93, .7 * pw + .2, .9, -.2); }
 }
-// Main motor lights above the silo: flash, a jet of fire, and the exhaust hits the ground, throwing up dust and smoke.
-function motorStart(p, dir, ground) {
+// Main motor lights up in the air with the missile flat: white-hot bloom at the nozzle, a flash, a jet of fire and a puff of smoke behind it.
+function motorStart(p, dir) {
   sMotor();
   const tx = p.x - dir.x * 4.6, ty = p.y - dir.y * 4.6, tz = p.z - dir.z * 4.6;
-  for (let k = 0; k < 6; k++) emit(GLOW, tx, ty, tz, (rand() - .5) * 4, (rand() - .5) * 4, (rand() - .5) * 4, .35 + rand() * .2, 16, 3, 1, .95, .85, 1, 0, 0);   // white-hot bloom at the nozzle
-  flash(_a.set(ground.x, 2, ground.z), 9);
-  ignition(p, dir, 1.3); silo.scorch.material.opacity = .4; flash(_a.copy(p), 6); shake = Math.max(shake, 1.7);
-  for (let k = 0; k < 50; k++) { const a = rand() * TAU, sp = 7 + rand() * 14, c = .6 + rand() * .2;
-    emit(SMOKE, ground.x + Math.cos(a) * 3, .8 + rand() * 1.5, ground.z + Math.sin(a) * 3, Math.cos(a) * sp, rand() * 3, Math.sin(a) * sp, 6 + rand() * 5, 3, 18, c, c * .93, c * .85, .8, .9, -.3); }
-  for (let k = 0; k < 30; k++) emit(GLOW, ground.x + (rand() - .5) * 5, 1 + rand() * 2, ground.z + (rand() - .5) * 5, (rand() - .5) * 14, 3 + rand() * 6, (rand() - .5) * 14, .4 + rand() * .4, 4, 2, 1, .62, .28, 1, 1.5, 0);
+  for (let k = 0; k < 6; k++) emit(GLOW, tx, ty, tz, (rand() - .5) * 4, (rand() - .5) * 4, (rand() - .5) * 4, .35 + rand() * .2, 16, 3, 1, .95, .85, 1, 0, 0);
+  flash(_a.set(tx, ty, tz), 8); shake = Math.max(shake, 1.2);
+  for (let k = 0; k < 30; k++) { const sp = 12 + rand() * 22; emit(GLOW, tx, ty, tz, -dir.x * sp + (rand() - .5) * 6, -dir.y * sp + (rand() - .5) * 6, -dir.z * sp + (rand() - .5) * 6, .3 + rand() * .4, 4, 1.5, 1, .7, .3, 1, 2, 0); }
+  for (let k = 0; k < 60; k++) { const a = rand() * TAU, sp = 3 + rand() * 7, c = .7 + rand() * .15;
+    emit(SMOKE, tx - dir.x * 2, ty, tz - dir.z * 2, -dir.x * 8 + Math.cos(a) * sp, (rand() - .5) * sp, -dir.z * 8 + Math.sin(a) * sp, 5 + rand() * 4, 3, 15, c, c * .97, c * .92, .75, .9, -.1); }
 }
 function setLit(g, on) { const u = g.userData; u.flame.visible = u.core.visible = u.glow.visible = on; if (!on) u.light.intensity = 0; }
 function burnNear(p, r) {
@@ -1088,12 +1087,12 @@ function draw(dt = 1 / 60) {
       _dir.set(ca * Math.cos(pt), Math.sin(pt), sa * Math.cos(pt));
       if (!La.gx) { La.gx = true; gasEject(silo.g.position); }
       if (lt >= La.plate && !La.px) { La.px = true; dropPlate(); }                          // the gas piston plate falls away
-      if (rcsBurst(La) >= 0) { rcsJets(_p, _dir, m.a); const bi = Math.floor((lt - La.rcs) / .25); if (!((La.rs || 0) >> bi & 1)) { La.rs = (La.rs || 0) | 1 << bi; sRcs(); } }
+      if (rcsBurst(La) >= 0) { rcsJets(_p, _dir, m.a); const bi = Math.floor((lt - La.rcs) / .2); if (!((La.rs || 0) >> bi & 1)) { La.rs = (La.rs || 0) | 1 << bi; sRcs(); } }
       attMesh.position.copy(_p); attMesh.lookAt(_t.copy(_p).add(_dir)); setLit(attMesh, false); lastAtt.copy(_p);
     }
     else {
       to3(m.x, m.y, m.alt, _p);
-      if (La && La.mot && !La.fx) { La.fx = true; const pt = launchPitch(La); _dir.set(Math.cos(m.a) * Math.cos(pt), Math.sin(pt), Math.sin(m.a) * Math.cos(pt)); motorStart(_p, _dir, silo.g.position); }
+      if (La && La.mot && !La.fx) { La.fx = true; const pt = launchPitch(La); _dir.set(Math.cos(m.a) * Math.cos(pt), Math.sin(pt), Math.sin(m.a) * Math.cos(pt)); motorStart(_p, _dir); }
       else if (La && !La.fx) { La.fx = true; siloIgnition(silo.g.position); }
       const hot = La ? 1 - sstep(0, 1.6, La.t - (La.mot || La.ign)) * .7 : 0;      // the first seconds of the climb-out burn hardest
       if (attMesh.visible) { setLit(attMesh, m.fuel > 0);
