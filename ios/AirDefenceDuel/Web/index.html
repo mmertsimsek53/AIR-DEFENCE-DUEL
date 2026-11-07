@@ -35,6 +35,9 @@
   .win { width: 420px; max-width: calc(100% - 32px); background: var(--card); border-radius: 20px; padding: 18px; text-align: center; }
   .win h2 { margin: 0 0 6px; font-size: 22px; } .win p { margin: 0 0 14px; color: var(--grey); font-size: 14px; line-height: 1.4; }
   .go { width: 100%; height: 46px; border-radius: 12px; border: 0; background: var(--blue); color: #fff; font: inherit; font-size: 16px; font-weight: 600; }
+  .go.alt { margin-top: 8px; background: var(--row); }
+  #codeIn { width: 100%; margin-top: 8px; height: 40px; border-radius: 10px; border: 0; background: var(--row); color: #fff; font: inherit; font-size: 14px; text-align: center; }
+  #codeIn::placeholder { color: var(--grey); }
   .hidden { display: none !important; }
   .radar { position: absolute; top: 14px; left: max(14px, env(safe-area-inset-left)); background: var(--card); border-radius: 10px; padding: 6px 10px; font-size: 12px; font-weight: 600; color: var(--grey); }
   .radar.on { color: var(--blue); } .radar.warn { color: var(--red); }
@@ -86,6 +89,8 @@
     <p id="msg">Each side has a city with 6 targets. The sides take turns: one launches a missile from its silo and dives it onto an enemy target, the other launches one interceptor and detonates it near the missile. The closer the impact, the more damage. Destroy all 6 enemy targets to win.<br>
       Left: steer and climb or dive. Right: faster, slower, and the big button — launch, then boost (attacking) or launch, then detonate (defending).</p>
     <button class="go" id="go">Play vs computer</button>
+    <div id="onlineMenu"><button class="go alt" id="onlineBtn">Play online</button>
+      <input id="codeIn" maxlength="12" autocomplete="off" autocapitalize="characters" placeholder="Invite code (optional) — same code = same match"></div>
   </div>
 </div>
 
@@ -125,7 +130,7 @@ const dist3 = (p, q) => Math.hypot(p.x - q.x, p.y - q.y, p.alt - q.alt);
 // ---- Input: the keyboard drives whichever side you play; on-screen buttons per side ----
 const held = new Set();
 const KEYS = { KeyW: 'W', KeyS: 'S', KeyA: 'L', KeyD: 'R', ArrowLeft: 'L', ArrowRight: 'R', ArrowUp: 'U', ArrowDown: 'D', Space: 'X' };
-const humanSide = () => !ai.att ? 'a' : !ai.def ? 'd' : null;
+const humanSide = () => NET ? (!S ? null : S.atk === NET.me ? 'a' : 'd') : !ai.att ? 'a' : !ai.def ? 'd' : null;
 const btnKey = c => { const side = humanSide(); if (!side) return null; return side === 'a' && c === 'X' ? 'aB' : side + c; };
 function keyBtn(code) { const c = KEYS[code]; return c ? btnKey(c) : null; }
 addEventListener('keydown', e => { const k = keyBtn(e.code); if (!k) return; e.preventDefault(); if (!e.repeat) press(k); });
@@ -149,7 +154,8 @@ const ctl = s => ({ turn: (held.has(s + 'R') ? 1 : 0) - (held.has(s + 'L') ? 1 :
 
 const sideAI = [false, true];                           // who plays Red / Blue
 const ai = { att: false, def: true };                   // this round's roles, from sideAI and whose turn it is
-function refreshModes() { if (S) { ai.att = sideAI[S.atk]; ai.def = sideAI[S.def]; } [...held].forEach(release); }
+function refreshModes() { if (S) { ai.att = !NET && sideAI[S.atk]; ai.def = !NET && sideAI[S.def]; } [...held].forEach(release); }
+let NET = null;                                          // online match: { ws, me, names, remote (latest state of the other phone's craft) }
 const fog = true;                                        // the defender only sees the missile inside radar range
 
 // ---- Game state ----
@@ -174,6 +180,7 @@ function attLaunch() {
   if (!S || S.state !== 'ready') return;
   S.state = 'fly';
   S.att.launch = { t: 0, ign: 2.4, dur: 9, alt0: S.att.alt, alt1: N.attAlt, sp1: N.attStart, vertical: true };
+  if (NET && S.atk === NET.me) net({ t: 'launch' });
 }
 function defFire() {
   if (!S || S.state !== 'fly') return;
@@ -184,6 +191,7 @@ function defFire() {
     const b = SIDES[S.def].bat;
     S.int = { x: b.x, y: b.y, alt: 16, a, spd: N.intStart, cur: 0, yr: 0, vr: 0, fuel: 1, prevD: 1e9,
       launch: { t: 0, ign: .6, dur: 1.6, alt0: 16, alt1: clamp(S.att.alt * .8, 25, 90), sp1: N.intStart } };
+    if (NET) net({ t: 'ilaunch', a });
   } else if (S.int) {                         // second press: detonate
     detonate();
   }
@@ -193,11 +201,12 @@ function detonate() {
   const i = S.int; if (!i) return;
   S.blasts.push({ x: i.x, y: i.y, alt: i.alt, r: N.blast, t: 0, c: '10,132,255', ground: i.alt <= 0.5 });
   S.int = null;
+  if (NET) { net({ t: 'det', x: i.x, y: i.y, alt: i.alt }); return; }   // the server decides whether it caught the missile
   const d = dist3(S.att, i);
   if (d <= N.blast) finish('d', `Intercepted! The blast went off ${Math.round(d * 10)} m from the missile.`);
 }
 function finish(who, why) {                       // who: 'a' = the missile hit something, 'd' = it was stopped or missed
-  if (S.state !== 'fly') return;
+  if (S.state !== 'fly' && S.state !== 'wait') return;
   S.state = 'over';
   if (who === 'd') { S.att.alive = false; S.blasts.push({ x: S.att.x, y: S.att.y, alt: S.att.alt, r: 40, t: 0, c: '255,159,10', ground: S.att.alt <= 0.5 }); }
   S.end = { who, why, at: S.t };
@@ -300,17 +309,18 @@ function step(dt) {
   if (S.state === 'ready' && ai.att && S.t > 1.5) attLaunch();
   if (S.state !== 'fly') return;
 
-  const m = S.att;
-  const ca = ai.att ? aiAttacker() : ctl('a');
-  const cd = ai.def ? aiDefender() : ctl('d');
+  const m = S.att, remA = NET && S.atk !== NET.me, remD = NET && S.def !== NET.me;
+  const ca = remA ? null : ai.att ? aiAttacker() : ctl('a');
+  const cd = remD ? null : ai.def ? aiDefender() : ctl('d');
   if (S.state !== 'fly') return;                       // AI may have detonated
 
-  m.boosting = ca.boost && m.fuel > 0 && !m.launch;
-  fly(m, ca, PA, m.boosting ? N.attBoost : null, dt);
+  if (remA) follow(m, NET.remote, dt, true);
+  else { m.boosting = ca.boost && m.fuel > 0 && !m.launch; fly(m, ca, PA, m.boosting ? N.attBoost : null, dt); }
   if (inRadar()) S.seen = true;
 
   const i = S.int;
-  if (i) {
+  if (i && remD) follow(i, NET.remote, dt, false);
+  else if (i) {
     fly(i, cd, PI_, null, dt);
     const d = dist3(m, i);
     if (d <= N.contact) { detonate(); return; }
@@ -319,8 +329,58 @@ function step(dt) {
   }
   if (S.state !== 'fly') return;
 
-  if (!m.launch && m.alt <= 0) { m.alt = 0; impact(); }
-  else if (m.x < -30 || m.x > W + 30 || m.y < -30 || m.y > H + 30) finish('d', 'The missile flew off the map.');
+  if (remA) return;                                     // the attacker's phone reports its own impact
+  if (!m.launch && m.alt <= 0) { m.alt = 0; if (NET) { S.state = 'wait'; net({ t: 'impact', x: m.x, y: m.y }); } else impact(); }
+  else if (m.x < -30 || m.x > W + 30 || m.y < -30 || m.y > H + 30) { if (NET) { S.state = 'wait'; net({ t: 'off' }); } else finish('d', 'The missile flew off the map.'); }
+}
+
+// ---- Online play: one phone per side, a server in between (server/). Each phone flies its own craft and streams it;
+// the server passes launches and positions on and decides impacts and interceptions.
+const SERVER = new URLSearchParams(location.search).get('server') || 'wss://air-defence-duel.onrender.com/duel';
+const net = msg => { if (NET && NET.ws.readyState === 1) NET.ws.send(JSON.stringify(msg)); };
+// Ease the other phone's craft toward its latest reported state (they arrive 15 times a second).
+function follow(o, r, dt, attacker) {
+  if (!r || r.x == null) return;
+  const k = Math.min(1, dt * 12);
+  o.x += (r.x - o.x) * k; o.y += (r.y - o.y) * k; o.alt += (r.alt - o.alt) * k; o.a += angDiff(o.a, r.a) * k;
+  o.cur = r.cur; o.vr = r.vr; o.yr = r.yr; o.fuel = r.fuel; if (attacker) o.boosting = r.boost;
+  if (r.lt >= 0) { o.launch = o.launch || (attacker ? { ign: 2.4, dur: 9, vertical: true } : { ign: .6, dur: 1.6 }); o.launch.t = r.lt; if (r.lt < o.launch.ign) { o.x = r.x; o.y = r.y; o.alt = r.alt; } }
+  else o.launch = null;
+}
+setInterval(() => {                                      // stream my own craft
+  if (!NET || !S || S.state !== 'fly') return;
+  const o = S.atk === NET.me ? S.att : S.int; if (!o) return;
+  net({ t: 's', o: { x: o.x, y: o.y, alt: o.alt, a: o.a, cur: o.cur, vr: o.vr, yr: o.yr, fuel: o.fuel, boost: !!o.boosting, lt: o.launch ? o.launch.t : -1 } });
+}, 66);
+function goOnline() {
+  const code = document.getElementById('codeIn').value.trim().toUpperCase();
+  let ws; try { ws = new WebSocket(SERVER); } catch (e) { card('Can\'t connect', 'The game server could not be reached.', 'Back'); return; }
+  NET = { ws, me: null, names: [], remote: null };
+  card('Finding an opponent…', code ? `Waiting for someone with invite code ${code}.` : 'Waiting for another player to tap Play online.', 'Cancel');
+  ws.onopen = () => net({ t: 'hello', name: 'Player ' + (100 + Math.floor(Math.random() * 900)), code });
+  ws.onmessage = e => onNet(JSON.parse(e.data));
+  ws.onclose = () => { if (NET && NET.ws === ws && !NET.done) { NET = null; card('Connection lost', 'The connection to the game server was lost.', 'Back'); } };
+}
+function onNet(msg) {
+  if (msg.t === 'match') { NET.me = msg.you; NET.names = msg.names; newGame(); }
+  else if (msg.t === 'round') {
+    G.hp = msg.hp; G.turn = msg.atk; NET.remote = null; NET.waiting = false; dim.classList.add('hidden'); newRound(); G.round = msg.n;
+  }
+  else if (msg.t === 's') NET.remote = msg.o;
+  else if (msg.t === 'launch') { if (S && S.state === 'ready') { S.state = 'fly'; S.att.launch = { t: 0, ign: 2.4, dur: 9, vertical: true }; } }
+  else if (msg.t === 'ilaunch') { if (S && !S.int) { const b = SIDES[S.def].bat; S.used = true;
+    S.int = { x: b.x, y: b.y, alt: 16, a: msg.a, spd: N.intStart, cur: 0, yr: 0, vr: 0, fuel: 1, prevD: 1e9, launch: { t: 0, ign: .6, dur: 1.6, alt0: 16 } }; } }
+  else if (msg.t === 'det') { if (S && S.int) { S.blasts.push({ x: msg.x, y: msg.y, alt: msg.alt, r: N.blast, t: 0, c: '10,132,255' }); S.int = null; } }
+  else if (msg.t === 'result') {
+    if (!S) return; G.hp = msg.hp; if (msg.over != null) G.over = msg.over;
+    const m = S.att;
+    if (msg.kind === 'hit' || msg.kind === 'miss') { m.x = msg.x; m.y = msg.y; m.alt = 0; m.alive = false; S.blasts.push({ x: m.x, y: m.y, alt: 0, r: 70, t: 0, c: '255,69,58' }); }
+    if (msg.kind === 'intercept') { if (S.int) { S.blasts.push({ x: msg.blast.x, y: msg.blast.y, alt: msg.blast.alt, r: N.blast, t: 0, c: '10,132,255' }); S.int = null; }
+      if (msg.missile) Object.assign(m, msg.missile); }
+    if (S.state === 'ready') S.state = 'fly';
+    finish(msg.kind === 'hit' ? 'a' : 'd', msg.why);
+  }
+  else if (msg.t === 'left') { NET.done = true; NET.ws.close(); NET = null; card('Your opponent left', msg.why + ' You win this one.', 'Back to menu'); }
 }
 
 // ---- 3D view (look borrowed from the main game: sky, hills, Turkish apartment blocks, smoke and fireballs) ----
@@ -852,26 +912,34 @@ function hud() {
   if (side === 'a') { document.getElementById('fuel').style.width = (100 * S.att.fuel) + '%'; actBtn.textContent = S.state === 'ready' ? 'LAUNCH' : 'BOOST'; actBtn.disabled = false; }
   if (side === 'd') { document.getElementById('fuel').style.width = (S.int ? 100 * S.int.fuel : S.used ? 0 : 100) + '%'; actBtn.textContent = S.int ? 'DETONATE' : 'LAUNCH';
     actBtn.disabled = S.state === 'fly' && ((!S.used && !inRadar()) || (S.used && !S.int)); }
-  if (S.state === 'over' && S.t - S.end.at > 1.6 && dim.classList.contains('hidden')) {
-    const A = SIDES[S.atk].name, D = SIDES[S.def].name;
+  if (S.state === 'over' && S.t - S.end.at > 1.6 && dim.classList.contains('hidden') && !(NET && NET.waiting)) {
+    const A = SIDES[S.atk].name, D = SIDES[S.def].name, who = k => NET ? (k === NET.me ? 'You' : NET.names[k]) : SIDES[k].name;
     if (G.over != null) {
-      document.getElementById('title').textContent = `${SIDES[G.over].name} wins the war!`;
-      document.getElementById('msg').textContent = `${S.end.why} All 6 of ${D}'s targets are destroyed.`;
-      document.getElementById('go').textContent = 'Play again';
-    } else {
-      document.getElementById('title').textContent = S.end.who === 'a' ? `${A} hits ${D}` : `${D} holds`;
-      document.getElementById('msg').textContent = `${S.end.why} Targets left — Red ${alive(0)}, Blue ${alive(1)}. Next: ${D} attacks.`;
-      document.getElementById('go').textContent = 'Next round';
-    }
-    dim.classList.remove('hidden');
+      card(NET ? (G.over === NET.me ? 'You win the war!' : `${NET.names[G.over]} wins the war`) : `${SIDES[G.over].name} wins the war!`,
+        `${S.end.why} All 6 of ${D}'s targets are destroyed.`, NET ? 'Back to menu' : 'Play again');
+      if (NET) { NET.done = true; NET.ws.close(); NET = null; }
+    } else card(S.end.who === 'a' ? `${A} hits ${D}` : `${D} holds`, `${S.end.why} Targets left — Red ${alive(0)}, Blue ${alive(1)}. Next: ${who(S.def)} attack${NET && S.def === NET.me ? '' : 's'}.`, 'Next round');
   }
 }
 const dim = document.getElementById('dim');
+function card(title, msg, btn, menu) {
+  document.getElementById('title').textContent = title; document.getElementById('msg').textContent = msg;
+  document.getElementById('go').textContent = btn; document.getElementById('onlineMenu').classList.toggle('hidden', !menu);
+  dim.classList.remove('hidden');
+}
 function nextRound() {                                    // sides take turns; after a finished war, start a new one
   if (G.over != null) newGame(); else if (S) G.turn = 1 - G.turn;
   dim.classList.add('hidden'); newRound();
 }
-document.getElementById('go').onclick = nextRound;
+document.getElementById('go').onclick = () => {
+  const label = document.getElementById('go').textContent;
+  if (NET && label === 'Next round') { NET.waiting = true; net({ t: 'ready' }); card('Waiting…', `Waiting for ${NET.names[1 - NET.me]} to be ready.`, 'Leave game'); return; }
+  if (NET) { NET.done = true; NET.ws.close(); NET = null; }                     // Cancel / Leave game
+  if (['Back', 'Back to menu', 'Cancel', 'Leave game'].includes(label)) { newGame(); card('Missile Duel', MENU_TEXT, 'Play vs computer', true); return; }
+  nextRound();
+};
+document.getElementById('onlineBtn').onclick = goOnline;
+const MENU_TEXT = document.getElementById('msg').textContent;
 
 // ---- Loop (window.__advance(sec) steps it in tests) ----
 const DT = 1 / 120;

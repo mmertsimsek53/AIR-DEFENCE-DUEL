@@ -1,0 +1,21 @@
+{
+  "name": "@add/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Air Defence Duel game server: matchmaking and the missile duel's turns and hits, over WebSockets.",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc && node dist/index.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/ws": "^8.5.13",
+    "typescript": "^5.6.3"
+  }
+}

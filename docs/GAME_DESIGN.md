@@ -178,3 +178,10 @@ Status: first outline from Mert, 9 Oct 2026. Everything below "Open questions" i
 - **Swamped radar:** more contacts in a battery's range than it handles (2 short/medium, 4 long/top) cost 6 hit-chance points each, up to −36.
 - Duel only (My Base raids unchanged). Simulated, 40 strikes per mix vs both AI defence sets: 2 Tayfun + 30 Shahed + 12 MALD gets the Tayfun through 49–78% (was 6–19%); Tomahawk with the same cover 23–48% (was 4–11%); 30 Shahed alone 57–66%; lone Tayfun / Kinzhal unchanged. AI v AI median 7 turns (was 9).
 
+
+## Missile duel (prototype, decided Nov 2026)
+- Two bases 12 km apart, each with 6 targets (Command HQ, Radar station, Power plant, Fuel depot, Treasury, Oil field) 600 m apart, a silo and a defence battery. Silos and batteries can't be damaged.
+- Turns alternate: the attacker launches one missile from its silo and flies it (steer, climb/dive, faster/slower, boost; fuel runs out = no control, it coasts down); the defender launches one interceptor after radar contact (8 km) and detonates it near the missile (blast reach 280 m).
+- Damage from the missile's ground impact: 100 within 50 m, falling to 0 at 400 m. Destroy all 6 enemy targets to win.
+- Online: one phone per side via the game server (server/), which pairs players (optional invite code) and decides impacts and interceptions. Also vs computer.
+- Numbers: prototype/missile-duel-3d.html (N, SIDES) and server/src/duel.ts.
