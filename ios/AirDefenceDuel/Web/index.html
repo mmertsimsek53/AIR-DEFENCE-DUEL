@@ -28,6 +28,8 @@
   #stick::before, #stick::after { content: ''; position: absolute; background: rgba(255,255,255,.18); }
   #stick::before { left: 50%; top: 14px; bottom: 14px; width: 2px; margin-left: -1px; } #stick::after { top: 50%; left: 14px; right: 14px; height: 2px; margin-top: -1px; }
   #camBtn { position: absolute; left: max(22px, env(safe-area-inset-left)); bottom: 186px; height: 36px; padding: 0 14px; font-size: 12px; letter-spacing: .05em; border-radius: 12px; }
+  #invBtn { position: absolute; left: calc(max(22px, env(safe-area-inset-left)) + 118px); bottom: 186px; height: 36px; padding: 0 12px; font-size: 12px; letter-spacing: .05em; border-radius: 12px; }
+  #invBtn.on { background: rgba(255,159,10,.5); }
   #hud { pointer-events: none; }
   #stick .knob { position: absolute; left: 50%; top: 50%; width: 62px; height: 62px; margin: -31px 0 0 -31px; border-radius: 50%; background: rgba(255,255,255,.5); box-shadow: 0 2px 10px rgba(0,0,0,.3); pointer-events: none; }
   #rpad { position: absolute; right: max(16px, env(safe-area-inset-right)); bottom: 16px; display: grid; gap: 8px; grid-template-columns: 70px 96px; grid-template-rows: auto 56px 56px; align-items: center; }
@@ -82,6 +84,7 @@
 <canvas id="hud" class="hidden"></canvas>
 <div id="stick" class="hidden"><div class="knob"></div></div>
 <button class="btn hidden" id="camBtn">COCKPIT</button>
+<button class="btn hidden" id="invBtn">▲ CLIMB</button>
 <div id="rpad" class="hidden">
   <div class="bar"><i id="fuel"></i></div>
   <button class="btn thr" data-c="W">FAST</button>
@@ -160,7 +163,8 @@ function press(k) {
   if (k === 'aB') attLaunch();
 }
 function release(k) { held.delete(k); }
-const JOY = { x: 0, y: 0 };                               // joystick: x = turn (right +), y = climb (up +), each −1…1
+const JOY = { x: 0, y: 0, inv: false };                  // joystick: x = turn (right +), y = climb (up +), each −1…1; inv = push up to dive (like a plane)
+try { JOY.inv = localStorage.getItem('duelInvert') === '1'; } catch (e) {}
 const ctl = s => { const j = s === humanSide() ? JOY : { x: 0, y: 0 };
   return { turn: clamp((held.has(s + 'R') ? 1 : 0) - (held.has(s + 'L') ? 1 : 0) + j.x, -1, 1), thr: (held.has(s + 'W') ? 1 : 0) - (held.has(s + 'S') ? 1 : 0),
     climb: clamp((held.has(s + 'U') ? 1 : 0) - (held.has(s + 'D') ? 1 : 0) + j.y, -1, 1), boost: held.has(s + 'B') }; };
@@ -169,7 +173,7 @@ const ctl = s => { const j = s === humanSide() ? JOY : { x: 0, y: 0 };
     const d = Math.hypot(dx, dy); if (d > R) { dx *= R / d; dy *= R / d; }
     knob.style.transform = `translate(${dx}px, ${dy}px)`;
     const dead = v => Math.abs(v) < .08 ? 0 : v;                // a little dead zone in the middle
-    JOY.x = dead(dx / R); JOY.y = dead(-dy / R); };
+    JOY.x = dead(dx / R); JOY.y = dead(-dy / R) * (JOY.inv ? -1 : 1); };
   const end = () => { JOY.x = JOY.y = 0; knob.style.transform = ''; };
   stick.addEventListener('pointerdown', e => { e.preventDefault(); stick.setPointerCapture(e.pointerId); move(e); });
   stick.addEventListener('pointermove', e => { if (stick.hasPointerCapture(e.pointerId)) move(e); });
@@ -958,7 +962,11 @@ function drawHUD() {
   x.shadowBlur = 0;
 }
 // Camera button above the joystick: chase view ↔ cockpit view.
-const camBtn = document.getElementById('camBtn');
+const camBtn = document.getElementById('camBtn'), invBtn = document.getElementById('invBtn');
+// Up/down switch for the joystick: "▲ CLIMB" = push up to climb, "▼ DIVE" = push up to dive (like a plane's stick). Remembered on this phone.
+const showInv = () => { invBtn.textContent = JOY.inv ? 'UP = DIVE' : 'UP = CLIMB'; invBtn.classList.toggle('on', JOY.inv); };
+invBtn.addEventListener('pointerdown', e => { e.preventDefault(); JOY.inv = !JOY.inv; try { localStorage.setItem('duelInvert', JOY.inv ? '1' : '0'); } catch (er) {} showInv(); });
+showInv();
 camBtn.addEventListener('pointerdown', e => { e.preventDefault(); CAM = CAM === 'hud' ? 'chase' : 'hud'; camBtn.textContent = CAM === 'hud' ? 'CHASE VIEW' : 'COCKPIT'; });
 // Target marker (the enemy craft, with distance and height difference) and your speed / height readout.
 const markEl = document.getElementById('mark'), markTxt = document.getElementById('markTxt'), readout = document.getElementById('readout');
@@ -1014,7 +1022,7 @@ function hud() {
   document.getElementById('sa').textContent = alive(0); document.getElementById('sd').textContent = alive(1);
   if (!S) return;
   const side = humanSide(), live = S.state !== 'over';
-  dpad.classList.toggle('hidden', !(side && live)); camBtn.classList.toggle('hidden', !(side && live)); rpad.classList.toggle('hidden', !(side && live)); rpad.classList.toggle('d', side === 'd');
+  dpad.classList.toggle('hidden', !(side && live)); camBtn.classList.toggle('hidden', !(side && live)); invBtn.classList.toggle('hidden', !(side && live)); rpad.classList.toggle('hidden', !(side && live)); rpad.classList.toggle('d', side === 'd');
   roleLbl.classList.toggle('hidden', !side); roleLbl.className = 'role ' + (side || '') + (side ? '' : ' hidden');
   roleLbl.textContent = side === 'a' ? `You attack ${SIDES[S.def].name}` : side === 'd' ? `You defend ${SIDES[S.def].name}` : '';
   if (side === 'a') { document.getElementById('fuel').style.width = (100 * S.att.fuel) + '%'; actBtn.textContent = S.state === 'ready' ? 'LAUNCH' : 'BOOST'; actBtn.disabled = false; }
