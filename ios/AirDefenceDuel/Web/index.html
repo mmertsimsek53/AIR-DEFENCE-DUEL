@@ -231,13 +231,19 @@ function newRound() {
 // at the top); then the gas piston plate drops off its tail (plate), and the main motor lights with the missile flat (mot). It speeds
 // away almost level, climbing gently; control after dur seconds.
 const coldLaunch = () => ({ t: 0, ign: 1.2, exit: 1.7, rcs: 2.3, plate: 3.35, mot: 3.5, dur: 7.6, peak: 40, alt0: SILO_DEPTH, sp1: N.attStart, vertical: true });
-// RCS bursts (s after rcs, and which way): three start the turn, then the missile keeps turning on its own, and two opposite bursts stop it flat.
-const RCS_T = [[0, 1], [.14, 1], [.28, 1], [.78, -1], [.9, -1]], RCS_LEN = .12, RCS_TURN = 1.05;
+// RCS bursts (s after rcs, and which way): one burst starts the turn, the missile keeps turning at a steady rate on its own,
+// and one burst from the other side stops it flat. RCS_LEN = burst length (the turn speeds up / slows down only while a jet fires).
+const RCS_T = [[0, 1], [.85, -1]], RCS_LEN = .2;
+function rcsTurn(t) {                                    // 0 → 1: how far through the turn from straight up to flat, t s after rcs
+  const a = RCS_LEN, c = RCS_T[1][0], full = a / 2 + (c - a) + a / 2;
+  const g = t <= 0 ? 0 : t < a ? t * t / (2 * a) : t < c ? a / 2 + (t - a) : t < c + a ? a / 2 + (c - a) + (t - c) - (t - c) * (t - c) / (2 * a) : full;
+  return g / full;
+}
 const rcsBurst = L => { for (let k = 0; k < RCS_T.length; k++) { const u = (L.t - L.rcs - RCS_T[k][0]) / RCS_LEN; if (u >= 0 && u < 1) return k; } return -1; };
 const smoother = e => e * e * e * (e * (e * 6 - 15) + 10);
 function launchPitch(L) {                                 // nose angle above the horizon during the cold launch
   if (L.t < L.rcs) return Math.PI / 2;
-  if (L.t < L.mot) return Math.PI / 2 * (1 - smoother(clamp((L.t - L.rcs) / RCS_TURN, 0, 1)));   // one smooth turn: speeds up, then slows to a stop flat
+  if (L.t < L.mot) return Math.PI / 2 * (1 - rcsTurn(L.t - L.rcs));   // starts with the first burst, turns steadily, stops with the second
   return .3 * Math.sin(Math.PI * clamp((L.t - L.mot) / (L.dur - L.mot), 0, 1));   // after ignition: a gentle climb, level again by the hand-over
 }
 function attLaunch() {
