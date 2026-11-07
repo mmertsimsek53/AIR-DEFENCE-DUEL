@@ -22,8 +22,14 @@
     touch-action: none; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
   .btn.on { background: rgba(255,255,255,.36); }
   .btn:disabled { opacity: .3; }
-  #dpad { position: absolute; left: max(16px, env(safe-area-inset-left)); bottom: 16px; display: grid; gap: 6px; grid-template-columns: repeat(3, 58px); grid-template-rows: repeat(3, 58px); }
-  #dpad .u { grid-area: 1 / 2; } #dpad .l { grid-area: 2 / 1; } #dpad .r { grid-area: 2 / 3; } #dpad .d { grid-area: 3 / 2; }
+  /* Joystick: slide anywhere around the circle — sideways turns, up climbs, down dives, diagonals do both; it springs back when let go. */
+  #stick { position: absolute; left: max(22px, env(safe-area-inset-left)); bottom: 22px; width: 150px; height: 150px; border-radius: 50%; touch-action: none;
+    background: rgba(255,255,255,.12); border: 2px solid rgba(255,255,255,.28); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+  #stick::before, #stick::after { content: ''; position: absolute; background: rgba(255,255,255,.18); }
+  #stick::before { left: 50%; top: 14px; bottom: 14px; width: 2px; margin-left: -1px; } #stick::after { top: 50%; left: 14px; right: 14px; height: 2px; margin-top: -1px; }
+  #camBtn { position: absolute; left: max(22px, env(safe-area-inset-left)); bottom: 186px; height: 36px; padding: 0 14px; font-size: 12px; letter-spacing: .05em; border-radius: 12px; }
+  #hud { pointer-events: none; }
+  #stick .knob { position: absolute; left: 50%; top: 50%; width: 62px; height: 62px; margin: -31px 0 0 -31px; border-radius: 50%; background: rgba(255,255,255,.5); box-shadow: 0 2px 10px rgba(0,0,0,.3); pointer-events: none; }
   #rpad { position: absolute; right: max(16px, env(safe-area-inset-right)); bottom: 16px; display: grid; gap: 8px; grid-template-columns: 70px 96px; grid-template-rows: auto 56px 56px; align-items: center; }
   #rpad .bar { grid-column: 1 / -1; height: 6px; background: var(--row); border-radius: 3px; overflow: hidden; }
   #rpad .bar i { display: block; height: 100%; width: 100%; background: var(--red); }
@@ -73,9 +79,9 @@
   <span class="role hidden" id="roleLbl"></span>
 </div>
 
-<div id="dpad" class="hidden">
-  <button class="btn u" data-c="U">▲</button><button class="btn l" data-c="L">◀</button><button class="btn r" data-c="R">▶</button><button class="btn d" data-c="D">▼</button>
-</div>
+<canvas id="hud" class="hidden"></canvas>
+<div id="stick" class="hidden"><div class="knob"></div></div>
+<button class="btn hidden" id="camBtn">COCKPIT</button>
 <div id="rpad" class="hidden">
   <div class="bar"><i id="fuel"></i></div>
   <button class="btn thr" data-c="W">FAST</button>
@@ -87,7 +93,7 @@
   <div class="win">
     <h2 id="title">Missile Duel</h2>
     <p id="msg">Each side has a city with 6 targets. The sides take turns: one launches a missile from its silo and dives it onto an enemy target, the other launches one interceptor and detonates it near the missile. The closer the impact, the more damage. Destroy all 6 enemy targets to win.<br>
-      Left: steer and climb or dive. Right: faster, slower, and the big button — launch, then boost (attacking) or launch, then detonate (defending).</p>
+      Left: the joystick — slide it any way to turn, climb or dive. Right: faster, slower, and the big button — launch, then boost (attacking) or launch, then detonate (defending).</p>
     <button class="go" id="go">Play vs computer</button>
     <div id="onlineMenu"><button class="go alt" id="onlineBtn">Play online</button>
       <input id="codeIn" maxlength="12" autocomplete="off" autocapitalize="characters" placeholder="Invite code (optional) — same code = same match"></div>
@@ -100,16 +106,21 @@
 // ---- Numbers (map units: the map is 1600 × 560; heights in the same units; 1 unit ≈ 10 m on the readouts) ----
 const W = 1600, H = 560;
 const N = {
-  attMin: 29, attMax: 58, attStart: 45, attBoost: 90, attAcc: 26, attTurn: 65, attClimb: 10, attTank: 60, attAlt: 100,
-  intMin: 55, intMax: 90, intStart: 80, intAcc: 38, intTurn: 85, intClimb: 16, intTank: 14,
+  attMin: 29, attMax: 58, attStart: 45, attBoost: 90, attAcc: 26, attTurn: 180, attClimb: 10, attTank: 60, attAlt: 100,
+  intMin: 55, intMax: 90, intStart: 80, intAcc: 38, intTurn: 180, intClimb: 16, intTank: 14,
   // Fuel: a full tank lasts attTank / intTank seconds of calm cruising. FAST burns up to 1.5×, turning or climbing adds up to +0.5×, boost burns 4×.
   // Empty tank: no more control — it coasts on its last heading, slows down and sinks.
-  turnEase: 2.2, climbEase: 1.6, diveX: 1.8,                       // how fast turning / climbing builds up and dies away (per second): it flies, it doesn't drive
+  turnEase: 2.2, climbEase: 1.6, diveX: 1.8,   // how fast turning / climbing builds up and dies away (per second): it flies, it doesn't drive
+  turnDrag: 14, stall: 20,   // a full hard turn bleeds 140 m/s each second (gentle turns far less); below 200 m/s (stall) it starts to sink
   altMax: 300, blast: 28, contact: 8, radar: 800,
 };
 const PA = { min: N.attMin, max: N.attMax, ref: N.attStart, acc: N.attAcc, turn: N.attTurn, climb: N.attClimb, tank: N.attTank };
 const PI_ = { min: N.intMin, max: N.intMax, ref: N.intStart, acc: N.intAcc, turn: N.intTurn, climb: N.intClimb, tank: N.intTank };
 const D2R = Math.PI / 180;
+// Where you may fly: 24 × 14 km around the battlefield (the bases sit in the middle). Beyond it the round ends; a warning shows near the edge.
+const FLY = { x0: -400, x1: 2000, y0: -420, y1: 980 };
+const nearEdge = o => Math.min(o.x - FLY.x0, FLY.x1 - o.x, o.y - FLY.y0, FLY.y1 - o.y) < 120;
+const groundAt = o => terrainH((o.x - W / 2) * K, (o.y - H / 2) * K) / K;   // terrain height under a craft, map units
 // Two sides facing each other. Each has a city with 6 targets, a silo behind it and a defence battery in front of it.
 // Silos and batteries can never be damaged. Whoever destroys all 6 enemy targets first wins.
 const SIDES = [
@@ -148,8 +159,20 @@ function press(k) {
   if (k === 'aB') attLaunch();
 }
 function release(k) { held.delete(k); }
-const ctl = s => ({ turn: (held.has(s + 'R') ? 1 : 0) - (held.has(s + 'L') ? 1 : 0), thr: (held.has(s + 'W') ? 1 : 0) - (held.has(s + 'S') ? 1 : 0),
-  climb: (held.has(s + 'U') ? 1 : 0) - (held.has(s + 'D') ? 1 : 0), boost: held.has(s + 'B') });
+const JOY = { x: 0, y: 0 };                               // joystick: x = turn (right +), y = climb (up +), each −1…1
+const ctl = s => { const j = s === humanSide() ? JOY : { x: 0, y: 0 };
+  return { turn: clamp((held.has(s + 'R') ? 1 : 0) - (held.has(s + 'L') ? 1 : 0) + j.x, -1, 1), thr: (held.has(s + 'W') ? 1 : 0) - (held.has(s + 'S') ? 1 : 0),
+    climb: clamp((held.has(s + 'U') ? 1 : 0) - (held.has(s + 'D') ? 1 : 0) + j.y, -1, 1), boost: held.has(s + 'B') }; };
+{ const stick = document.getElementById('stick'), knob = stick.querySelector('.knob'), R = 56;
+  const move = e => { const r = stick.getBoundingClientRect(); let dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+    const d = Math.hypot(dx, dy); if (d > R) { dx *= R / d; dy *= R / d; }
+    knob.style.transform = `translate(${dx}px, ${dy}px)`;
+    const dead = v => Math.abs(v) < .08 ? 0 : v;                // a little dead zone in the middle
+    JOY.x = dead(dx / R); JOY.y = dead(-dy / R); };
+  const end = () => { JOY.x = JOY.y = 0; knob.style.transform = ''; };
+  stick.addEventListener('pointerdown', e => { e.preventDefault(); stick.setPointerCapture(e.pointerId); move(e); });
+  stick.addEventListener('pointermove', e => { if (stick.hasPointerCapture(e.pointerId)) move(e); });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => stick.addEventListener(ev, end)); }
 
 const sideAI = [false, true];                           // who plays Red / Blue
 const ai = { att: false, def: true };                   // this round's roles, from sideAI and whose turn it is
@@ -294,12 +317,15 @@ function fly(o, c, P, sp, dt) {                       // throttle, turn, climb, 
   else o.fuel = Math.max(0, o.fuel - (sp != null ? 4 : 1 + .5 * (o.spd - P.min) / (P.max - P.min) + .5 * Math.max(Math.abs(o.yr), Math.abs(o.vr))) * dt / P.tank);
   o.yr += (c.turn - o.yr) * Math.min(1, N.turnEase * dt);      // turn rate and climb rate build up and fade smoothly
   o.vr += (c.climb - o.vr) * Math.min(1, N.climbEase * dt);
-  o.spd = dry ? Math.max(15, o.spd - (6 + o.vr * P.climb * .35) * dt)
-              : clamp(o.spd + c.thr * P.acc * dt - o.vr * P.climb * 0.35 * dt, P.min, P.max);   // climbing costs speed, diving gains it
+  const drag = N.turnDrag * o.yr * o.yr;                // turning is not limited, but it bleeds speed
+  o.spd = dry ? Math.max(15, o.spd - (6 + drag + o.vr * P.climb * .35) * dt)
+              : clamp(o.spd + (c.thr * P.acc - drag - o.vr * P.climb * 0.35) * dt, P.min * (1 - Math.min(1, Math.abs(o.yr) * 1.5)) + 8, P.max);   // climbing costs speed, diving gains it; hard turns can bleed it below the cruise minimum
+  if (!dry && Math.abs(o.yr) < .2 && o.spd < P.min) o.spd = Math.min(P.min, o.spd + P.acc * .5 * dt);   // straight again: the engine pulls it back up to cruise
   o.cur = sp != null ? sp : o.spd;
   o.a += o.yr * P.turn * clamp(P.ref / o.cur, .6, 1.2) * D2R * dt;   // the faster it goes, the wider it turns
   o.x += Math.cos(o.a) * o.cur * dt; o.y += Math.sin(o.a) * o.cur * dt;
   o.alt = Math.min(N.altMax, o.alt + o.vr * P.climb * (o.vr < 0 ? N.diveX : 1) * dt);   // gravity helps a dive: it can sink faster than it climbs
+  if (o.cur < N.stall) o.alt -= (N.stall - o.cur) * .6 * dt;                                // too slow to hold height
 }
 function step(dt) {
   if (!S) return;
@@ -324,13 +350,13 @@ function step(dt) {
     const d = dist3(m, i);
     if (d <= N.contact) { detonate(); return; }
     i.prevD = d;
-    if (i.alt <= 0) { i.alt = 0; detonate(); }            // flew into the ground (an empty interceptor sinks until it does)
+    if (!i.launch && i.alt <= groundAt(i)) { i.alt = groundAt(i); detonate(); }   // flew into the ground or a hillside
   }
   if (S.state !== 'fly') return;
 
   if (remA) return;                                     // the attacker's phone reports its own impact
-  if (!m.launch && m.alt <= 0) { m.alt = 0; if (NET) { S.state = 'wait'; net({ t: 'impact', x: m.x, y: m.y }); } else impact(); }
-  else if (m.x < -30 || m.x > W + 30 || m.y < -30 || m.y > H + 30) { if (NET) { S.state = 'wait'; net({ t: 'off' }); } else finish('d', 'The missile flew off the map.'); }
+  if (!m.launch && m.alt <= groundAt(m)) { m.alt = groundAt(m); if (NET) { S.state = 'wait'; net({ t: 'impact', x: m.x, y: m.y }); } else impact(); }
+  else if (m.x < FLY.x0 || m.x > FLY.x1 || m.y < FLY.y0 || m.y > FLY.y1) { if (NET) { S.state = 'wait'; net({ t: 'off' }); } else finish('d', 'The missile flew off the map.'); }
 }
 
 // ---- Online play: one phone per side, a server in between (server/). Each phone flies its own craft and streams it;
@@ -398,9 +424,9 @@ renderer.shadowMap.enabled = true; renderer.shadowMap.type = THR.PCFShadowMap;
 renderer.toneMapping = THR.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.08;
 const scene = new THR.Scene();
 scene.fog = new THR.FogExp2(0xa9c3dc, 0.0005);
-const camera = new THR.PerspectiveCamera(50, 1, 0.5, 5000);
+const camera = new THR.PerspectiveCamera(50, 1, 0.5, 10000);
 const SUN = new V(0.55, 0.75, -0.45).normalize();
-scene.add(new THR.Mesh(new THR.SphereGeometry(2000, 32, 16), new THR.ShaderMaterial({
+scene.add(new THR.Mesh(new THR.SphereGeometry(4800, 32, 16), new THR.ShaderMaterial({
   side: THR.BackSide, depthWrite: false, fog: false, toneMapped: false, uniforms: { sd: { value: SUN } },
   vertexShader: 'varying vec3 vP;void main(){vP=normalize(position);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
   fragmentShader: 'uniform vec3 sd;varying vec3 vP;void main(){float h=vP.y;vec3 top=vec3(0.13,0.36,0.76);vec3 hor=vec3(0.60,0.75,0.90);vec3 c=mix(hor,top,smoothstep(0.0,0.55,h));float s=max(dot(vP,sd),0.0);c+=vec3(1.0,0.92,0.75)*pow(s,600.0)*1.6+vec3(1.0,0.85,0.6)*pow(s,12.0)*0.18;if(h<0.0)c=hor*0.9;gl_FragColor=vec4(c,1.0);}'
@@ -421,17 +447,17 @@ const fbm = (x, z, o) => { let s = 0, a = .5, f = 1; for (let k = 0; k < o; k++)
 const ridged = (x, z) => { let s = 0, a = .55, f = 1; for (let k = 0; k < 4; k++) { s += a * (1 - Math.abs(NZ(x * f, z * f) * 2 - 1)) ** 2; a *= .5; f *= 2.1; } return s; };
 const sstep = (a, b, t) => { t = Math.min(1, Math.max(0, (t - a) / (b - a))); return t * t * (3 - 2 * t); };
 function terrainH(x, z) {
-  const r = Math.hypot(x / 1.75, z);                          // oval flat zone that fits the long map
-  if (r < 300) return 0;
-  const hills = sstep(300, 420, r) * fbm(x / 170, z / 170, 4) * 45;
-  const mtn = sstep(460, 800, r) * (ridged(x / 300 + 3.1, z / 300 - 1.7) * 300 + fbm(x / 110, z / 110, 3) * 40);
+  const r = Math.hypot(x / 1.7, z);                           // flat battlefield, hills toward the edge of the flying area, mountains beyond
+  if (r < 560) return 0;
+  const hills = sstep(560, 760, r) * fbm(x / 210, z / 210, 4) * 55;
+  const mtn = sstep(860, 1300, r) * (ridged(x / 380 + 3.1, z / 380 - 1.7) * 320 + fbm(x / 130, z / 130, 3) * 40);
   return Math.max(0, hills + mtn - 1);
 }
 function canvasTex(w, h, draw, rep) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THR.CanvasTexture(c); t.wrapS = t.wrapT = THR.RepeatWrapping; if (rep) t.repeat.set(rep[0], rep[1]); t.anisotropy = 4; return t; }
 function noise(x, w, h, base, vars, n) { x.fillStyle = base; x.fillRect(0, 0, w, h); for (let i = 0; i < n; i++) { x.fillStyle = vars[(rand() * vars.length) | 0]; x.globalAlpha = .25 + rand() * .35; const s = 1 + rand() * 4; x.fillRect(rand() * w, rand() * h, s, s); } x.globalAlpha = 1; }
 { const ct = canvasTex(128, 128, (x, w, h) => { for (let i = 0; i < 14; i++) { const cx = 24 + rand() * 80, cy = 44 + rand() * 40, r = 14 + rand() * 22; const g = x.createRadialGradient(cx, cy, 0, cx, cy, r); g.addColorStop(0, 'rgba(255,255,255,.9)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, w, h); } });
-  for (let i = 0; i < 26; i++) { const s = new THR.Sprite(new THR.SpriteMaterial({ map: ct, transparent: true, opacity: .85, fog: false, depthWrite: false })); const a = rand() * TAU, r = 500 + rand() * 900; s.position.set(Math.cos(a) * r, 260 + rand() * 160, Math.sin(a) * r); const k = 180 + rand() * 220; s.scale.set(k, k * .45, 1); scene.add(s); } }
-{ const NG = 220, SZ = 3600, geo = new THR.PlaneGeometry(SZ, SZ, NG, NG).rotateX(-Math.PI / 2), pos = geo.attributes.position;
+  for (let i = 0; i < 26; i++) { const s = new THR.Sprite(new THR.SpriteMaterial({ map: ct, transparent: true, opacity: .85, fog: false, depthWrite: false })); const a = rand() * TAU, r = 1300 + rand() * 1500; s.position.set(Math.cos(a) * r, 260 + rand() * 160, Math.sin(a) * r); const k = 180 + rand() * 220; s.scale.set(k, k * .45, 1); scene.add(s); } }
+{ const NG = 300, SZ = 7000, geo = new THR.PlaneGeometry(SZ, SZ, NG, NG).rotateX(-Math.PI / 2), pos = geo.attributes.position;
   for (let i = 0; i < pos.count; i++) pos.setY(i, terrainH(pos.getX(i), pos.getZ(i)));
   geo.computeVertexNormals(); const nrm = geo.attributes.normal, col = new Float32Array(pos.count * 3), c = new THR.Color();
   for (let i = 0; i < pos.count; i++) { const x = pos.getX(i), z = pos.getZ(i), y = pos.getY(i), slope = 1 - nrm.getY(i), n = fbm(x / 40, z / 40, 2);
@@ -444,14 +470,14 @@ function noise(x, w, h, base, vars, n) { x.fillStyle = base; x.fillRect(0, 0, w,
   const detail = canvasTex(128, 128, (x, w, h) => noise(x, w, h, '#d8d8d8', ['#c4c4c4', '#e6e6e6', '#cfcfcf', '#b9b9b9'], 2600), [110, 110]);
   const g = new THR.Mesh(geo, new THR.MeshLambertMaterial({ vertexColors: true, map: detail })); g.receiveShadow = true; scene.add(g);
   // Forest on the hills, plus scattered copses on the plain.
-  const NT = 2400, crowns = new THR.InstancedMesh(new THR.ConeGeometry(2.6, 7.5, 6).translate(0, 5.2, 0), new THR.MeshLambertMaterial({ color: 0xffffff }), NT);
+  const NT = 4500, crowns = new THR.InstancedMesh(new THR.ConeGeometry(2.6, 7.5, 6).translate(0, 5.2, 0), new THR.MeshLambertMaterial({ color: 0xffffff }), NT);
   const trunks = new THR.InstancedMesh(new THR.CylinderGeometry(.35, .45, 1.8, 5).translate(0, .9, 0), new THR.MeshLambertMaterial({ color: 0x5a4330 }), NT);
   const d = new THR.Object3D(), tc = new THR.Color(); let n = 0;
   const clear = SIDES.flatMap(sd => [[sd.city, 52], [sd.silo, 26], [sd.bat, 26]]).map(([q, r]) => [to3(q.x, q.y, 0, new V()), r]);
   for (let k = 0; k < NT * 4 && n < NT; k++) {
     let x, z;
-    if (k % 12 === 0) { const cx = (rand() - .5) * 900, cz = (rand() - .5) * 300; x = cx + (rand() - .5) * 18; z = cz + (rand() - .5) * 18; if (clear.some(([q, r]) => Math.hypot(x - q.x, z - q.z) < r)) continue; }   // keep the city, the battery and the launch line clear   // keep the city and the launch line clear
-    else { const a = rand() * TAU, r = 330 + rand() * rand() * 500; x = Math.cos(a) * r * 1.75; z = Math.sin(a) * r; }
+    if (k % 3 === 0) { const cx = (rand() - .5) * 2300, cz = (rand() - .5) * 1300; x = cx + (rand() - .5) * 18; z = cz + (rand() - .5) * 18; if (clear.some(([q, r]) => Math.hypot(x - q.x, z - q.z) < r)) continue; }   // keep the city, the battery and the launch line clear   // keep the city and the launch line clear
+    else { const a = rand() * TAU, r = 600 + rand() * rand() * 700; x = Math.cos(a) * r * 1.7; z = Math.sin(a) * r; }
     const y = terrainH(x, z); if (y > 120) continue;
     d.position.set(x, y - .3, z); const sc = .7 + rand() * .9; d.scale.set(sc, sc * (.85 + rand() * .4), sc); d.rotation.y = rand() * 3; d.updateMatrix(); crowns.setMatrixAt(n, d.matrix); trunks.setMatrixAt(n, d.matrix);
     tc.setHSL(.27 + rand() * .06, .45 + rand() * .15, .17 + rand() * .1); crowns.setColorAt(n, tc); n++; }
@@ -632,6 +658,24 @@ const sweeps = SIDES.map((sd, k) => { const c = to3(sd.city.x, sd.city.y, 0, new
   const sw = new THR.Mesh(new THR.CircleGeometry(RR, 48, 0, .35).rotateX(-Math.PI / 2), blueAdd(.1, col)); sw.position.set(c.x, .5, c.z); scene.add(sw); return sw; });
 // Blast-size bubble around the interceptor.
 const bubble = new THR.Mesh(new THR.SphereGeometry(N.blast * K, 24, 16), blueAdd(.1)); scene.add(bubble);
+// Ground aim point: where the attack missile would come down if it kept its present heading and dive.
+const aimRing = new THR.Group(), aimMat = blueAdd(.85, 0x4cff7a);
+aimRing.add(new THR.Mesh(new THR.RingGeometry(5.5, 7, 48).rotateX(-Math.PI / 2), aimMat), new THR.Mesh(new THR.CircleGeometry(1.2, 16).rotateX(-Math.PI / 2), aimMat));
+aimRing.visible = false; scene.add(aimRing);
+let CAM = 'chase', aimInfo = null;                         // camera mode while flying: 'chase' (behind) or 'hud' (cockpit)
+const sinkRate = (o, P) => o.vr * P.climb * (o.vr < 0 ? N.diveX : 1);   // map units per second, + = up
+function updateAim(side) {
+  const m = S.att, fly = S.state === 'fly' && side === 'a' && m.alive && !m.launch, vz = sinkRate(m, PA);
+  aimInfo = null; aimRing.visible = false;
+  if (!fly || vz > -0.5) return;
+  const t = (m.alt - groundAt(m)) / -vz; if (t > 60) return;
+  const p = { x: m.x + Math.cos(m.a) * m.cur * t, y: m.y + Math.sin(m.a) * m.cur * t };
+  let best = null; TARGETS.forEach((tg, k) => { if (G.hp[S.def][k] <= 0) return; const q = tPos(S.def, k), d = Math.hypot(p.x - q.x, p.y - q.y); if (!best || d < best.d) best = { d, name: tg[1] }; });
+  const onTarget = best && best.d <= 12;
+  to3(p.x, p.y, groundAt(p) + .5, aimRing.position); aimRing.position.y = Math.max(aimRing.position.y, .6);
+  aimMat.color.setHex(onTarget ? 0xff453a : 0x4cff7a); aimRing.visible = true;
+  aimInfo = { t, onTarget, best };
+}
 const bubbleRing = new THR.Mesh(new THR.RingGeometry(N.blast * K - .5, N.blast * K, 64).rotateX(-Math.PI / 2), blueAdd(.5)); scene.add(bubbleRing);
 
 // Missiles (main game's shape) with a flickering exhaust flame, a glow and a light that lights the ground and smoke.
@@ -836,6 +880,11 @@ function draw(dt = 1 / 60) {
       const cx = Math.cos(flying.a), cz = Math.sin(flying.a), mesh = flying === m ? attMesh : intMesh, f = flying.launch ? sstep(flying.launch.ign, flying.launch.dur, flying.launch.t) : 0;
       _c.copy(mesh.position); _c.y = Math.max(_c.y, 2); _p.set(_c.x - cz * 32 - cx * (10 + 14 * f), _c.y + (flying === m ? 11 : 14) + 4 * f, _c.z + cx * 32 - cz * (10 + 14 * f)); _t.set(_c.x + cx * 6, _c.y + 2, _c.z + cz * 6);   // a bit higher at the city, above its trees
       k = Math.min(1, dt * (S.state === 'ready' || flying.launch.t < flying.launch.ign ? 8 : 4)); }
+    else if (flying && CAM === 'hud') {                            // cockpit: in the nose, looking along the flight path
+      const P = flying === m ? PA : PI_, mesh = flying === m ? attMesh : intMesh, pitch = Math.atan2(sinkRate(flying, P), Math.max(flying.cur, 1));
+      const hx = Math.cos(flying.a), hz = Math.sin(flying.a), cp = Math.cos(pitch);
+      _p.copy(mesh.position).add(_c.set(hx * 5, 1, hz * 5)); _t.copy(_p).add(_c.set(hx * cp * 100, Math.sin(pitch) * 100, hz * cp * 100));
+      k = 1; camRoll = -flying.yr * .55; fovWant = 66 + (side === 'a' && m.boosting ? 8 : 0); mesh.visible = false; }
     else if (flying) { chaseCam(flying); k = Math.min(1, dt * 3.5); camRoll = -flying.yr * .14;
       fovWant = 52 + (flying.cur - 30) * .18 + (side === 'a' && m.boosting ? 10 : 0); }
     else if (side === 'd' && !i && S.state !== 'over') {           // defending, interceptor not launched yet: stand behind your battery
@@ -849,18 +898,67 @@ function draw(dt = 1 / 60) {
     drawMini(!!side);
     hudMarks(side, hide);
     placeLabels(side);
-  }
+    updateAim(side);
+    HUD.flying = flying && CAM === 'hud' && !flying.launch ? flying : null;
+  } else { HUD.flying = null; aimRing.visible = false; }
   camera.fov += (fovWant - camera.fov) * Math.min(1, dt * 3); camera.updateProjectionMatrix();
   camera.position.copy(camPos); camera.lookAt(camTgt); camera.rotateZ(rollNow += (camRoll - rollNow) * Math.min(1, dt * 3)); camRoll = 0;
   if (shake > .01) { camera.position.x += (rand() - .5) * shake; camera.position.y += (rand() - .5) * shake; shake *= Math.exp(-dt * 5); }
   for (const L of flashes) L.intensity *= Math.exp(-dt * 6);
   updPS(SMOKE, dt); updPS(GLOW, dt);
+  drawHUD();
   const attView = S && side === 'a', spotted = S && S.state === 'fly' && inRadar();
   radarLbl.textContent = attView ? (spotted ? 'ENEMY RADAR: spotted' : 'ENEMY RADAR: outside') : S && S.seen ? 'RADAR: CONTACT' : 'RADAR: searching…';
   radarLbl.classList.toggle('on', !attView && !!(S && S.seen)); radarLbl.classList.toggle('warn', !!(attView && spotted));
   renderer.render(scene, camera);
 }
 const radarLbl = document.getElementById('radarLbl');
+// Fighter-style HUD over the cockpit view: horizon and pitch ladder, heading strip, speed and height boxes, fuel, aim point.
+const HUD = { el: document.getElementById('hud'), flying: null };
+const hx2 = HUD.el.getContext('2d');
+function drawHUD() {
+  const o = HUD.flying, el = HUD.el; el.classList.toggle('hidden', !o); if (!o) return;
+  const dpr = devicePixelRatio || 1, w = innerWidth, h = innerHeight;
+  if (el.width !== Math.round(w * dpr)) { el.width = Math.round(w * dpr); el.height = Math.round(h * dpr); }
+  const x = hx2; x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, w, h);
+  const att = o === S.att, P = att ? PA : PI_, col = '#4cff7a', cx = w / 2, cy = h / 2, ppd = h / camera.fov;   // pixels per degree
+  const pitch = Math.atan2(sinkRate(o, P), Math.max(o.cur, 1)) * 180 / Math.PI;
+  x.strokeStyle = col; x.fillStyle = col; x.lineWidth = 2; x.font = '600 12px -apple-system, system-ui, monospace'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.shadowColor = 'rgba(0,0,0,.6)'; x.shadowBlur = 3;
+  // horizon + pitch ladder, turning with the bank
+  x.save(); x.translate(cx, cy); x.rotate(-rollNow); x.beginPath(); x.rect(-w * .3, -h * .38, w * .6, h * .76); x.clip();
+  for (let L = -60; L <= 60; L += 10) {
+    const y = (pitch - L) * ppd, half = L === 0 ? w * .22 : 46;
+    x.setLineDash(L < 0 ? [8, 6] : []); x.beginPath(); x.moveTo(-half, y); x.lineTo(-14, y); x.moveTo(14, y); x.lineTo(half, y); x.stroke();
+    if (L) { x.fillText(String(Math.abs(L)), -half - 14, y); x.fillText(String(Math.abs(L)), half + 14, y); }
+  }
+  x.setLineDash([]); x.restore();
+  // flight-path marker in the middle (the camera looks along the path)
+  x.beginPath(); x.arc(cx, cy, 7, 0, Math.PI * 2); x.moveTo(cx - 7, cy); x.lineTo(cx - 20, cy); x.moveTo(cx + 7, cy); x.lineTo(cx + 20, cy); x.moveTo(cx, cy - 7); x.lineTo(cx, cy - 14); x.stroke();
+  // heading strip
+  const hdg = ((o.a * 180 / Math.PI) + 90 + 360) % 360, top = Math.max(86, h * .18);   // below the score bar
+  x.save(); x.beginPath(); x.rect(cx - 150, top - 16, 300, 34); x.clip();
+  for (let d = Math.floor((hdg - 40) / 5) * 5; d <= hdg + 40; d += 5) {
+    const px = cx + (d - hdg) * 3.6, big = d % 15 === 0; x.beginPath(); x.moveTo(px, top + 12); x.lineTo(px, top + (big ? 2 : 7)); x.stroke();
+    if (d % 30 === 0) { const v = ((d % 360) + 360) % 360; x.fillText({ 0: 'N', 90: 'E', 180: 'S', 270: 'W' }[v] || String(v / 10).padStart(2, '0'), px, top - 8); } }
+  x.restore(); x.beginPath(); x.moveTo(cx, top + 14); x.lineTo(cx - 5, top + 22); x.lineTo(cx + 5, top + 22); x.closePath(); x.fill();
+  // speed (left) and height (right) boxes with small tapes
+  const box = (bx, label, val) => { x.strokeRect(bx - 38, cy - 13, 76, 26); x.fillText(val, bx, cy); x.font = '600 10px -apple-system, system-ui'; x.fillText(label, bx, cy - 24); x.font = '600 12px -apple-system, system-ui, monospace'; };
+  box(cx - w * .3 - 46, 'SPD m/s', String(Math.round(o.cur * 10)));
+  box(cx + w * .3 + 46, 'ALT m', String(Math.round((o.alt - groundAt(o)) * 10)));
+  // bottom line: fuel, boost, aim point
+  const bits = [`FUEL ${Math.max(0, Math.ceil(o.fuel * 100))}%`]; if (att && o.boosting) bits.push('BOOST');
+  if (att && aimInfo) bits.push(aimInfo.onTarget ? `ON TARGET — ${aimInfo.best.name}` : `IMPACT IN ${Math.ceil(aimInfo.t)} s`);
+  x.fillText(bits.join('   ·   '), cx, h - Math.max(88, h * .2));
+  // the aim point on the ground, if it is in view
+  if (att && aimInfo) { _m.copy(aimRing.position).project(camera);
+    if (_m.z < 1 && Math.abs(_m.x) < 1 && Math.abs(_m.y) < 1) { const ax = (_m.x + 1) / 2 * w, ay = (1 - _m.y) / 2 * h; x.strokeStyle = aimInfo.onTarget ? '#ff453a' : col;
+      x.beginPath(); x.moveTo(ax - 12, ay); x.lineTo(ax - 4, ay); x.moveTo(ax + 4, ay); x.lineTo(ax + 12, ay); x.moveTo(ax, ay - 12); x.lineTo(ax, ay - 4); x.moveTo(ax, ay + 4); x.lineTo(ax, ay + 12); x.stroke(); } }
+  x.shadowBlur = 0;
+}
+// Camera button above the joystick: chase view ↔ cockpit view.
+const camBtn = document.getElementById('camBtn');
+camBtn.addEventListener('pointerdown', e => { e.preventDefault(); CAM = CAM === 'hud' ? 'chase' : 'hud'; camBtn.textContent = CAM === 'hud' ? 'CHASE VIEW' : 'COCKPIT'; });
 // Target marker (the enemy craft, with distance and height difference) and your speed / height readout.
 const markEl = document.getElementById('mark'), markTxt = document.getElementById('markTxt'), readout = document.getElementById('readout');
 const metres = u => u * 10 >= 1000 ? (u / 100).toFixed(1) + ' km' : Math.round(u * 10) + ' m';
@@ -877,13 +975,14 @@ function hudMarks(side, hide) {
     const ref = mine || { x: city.x, y: city.y, alt: 0 }, d = dist3(tgt, ref), dh = tgt.alt - ref.alt;
     const inRange = side === 'd' && i && d <= N.blast;
     markEl.className = 'mark' + (side === 'a' ? ' int' : '') + (inRange ? ' ok' : '') + (edge ? ' edge' : '');
-    markTxt.textContent = inRange ? 'IN RANGE — DETONATE' : `${metres(d)} · ${Math.abs(dh) < 2 ? 'level' : (dh > 0 ? '▲ ' : '▼ ') + metres(Math.abs(dh))}`;
+    markTxt.textContent = inRange ? 'IN RANGE — DETONATE' : `ALT ${metres(tgt.alt)} ${Math.abs(dh) < 2 ? 'level' : (dh > 0 ? '▲' : '▼') + metres(Math.abs(dh))} · ${metres(d)}`;
   }
   readout.classList.toggle('hidden', !((fly || S.state === 'ready') && side));
   if (S.state === 'ready' && side === 'a') { readout.textContent = 'In the silo — tap LAUNCH'; return; }
   if (fly && side) {
     if (mine && mine.launch) readout.innerHTML = mine.launch.t < mine.launch.ign ? 'Launching…' : `Climbing out &nbsp; <b>ALT</b>${Math.round(mine.alt * 10)} m`;
     else if (mine) readout.innerHTML = `<b>SPD</b>${Math.round(mine.cur * 10)} m/s &nbsp; <b>ALT</b>${Math.round(mine.alt * 10)} m &nbsp; <b>FUEL</b>` + (mine.fuel > 0 ? Math.ceil(mine.fuel * 100) + '%' : '<span class="pull">EMPTY</span>') + (side === 'a' && m.boosting ? ' &nbsp;<span class="boost">BOOST</span>' : '')
+      + (nearEdge(mine) ? ' &nbsp;<span class="pull">EDGE — TURN BACK</span>' : '')
       + (mine.alt < 12 && mine.vr < -.05 && !(side === 'a' && Math.hypot(m.x - city.x, m.y - city.y) < 60) ? ' &nbsp;<span class="pull">PULL UP</span>' : '');
     else readout.textContent = S.used ? 'Interceptor gone' : inRadar() ? 'Contact — tap LAUNCH' : 'Waiting for radar contact';
   }
@@ -892,27 +991,29 @@ function hudMarks(side, hide) {
 const mini = document.getElementById('mini'), mx = mini.getContext('2d');
 function drawMini(show) {
   mini.classList.toggle('hidden', !show); if (!show) return;
-  const s = mini.width / W; mx.clearRect(0, 0, mini.width, mini.height);
-  mx.save(); mx.beginPath(); mx.rect(0, 0, mini.width, mini.height); mx.clip();
+  const s = Math.min(mini.width / (FLY.x1 - FLY.x0), mini.height / (FLY.y1 - FLY.y0)); mx.clearRect(0, 0, mini.width, mini.height);
+  mx.save(); mx.translate((mini.width - (FLY.x1 - FLY.x0) * s) / 2 - FLY.x0 * s, (mini.height - (FLY.y1 - FLY.y0) * s) / 2 - FLY.y0 * s);
+  mx.strokeStyle = 'rgba(255,255,255,.12)'; mx.lineWidth = 1; mx.strokeRect(FLY.x0 * s, FLY.y0 * s, (FLY.x1 - FLY.x0) * s, (FLY.y1 - FLY.y0) * s);   // edge of the flying area
   mx.strokeStyle = S.def ? 'rgba(10,132,255,.6)' : 'rgba(255,69,58,.6)'; mx.lineWidth = 2; mx.setLineDash([6, 5]);
-  mx.beginPath(); mx.arc(city.x * s, city.y * s, N.radar * s, 0, TAU); mx.stroke(); mx.setLineDash([]); mx.restore();
-  SIDES.forEach((sd, side) => { mx.fillStyle = 'rgba(142,142,147,.5)'; mx.beginPath(); mx.arc(sd.city.x * s, sd.city.y * s, 13, 0, TAU); mx.fill();
+  mx.beginPath(); mx.arc(city.x * s, city.y * s, N.radar * s, 0, TAU); mx.stroke(); mx.setLineDash([]);
+  SIDES.forEach((sd, side) => { mx.fillStyle = 'rgba(142,142,147,.5)'; mx.beginPath(); mx.arc(sd.city.x * s, sd.city.y * s, 9, 0, TAU); mx.fill();
     TARGETS.forEach((t, k) => { const q = tPos(side, k), hp = G.hp[side][k]; mx.fillStyle = hp <= 0 ? '#444' : hp > 60 ? '#30d158' : hp > 30 ? '#ff9f0a' : '#ff453a';
-      mx.beginPath(); mx.arc(q.x * s, q.y * s, 3.5, 0, TAU); mx.fill(); }); });
-  const dot = (x, y, a, col) => { mx.save(); mx.translate(x * s, y * s); mx.rotate(a); mx.fillStyle = col; mx.beginPath(); mx.moveTo(10, 0); mx.lineTo(-7, -6); mx.lineTo(-7, 6); mx.fill(); mx.restore(); };
+      mx.beginPath(); mx.arc(q.x * s, q.y * s, 2.4, 0, TAU); mx.fill(); }); });
+  const dot = (x, y, a, col) => { mx.save(); mx.translate(x * s, y * s); mx.rotate(a); mx.fillStyle = col; mx.beginPath(); mx.moveTo(8, 0); mx.lineTo(-5, -4.5); mx.lineTo(-5, 4.5); mx.fill(); mx.restore(); };
   if (S.att.alive && attMesh.visible) dot(S.att.x, S.att.y, S.att.a, '#ff453a');
   if (S.int) dot(S.int.x, S.int.y, S.int.a, '#ffffff');
+  mx.restore();
 }
 // start view: the whole field from the south
 to3(W / 2, H / 2, 0, camTgt); camPos.set(camTgt.x - 60, 330, camTgt.z + 420);
 
 // ---- HUD ----
-const actBtn = document.getElementById('actBtn'), dpad = document.getElementById('dpad'), rpad = document.getElementById('rpad'), roleLbl = document.getElementById('roleLbl');
+const actBtn = document.getElementById('actBtn'), dpad = document.getElementById('stick'), rpad = document.getElementById('rpad'), roleLbl = document.getElementById('roleLbl');
 function hud() {
   document.getElementById('sa').textContent = alive(0); document.getElementById('sd').textContent = alive(1);
   if (!S) return;
   const side = humanSide(), live = S.state !== 'over';
-  dpad.classList.toggle('hidden', !(side && live)); rpad.classList.toggle('hidden', !(side && live)); rpad.classList.toggle('d', side === 'd');
+  dpad.classList.toggle('hidden', !(side && live)); camBtn.classList.toggle('hidden', !(side && live)); rpad.classList.toggle('hidden', !(side && live)); rpad.classList.toggle('d', side === 'd');
   roleLbl.classList.toggle('hidden', !side); roleLbl.className = 'role ' + (side || '') + (side ? '' : ' hidden');
   roleLbl.textContent = side === 'a' ? `You attack ${SIDES[S.def].name}` : side === 'd' ? `You defend ${SIDES[S.def].name}` : '';
   if (side === 'a') { document.getElementById('fuel').style.width = (100 * S.att.fuel) + '%'; actBtn.textContent = S.state === 'ready' ? 'LAUNCH' : 'BOOST'; actBtn.disabled = false; }
