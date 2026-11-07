@@ -221,7 +221,7 @@ function newRound() {
 // Cold launch from the silo: doors open (until ign), a gas charge throws the missile straight up out of the shaft with no flame
 // (ign → hang), it hangs at the top while small RCS jets tip the nose toward the target (hang → mot), then the main motor
 // lights and it speeds away, climbing and slowly levelling off; control after dur seconds.
-const coldLaunch = () => ({ t: 0, ign: 1.2, hang: 2.0, mot: 2.7, dur: 7, peak: 7, tilt: 80 * Math.PI / 180, alt0: SILO_DEPTH, sp1: N.attStart, vertical: true });
+const coldLaunch = () => ({ t: 0, ign: 1.2, hang: 2.6, mot: 3.6, dur: 7.6, peak: 20, tilt: 80 * Math.PI / 180, alt0: SILO_DEPTH, sp1: N.attStart, vertical: true });
 const smoother = e => e * e * e * (e * (e * 6 - 15) + 10);
 function launchPitch(L) {                                 // nose angle above the horizon during the cold launch
   if (L.t < L.hang) return Math.PI / 2;
@@ -859,8 +859,8 @@ function rcsPuff(p, dir, a, sd) {
 }
 // Main motor lights above the silo: flash, a jet of fire, and the exhaust hits the ground, throwing up dust and smoke.
 function motorStart(p, dir, ground) {
-  ignition(p, dir, 1.3); silo.scorch.material.opacity = .55; flash(_a.set(ground.x, 3, ground.z), 6); shake = Math.max(shake, 1.7);
-  for (let k = 0; k < 120; k++) { const a = rand() * TAU, sp = 9 + rand() * 18, c = .55 + rand() * .2;
+  ignition(p, dir, 1.3); silo.scorch.material.opacity = .4; flash(_a.copy(p), 6); shake = Math.max(shake, 1.7);
+  for (let k = 0; k < 50; k++) { const a = rand() * TAU, sp = 7 + rand() * 14, c = .6 + rand() * .2;
     emit(SMOKE, ground.x + Math.cos(a) * 3, .8 + rand() * 1.5, ground.z + Math.sin(a) * 3, Math.cos(a) * sp, rand() * 3, Math.sin(a) * sp, 6 + rand() * 5, 3, 18, c, c * .93, c * .85, .8, .9, -.3); }
   for (let k = 0; k < 30; k++) emit(GLOW, ground.x + (rand() - .5) * 5, 1 + rand() * 2, ground.z + (rand() - .5) * 5, (rand() - .5) * 14, 3 + rand() * 6, (rand() - .5) * 14, .4 + rand() * .4, 4, 2, 1, .62, .28, 1, 1.5, 0);
 }
