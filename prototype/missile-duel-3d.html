@@ -817,7 +817,7 @@ function flicker(g, power) {
 // makes itself. Distant sounds are quieter, duller and arrive later; launches and explosions echo. SOUND: ON/OFF is remembered (localStorage duelSound).
 // iPhones: the first tap unlocks audio; with the phone on silent the game stays quiet (audio session "ambient").
 const SND = { on: (() => { try { return localStorage.getItem('duelSound') !== '0'; } catch (e) { return true; } })(), ctx: null, master: null, noise: null, loops: {}, beepAt: 0, buf: {}, echo: null };
-const SOUNDS = ['launch', 'rumble', 'battery', 'impact', 'airburst', 'steam', 'thump', 'rcs', 'doors', 'siren', 'flyby'];
+const SOUNDS = ['launch', 'rumble', 'battery', 'impact', 'airburst', 'steam', 'thump', 'rcs', 'doors', 'alarm', 'klaxon', 'buzzer', 'flyby'];
 // In the browser the recordings load from sounds/; in the iPhone app they come built into duel-sounds.js (window.DUEL_SOUNDS, base64).
 function loadSounds(c) {
   for (const n of SOUNDS) {
@@ -871,7 +871,9 @@ function setLoop(name, vol, freq, rate) {
   if (freq) { L.f.frequency.setTargetAtTime(L.real ? clamp(freq * 6, 600, 16000) : freq, t, .1); if (L.real && rate) L.src.playbackRate.setTargetAtTime(rate, t, .15); }
 }
 const near = p => clamp(55 / (55 + camera.position.distanceTo(p)), 0, 1);       // louder the closer it is to the camera
-const sDoors = () => { if (play('siren', { vol: .45, at: silo.g.position, minVol: .5 }) & play('doors', { vol: .8, at: silo.g.position, minVol: .5 })) return; sDoorsSynth(); };
+const sDoors = () => {                                    // launch alarm: military alarm with a submarine dive klaxon under it, the door buzzer and the heavy doors
+  const p = silo.g.position, o = { at: p, minVol: .55 };
+  if (play('alarm', { ...o, vol: .6 }) & play('klaxon', { ...o, vol: .55 }) & play('buzzer', { ...o, vol: .35, delay: .15 }) & play('doors', { ...o, vol: .8, delay: .1 })) return; sDoorsSynth(); };
 const sDoorsSynth = () => { for (let k = 0; k < 4; k++) blip({ type: 'square', f0: k % 2 ? 440 : 587, dur: .26, vol: .05, delay: k * .3, at: .01 });   // silo alarm
   blip({ f0: 190, f1: 110, dur: 1.1, vol: .2, filt: 'bandpass', q: 3, at: .2 }); };                                                        // doors grinding open
 const sGas = () => { if (play('steam', { vol: 1, at: silo.g.position, echo: .4, minVol: .5 }) & play('thump', { vol: .9, rate: .7, at: silo.g.position, echo: .5, minVol: .5 })) return; sGasSynth(); };
