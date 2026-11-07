@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Missile Duel</title>
+<style>
+  :root { --card: rgb(33,33,33); --row: rgba(255,255,255,.06); --blue: #0a84ff; --red: #ff453a; --grey: #8e8e93; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+  html, body { margin: 0; height: 100%; background: #000; color: #fff; overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; touch-action: none; }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .top { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; align-items: center;
+    background: var(--card); border-radius: 14px; padding: 6px 10px; font-size: 14px; }
+  .score { font-weight: 600; font-variant-numeric: tabular-nums; padding: 0 6px; }
+  .score .a { color: var(--red); } .score .d { color: var(--blue); }
+  .seg { white-space: nowrap; background: var(--row); border-radius: 10px; padding: 5px 9px; color: #fff; border: 0; font: inherit; font-size: 13px; }
+  .pad { position: absolute; bottom: 14px; display: grid; gap: 8px; }
+  .pad.att { left: 14px; grid-template-columns: 64px 64px 64px; }
+  .pad.def { right: 14px; grid-template-columns: 64px 64px 64px; }
+  .pad .lbl { grid-column: 1 / -1; font-size: 11px; color: var(--grey); text-transform: uppercase; letter-spacing: .06em; text-align: center; }
+  .btn { height: 64px; border-radius: 16px; border: 0; background: rgba(255,255,255,.12); color: #fff; font: inherit;
+    font-size: 22px; font-weight: 600; touch-action: none; }
+  .btn.small { font-size: 12px; letter-spacing: .03em; }
+  .btn.on { background: rgba(255,255,255,.3); }
+  .att .btn.act { background: rgba(255,69,58,.35); } .def .btn.act { background: rgba(10,132,255,.4); }
+  .btn:disabled { opacity: .3; }
+  .ai .btn { opacity: .25; pointer-events: none; }
+  .bar { grid-column: 1 / -1; height: 5px; background: var(--row); border-radius: 3px; overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 100%; }
+  .att .bar i { background: var(--red); } .def .bar i { background: var(--blue); }
+  .dim { position: absolute; inset: 0; background: rgba(0,0,0,.35); display: flex; align-items: center; justify-content: center; }
+  .win { width: 420px; max-width: calc(100% - 32px); background: var(--card); border-radius: 20px; padding: 18px; text-align: center; }
+  .win h2 { margin: 0 0 6px; font-size: 22px; } .win p { margin: 0 0 14px; color: var(--grey); font-size: 14px; line-height: 1.4; }
+  .go { width: 100%; height: 46px; border-radius: 12px; border: 0; background: var(--blue); color: #fff; font: inherit; font-size: 16px; font-weight: 600; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div class="top">
+  <button class="seg" id="attMode">Attacker: You</button>
+  <div class="score"><span class="a" id="sa">0</span> : <span class="d" id="sd">0</span></div>
+  <button class="seg" id="defMode">Defender: AI</button>
+  <button class="seg" id="fogMode">Radar fog: On</button>
+</div>
+
+<div class="pad att" id="attPad">
+  <div class="lbl">Attacker missile</div>
+  <div class="bar"><i id="fuelA"></i></div>
+  <button class="btn" data-k="aL">◀</button>
+  <button class="btn small act" data-k="aB">BOOST</button>
+  <button class="btn" data-k="aR">▶</button>
+</div>
+
+<div class="pad def" id="defPad">
+  <div class="lbl">Interceptor</div>
+  <div class="bar"><i id="fuelD"></i></div>
+  <button class="btn" data-k="dL">◀</button>
+  <button class="btn small act" data-k="dF" id="fireBtn">LAUNCH</button>
+  <button class="btn" data-k="dR">▶</button>
+</div>
+
+<div class="dim" id="dim">
+  <div class="win">
+    <h2 id="title">Missile Duel</h2>
+    <p id="msg">Red flies one missile at the blue city. Blue launches one interceptor, steers it, and presses DETONATE at the right moment. Blast radius is small — timing matters.<br>Keys: A / D / W (red) · ← / → / Space (blue). Playing one side against the AI, either set works.</p>
+    <button class="go" id="go">Start</button>
+  </div>
+</div>
+
+<script>
+// ---- Numbers (world units; the map is 1000 × 560) ----
+const W = 1000, H = 560;
+const N = {
+  attSpeed: 70, attBoost: 120, attTurn: 100, attFuel: 2.5,      // u/s, u/s, °/s, seconds of boost
+  intSpeed: 120, intTurn: 120, intLife: 7,                       // u/s, °/s, seconds before it self-destructs
+  blast: 28, contact: 8, radar: 520, cityR: 28,                  // units
+};
+const D2R = Math.PI / 180;
+const city = { x: 930, y: H / 2 };
+
+const cv = document.getElementById('c'), cx = cv.getContext('2d');
+let scale = 1, ox = 0, oy = 0;
+function fit() {
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = innerWidth * dpr; cv.height = innerHeight * dpr;
+  scale = Math.min(innerWidth / W, (innerHeight - 20) / H);
+  ox = (innerWidth - W * scale) / 2; oy = (innerHeight - H * scale) / 2;
+  cx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * ox, dpr * oy);
+}
+addEventListener('resize', fit); fit();
+
+// ---- Input: held buttons + one-shot taps ----
+const held = new Set();
+const keyMap = { KeyA: 'aL', KeyD: 'aR', KeyW: 'aB', ArrowLeft: 'dL', ArrowRight: 'dR', ArrowUp: 'dF', Space: 'dF' };
+// With only one human side, both key sets drive that side (arrows can fly the missile, A/D can steer the interceptor).
+const toHuman = k => ai.def && !ai.att && k[0] === 'd' ? { dL: 'aL', dR: 'aR', dF: 'aB' }[k] : ai.att && !ai.def && k[0] === 'a' ? { aL: 'dL', aR: 'dR', aB: 'dF' }[k] : k;
+addEventListener('keydown', e => { let k = keyMap[e.code]; if (!k) return; k = toHuman(k); e.preventDefault(); if (!e.repeat) press(k); });
+addEventListener('keyup', e => { const k = keyMap[e.code]; if (k) release(toHuman(k)); });
+document.querySelectorAll('.btn').forEach(b => {
+  const k = b.dataset.k;
+  b.addEventListener('pointerdown', e => { e.preventDefault(); b.setPointerCapture(e.pointerId); press(k); });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => b.addEventListener(ev, () => release(k)));
+});
+function isAI(k) { return (k[0] === 'a' && ai.att) || (k[0] === 'd' && ai.def); }
+function press(k) {
+  if (isAI(k)) return;
+  held.add(k); markBtn(k, true);
+  if (k === 'dF') defFire();
+}
+function release(k) { held.delete(k); markBtn(k, false); }
+function markBtn(k, on) { const b = document.querySelector(`[data-k="${k}"]`); if (b) b.classList.toggle('on', on); }
+
+const ai = { att: true, def: false };
+const attModeBtn = document.getElementById('attMode'), defModeBtn = document.getElementById('defMode');
+function refreshModes() {
+  attModeBtn.textContent = 'Attacker: ' + (ai.att ? 'AI' : 'You');
+  defModeBtn.textContent = 'Defender: ' + (ai.def ? 'AI' : 'You');
+  document.getElementById('attPad').classList.toggle('ai', ai.att);
+  document.getElementById('defPad').classList.toggle('ai', ai.def);
+}
+attModeBtn.onclick = () => { ai.att = !ai.att; refreshModes(); };
+defModeBtn.onclick = () => { ai.def = !ai.def; refreshModes(); };
+const fogBtn = document.getElementById('fogMode');
+let fog = true;
+fogBtn.onclick = () => { fog = !fog; fogBtn.textContent = 'Radar fog: ' + (fog ? 'On' : 'Off'); };
+refreshModes();
+
+// ---- Game state ----
+let S, score = { a: 0, d: 0 };
+function newRound() {
+  const y = H * (0.15 + 0.7 * Math.random());
+  S = {
+    state: 'fly', t: 0,
+    att: { x: 50, y, a: Math.atan2(city.y - y, city.x - 50), fuel: N.attFuel, trail: [], alive: true },
+    int: null, used: false, blasts: [], seen: false, end: null,
+  };
+}
+function defFire() {
+  if (!S || S.state !== 'fly') return;
+  if (!S.used) {                              // first press: launch
+    if (!inRadar()) return;                   // can only launch once the radar sees it
+    S.used = true;
+    const a = Math.atan2(S.att.y - city.y, S.att.x - city.x);
+    S.int = { x: city.x - 20, y: city.y, a, life: N.intLife, trail: [], prevD: 1e9 };
+  } else if (S.int) {                         // second press: detonate
+    detonate();
+  }
+}
+function inRadar(x = S.att.x, y = S.att.y) { return Math.hypot(x - city.x, y - city.y) <= N.radar; }
+function detonate() {
+  const i = S.int; if (!i) return;
+  S.blasts.push({ x: i.x, y: i.y, r: N.blast, t: 0, c: '10,132,255' });
+  S.int = null;
+  const d = Math.hypot(S.att.x - i.x, S.att.y - i.y);
+  if (d <= N.blast) finish('d', `Intercepted! The blast was ${d.toFixed(0)} units from the missile.`);
+}
+function finish(who, why) {
+  if (S.state !== 'fly') return;
+  S.state = 'over';
+  if (who === 'd') { S.att.alive = false; S.blasts.push({ x: S.att.x, y: S.att.y, r: 40, t: 0, c: '255,159,10' }); }
+  else S.blasts.push({ x: city.x, y: city.y, r: 70, t: 0, c: '255,69,58' });
+  score[who]++;
+  S.end = { who, why, at: S.t };
+}
+
+// ---- AI ----
+function angDiff(a, b) { let d = b - a; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; }
+function steerTo(cur, want) { const d = angDiff(cur, want); return Math.abs(d) < 0.04 ? 0 : Math.sign(d); }
+function aiAttacker() {
+  const m = S.att, i = S.int;
+  let want = Math.atan2(city.y - m.y, city.x - m.x) + Math.sin(S.t * 1.4) * 0.55;   // weave toward the city
+  let boost = false;
+  if (i) {
+    const d = Math.hypot(i.x - m.x, i.y - m.y);
+    if (d < 150) {                                    // hard break across the interceptor's path, with boost
+      const side = Math.sign(angDiff(i.a, Math.atan2(m.y - i.y, m.x - i.x))) || 1;
+      want = i.a + side * Math.PI / 2; boost = true;
+    }
+  }
+  return { turn: steerTo(m.a, want), boost };
+}
+function aiDefender() {
+  if (!S.used) { if (inRadar() && Math.hypot(S.att.x - city.x, S.att.y - city.y) < N.radar - 40) defFire(); return 0; }
+  const i = S.int; if (!i) return 0;
+  const m = S.att, d = Math.hypot(m.x - i.x, m.y - i.y);
+  if (S.t >= (S.aiNext || 0)) {                        // human-like: looks again only every 0.4 s
+    S.aiNext = S.t + 0.4;
+    const lead = d / N.intSpeed * 0.8, sp = m.boosting ? N.attBoost : N.attSpeed;
+    S.aiWant = Math.atan2(m.y + Math.sin(m.a) * sp * lead - i.y, m.x + Math.cos(m.a) * sp * lead - i.x);
+  }
+  if (!S.aiDet) S.aiDet = N.blast * (0.6 + Math.random() * 0.9);  // its "press" timing is a bit off each round
+  if (d < S.aiDet && (d < S.aiDet * 0.5 || d > i.prevD)) detonate();
+  return steerTo(i.a, S.aiWant);
+}
+
+// ---- Update ----
+function step(dt) {
+  if (!S) return;
+  S.t += dt;
+  S.blasts.forEach(b => b.t += dt); S.blasts = S.blasts.filter(b => b.t < 1.2);
+  if (S.state !== 'fly') return;
+
+  const m = S.att;
+  let aTurn, aBoost;
+  if (ai.att) ({ turn: aTurn, boost: aBoost } = aiAttacker());
+  else { aTurn = (held.has('aR') ? 1 : 0) - (held.has('aL') ? 1 : 0); aBoost = held.has('aB'); }
+  let dTurn = ai.def ? aiDefender() : (held.has('dR') ? 1 : 0) - (held.has('dL') ? 1 : 0);
+  if (S.state !== 'fly') return;                       // AI may have detonated
+
+  m.boosting = aBoost && m.fuel > 0;
+  if (m.boosting) m.fuel = Math.max(0, m.fuel - dt);
+  m.a += aTurn * N.attTurn * D2R * dt;
+  const sp = m.boosting ? N.attBoost : N.attSpeed;
+  m.x += Math.cos(m.a) * sp * dt; m.y += Math.sin(m.a) * sp * dt;
+  m.trail.push([m.x, m.y]); if (m.trail.length > 400) m.trail.shift();
+  if (inRadar()) S.seen = true;
+
+  const i = S.int;
+  if (i) {
+    i.a += dTurn * N.intTurn * D2R * dt;
+    i.x += Math.cos(i.a) * N.intSpeed * dt; i.y += Math.sin(i.a) * N.intSpeed * dt;
+    i.trail.push([i.x, i.y]); if (i.trail.length > 400) i.trail.shift();
+    i.life -= dt;
+    const d = Math.hypot(m.x - i.x, m.y - i.y);
+    if (d <= N.contact) { detonate(); return; }
+    i.prevD = d;
+    if (i.life <= 0) detonate();                         // out of fuel: blows up wherever it is
+  }
+
+  if (Math.hypot(m.x - city.x, m.y - city.y) <= N.cityR) finish('a', 'The missile hit the city.');
+  else if (m.x < -30 || m.x > W + 30 || m.y < -30 || m.y > H + 30) finish('d', 'The missile flew off the map.');
+}
+
+// ---- Draw ----
+function draw() {
+  cx.save(); cx.setTransform(1, 0, 0, 1, 0, 0); cx.fillStyle = '#000'; cx.fillRect(0, 0, cv.width, cv.height); cx.restore();
+  cx.fillStyle = '#121a14'; cx.fillRect(0, 0, W, H);
+  cx.strokeStyle = 'rgba(255,255,255,.04)'; cx.lineWidth = 1;
+  for (let x = 0; x <= W; x += 50) { cx.beginPath(); cx.moveTo(x, 0); cx.lineTo(x, H); cx.stroke(); }
+  for (let y = 0; y <= H; y += 50) { cx.beginPath(); cx.moveTo(0, y); cx.lineTo(W, y); cx.stroke(); }
+
+  // radar range + sweep
+  cx.save(); cx.beginPath(); cx.rect(0, 0, W, H); cx.clip();
+  cx.strokeStyle = 'rgba(10,132,255,.35)'; cx.setLineDash([6, 6]);
+  cx.beginPath(); cx.arc(city.x, city.y, N.radar, 0, 2 * Math.PI); cx.stroke(); cx.setLineDash([]);
+  const sw = (S ? S.t : performance.now() / 1000) * 1.6;
+  const g = cx.createConicGradient ? cx.createConicGradient(sw, city.x, city.y) : null;
+  if (g) { g.addColorStop(0, 'rgba(10,132,255,.18)'); g.addColorStop(0.08, 'rgba(10,132,255,0)'); g.addColorStop(1, 'rgba(10,132,255,0)');
+    cx.fillStyle = g; cx.beginPath(); cx.arc(city.x, city.y, N.radar, 0, 2 * Math.PI); cx.fill(); }
+  cx.restore();
+
+  // city
+  const blocks = [[-14,-12,10,14],[-2,-18,9,20],[9,-8,9,12],[-16,4,12,10],[0,5,14,12],[-6,-4,8,8]];
+  cx.fillStyle = '#3a4a5c'; blocks.forEach(([x, y, w, h]) => cx.fillRect(city.x + x, city.y + y, w, h));
+  cx.strokeStyle = 'rgba(10,132,255,.6)'; cx.beginPath(); cx.arc(city.x, city.y, N.cityR, 0, 2 * Math.PI); cx.stroke();
+  cx.fillStyle = '#0a84ff'; cx.fillRect(city.x - 26, city.y - 3, 8, 6);  // launcher
+
+  if (!S) return;
+  // blast radius preview around the interceptor
+  if (S.int) { cx.strokeStyle = 'rgba(10,132,255,.5)'; cx.beginPath(); cx.arc(S.int.x, S.int.y, N.blast, 0, 2 * Math.PI); cx.stroke(); }
+
+  // radar fog: the defender only sees the missile (and its trail) inside radar range; after the round, all is shown
+  const hide = fog && S.state === 'fly';
+  drawTrail(hide ? S.att.trail.filter(p => inRadar(p[0], p[1])) : S.att.trail, '255,69,58');
+  if (S.int) drawTrail(S.int.trail, '10,132,255');
+  if (S.att.alive && (!hide || inRadar())) drawMissile(S.att, '#ff453a', S.att.boosting);
+  if (S.int) drawMissile(S.int, '#0a84ff', true);
+
+  S.blasts.forEach(b => {
+    const k = Math.min(1, b.t / 0.25), fade = 1 - b.t / 1.2;
+    cx.fillStyle = `rgba(${b.c},${0.45 * fade})`; cx.beginPath(); cx.arc(b.x, b.y, b.r * k, 0, 2 * Math.PI); cx.fill();
+    cx.strokeStyle = `rgba(255,255,255,${0.6 * fade})`; cx.stroke();
+  });
+
+  // radar status text
+  cx.fillStyle = S.seen ? '#0a84ff' : '#8e8e93'; cx.font = '600 13px -apple-system, system-ui';
+  cx.fillText(S.seen ? 'RADAR: CONTACT' : 'RADAR: searching…', 14, 22);
+}
+function drawTrail(tr, c) {
+  for (let k = 1; k < tr.length; k++) {
+    cx.strokeStyle = `rgba(${c},${0.5 * k / tr.length})`; cx.lineWidth = 2;
+    cx.beginPath(); cx.moveTo(tr[k - 1][0], tr[k - 1][1]); cx.lineTo(tr[k][0], tr[k][1]); cx.stroke();
+  }
+  cx.lineWidth = 1;
+}
+function drawMissile(m, col, flame) {
+  cx.save(); cx.translate(m.x, m.y); cx.rotate(m.a);
+  if (flame) { cx.fillStyle = 'rgba(255,200,80,.85)'; cx.beginPath(); cx.moveTo(-8, -2.5); cx.lineTo(-16 - Math.random() * 6, 0); cx.lineTo(-8, 2.5); cx.fill(); }
+  cx.fillStyle = col; cx.beginPath(); cx.moveTo(10, 0); cx.lineTo(-8, -4); cx.lineTo(-8, 4); cx.closePath(); cx.fill();
+  cx.restore();
+}
+
+// ---- HUD ----
+const fireBtn = document.getElementById('fireBtn');
+function hud() {
+  document.getElementById('sa').textContent = score.a; document.getElementById('sd').textContent = score.d;
+  if (!S) return;
+  document.getElementById('fuelA').style.width = (100 * S.att.fuel / N.attFuel) + '%';
+  document.getElementById('fuelD').style.width = (S.int ? 100 * S.int.life / N.intLife : S.used ? 0 : 100) + '%';
+  fireBtn.textContent = S.int ? 'DETONATE' : 'LAUNCH';
+  fireBtn.disabled = S.state === 'fly' && ((!S.used && !inRadar()) || (S.used && !S.int));
+  if (S.state === 'over' && S.t - S.end.at > 1.3 && dim.classList.contains('hidden')) {
+    document.getElementById('title').textContent = S.end.who === 'a' ? 'Attacker wins' : 'Defender wins';
+    document.getElementById('msg').textContent = S.end.why;
+    document.getElementById('go').textContent = 'Next round';
+    dim.classList.remove('hidden');
+  }
+}
+const dim = document.getElementById('dim');
+document.getElementById('go').onclick = () => { dim.classList.add('hidden'); newRound(); };
+
+// ---- Loop (window.__advance(sec) steps it in tests) ----
+const DT = 1 / 120;
+let last = performance.now(), acc = 0;
+function frame(now) {
+  acc += Math.min(0.1, (now - last) / 1000); last = now;
+  while (acc >= DT) { step(DT); acc -= DT; }
+  draw(); hud(); requestAnimationFrame(frame);
+}
+window.__advance = sec => { for (let t = 0; t < sec; t += DT) step(DT); draw(); hud(); };
+window.__start = () => { dim.classList.add('hidden'); newRound(); };
+window.__state = () => S;
+if (location.search.includes('demo')) { ai.att = ai.def = true; refreshModes(); }
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
